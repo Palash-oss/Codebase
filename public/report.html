@@ -1,0 +1,3321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Codebase X-Ray — Architecture Report</title>
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      /* Backgrounds */
+      --black:      #080808;
+      --black-2:    #111111;
+      --black-3:    #1a1a1a;
+      --black-4:    #242424;
+
+      /* The neon */
+      --orange:     #FF4D00;
+      --orange-dim: rgba(255,77,0,0.08);
+      --orange-glow:rgba(255,77,0,0.20);
+
+      /* Text */
+      --beige:      #F5F0E8;
+      --beige-2:    #C8C0B0;
+      --beige-3:    #7A7268;
+
+      /* Borders */
+      --border:     #1e1e1e;
+      --border-2:   #2a2a2a;
+      --border-3:   #3a3a3a;
+
+      /* Layer colors */
+      --layer-presentation: #FF4D00;
+      --layer-interaction:  #A855F7;
+      --layer-gateway:      #3B82F6;
+      --layer-domain:       #06B6D4;
+      --layer-persistence:  #22C55E;
+      --layer-foundation:   #7A7268;
+      --layer-infra:        #4B5563;
+      --layer-test:         #EAB308;
+      --layer-unknown:      #3A3A3A;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: var(--black); }
+    ::-webkit-scrollbar-thumb { background: var(--orange); border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--beige); }
+    * { 
+      scrollbar-width: thin; 
+      scrollbar-color: var(--orange) var(--black); 
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    ::selection { background: var(--orange); color: var(--black); }
+
+    body {
+      background-color: var(--black);
+      color: var(--beige);
+      font-family: 'Space Grotesk', sans-serif;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    /* Navbar */
+    .navbar {
+      height: 48px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background-color: var(--black-2);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      z-index: 1001;
+    }
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .wordmark {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.20em;
+      text-transform: uppercase;
+    }
+    .wordmark span.first { color: var(--beige); }
+    .wordmark span.second { color: var(--orange); }
+    .separator {
+      color: var(--beige-3);
+    }
+    .project-name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--beige-2);
+    }
+    .file-count {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--beige-3);
+    }
+    .nav-middle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: auto;
+    }
+    .tech-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background-color: var(--black-3);
+      border: 1px solid var(--border-2);
+      border-radius: 20px;
+      padding: 3px 8px 3px 4px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--beige-3);
+    }
+    .tech-pill-logo {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+    }
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .findings-badge {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+    .findings-badge.errors {
+      background: var(--orange-dim);
+      border: 1px solid var(--orange-glow);
+      color: var(--orange);
+    }
+    .findings-badge.warnings {
+      background: rgba(234, 179, 8, 0.08);
+      border: 1px solid rgba(234, 179, 8, 0.2);
+      color: #EAB308;
+    }
+    .findings-badge.clean {
+      background: rgba(34, 197, 94, 0.08);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      color: #22C55E;
+    }
+    .btn-action {
+      background: transparent;
+      border: 1px solid var(--border-3);
+      border-radius: 4px;
+      padding: 5px 12px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 12px;
+      color: var(--beige-2);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-action:hover {
+      border-color: var(--orange);
+      color: var(--beige);
+    }
+
+    /* Sidebar (56px) */
+    .sidebar {
+      position: fixed;
+      left: 0;
+      top: 48px;
+      bottom: 0;
+      width: 56px;
+      background-color: var(--black-2);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 0;
+      gap: 8px;
+      z-index: 1000;
+    }
+    .sidebar-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid transparent;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+    .sidebar-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: var(--beige-3);
+      transition: fill 0.2s ease;
+    }
+    .sidebar-btn:hover {
+      background-color: var(--black-4);
+    }
+    .sidebar-btn:hover svg {
+      fill: var(--beige-2);
+    }
+    .sidebar-btn.active {
+      background-color: var(--orange-dim);
+      border-color: var(--orange-glow);
+    }
+    .sidebar-btn.active svg {
+      fill: var(--orange);
+    }
+
+    /* Tooltip */
+    .sidebar-btn .tooltip {
+      position: absolute;
+      left: 64px;
+      background-color: var(--black-3);
+      border: 1px solid var(--border-2);
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 12px;
+      color: var(--beige-2);
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateX(-8px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 1002;
+    }
+    .sidebar-btn:hover .tooltip {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    /* Main Content Area */
+    .main-content {
+      position: fixed;
+      left: 56px;
+      top: 48px;
+      right: 0;
+      bottom: 0;
+      transition: right 0.25s cubic-bezier(0.19, 1, 0.22, 1), bottom 0.25s cubic-bezier(0.19, 1, 0.22, 1);
+    }
+    .main-content.panel-open { right: 320px; }
+    .main-content.chat-open { bottom: 300px; }
+    .main-content.both-open { right: 320px; bottom: 300px; }
+
+    /* Views */
+    .view-container {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      overflow: hidden;
+    }
+    .view-container.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* View 1: Canvas Architecture Diagram Editor */
+    #view-architecture {
+      background-color: var(--black);
+    }
+    #canvas-architecture {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .canvas-controls {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      background-color: rgba(255, 255, 255, 0.95);
+      border: 1px solid #C8C0B0;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      z-index: 10;
+    }
+    .canvas-controls button {
+      background: transparent;
+      border: none;
+      color: #333;
+      font-size: 16px;
+      cursor: pointer;
+      font-family: 'Space Mono', monospace;
+    }
+    .canvas-controls span {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: #666;
+    }
+
+    /* Floating Diagram Editor Toolbar */
+    .editor-toolbar {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #C8C0B0;
+      border-radius: 6px;
+      padding: 6px;
+      display: flex;
+      gap: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      z-index: 10;
+    }
+    .tool-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      padding: 6px 12px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: #333333;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+    .tool-btn:hover {
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+    .tool-btn.active {
+      background-color: var(--orange-dim);
+      border-color: var(--orange-glow);
+      color: var(--orange);
+    }
+
+    /* Editor Settings Modal */
+    .editor-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--black-2);
+      border: 1px solid var(--border-2);
+      border-radius: 8px;
+      padding: 24px;
+      width: 320px;
+      z-index: 2000;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .editor-modal h3 {
+      font-size: 16px;
+      margin-bottom: 16px;
+      color: var(--beige);
+    }
+    .editor-modal label {
+      font-size: 11px;
+      color: var(--beige-3);
+      margin-top: 12px;
+      display: block;
+      text-transform: uppercase;
+    }
+    .editor-modal input, .editor-modal select {
+      width: 100%;
+      background: var(--black-4);
+      border: 1px solid var(--border-3);
+      border-radius: 4px;
+      padding: 8px 12px;
+      color: var(--beige);
+      font-family: inherit;
+      margin-top: 4px;
+    }
+    .editor-modal input:focus {
+      outline: none;
+      border-color: var(--orange);
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 20px;
+    }
+    .modal-actions button {
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .modal-actions button:first-child {
+      background: var(--orange);
+      color: var(--black);
+      border: none;
+    }
+    .modal-actions button:last-child {
+      background: transparent;
+      border: 1px solid var(--border-3);
+      color: var(--beige-2);
+    }
+
+    /* View 2: Layer Diagram */
+    #view-layers {
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .layer-band {
+      display: flex;
+      border: 1px solid var(--border);
+      background-color: var(--black-2);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .layer-label-col {
+      width: 160px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+      border-right: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .layer-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .layer-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .layer-name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .layer-count {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--beige-3);
+    }
+    .layer-files-col {
+      flex-grow: 1;
+      padding: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-content: center;
+    }
+    .file-card {
+      background-color: var(--black-3);
+      border: 1px solid var(--border-2);
+      border-radius: 4px;
+      padding: 6px 10px;
+      cursor: pointer;
+      max-width: 180px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .file-card span.name {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--beige-2);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .finding-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .finding-dot.warning { background-color: #EAB308; }
+    .finding-dot.error { background-color: var(--orange); }
+
+    .layer-connector {
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .layer-connector::before {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background-color: var(--border-3);
+    }
+    .layer-connector-label {
+      position: relative;
+      background-color: var(--black);
+      padding: 2px 8px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--beige-3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      z-index: 1;
+    }
+
+    /* View 3: File Explorer */
+    #view-explorer {
+      display: flex;
+      height: 100%;
+    }
+    .explorer-left {
+      width: 280px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      background-color: var(--black-2);
+    }
+    .explorer-header {
+      height: 40px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--beige-3);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .explorer-search {
+      background-color: var(--black-3);
+      border: none;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 14px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      color: var(--beige);
+      width: 100%;
+    }
+    .explorer-search:focus {
+      outline: none;
+      border-bottom-color: var(--orange);
+    }
+    .explorer-tree {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+    .tree-row {
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 12px;
+    }
+    .tree-row:hover {
+      background-color: var(--black-3);
+    }
+    .tree-row.selected {
+      background-color: var(--black-3);
+      border-right: 2px solid var(--orange);
+    }
+    .tree-node-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow: hidden;
+    }
+    .tree-chevron {
+      width: 12px;
+      height: 12px;
+      fill: var(--beige-3);
+      transition: transform 0.2s;
+    }
+    .tree-chevron.collapsed {
+      transform: rotate(-90deg);
+    }
+    .tree-icon {
+      width: 14px;
+      height: 14px;
+      fill: var(--beige-3);
+      flex-shrink: 0;
+    }
+    .tree-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tree-label.file {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--beige-2);
+    }
+    .tree-row-badges {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .badge-count {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--black);
+    }
+    .badge-count.error { background-color: var(--orange); }
+    .badge-count.warning { background-color: #EAB308; }
+
+    .explorer-right {
+      flex-grow: 1;
+      height: 100%;
+      overflow-y: auto;
+      padding: 24px;
+      background-color: var(--black);
+    }
+    .explorer-placeholder {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--beige-3);
+    }
+    .explorer-detail { display: none; }
+    .detail-header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+    .detail-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--beige);
+      margin-bottom: 4px;
+    }
+    .detail-path {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--beige-3);
+      margin-bottom: 12px;
+    }
+    .detail-badges {
+      display: flex;
+      gap: 8px;
+    }
+    .pill-badge {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .detail-stat-card {
+      background-color: var(--black-3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+    }
+    .detail-stat-label {
+      font-size: 10px;
+      color: var(--beige-3);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+    .detail-stat-val {
+      font-family: 'Space Mono', monospace;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--beige);
+    }
+
+    .detail-section-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--orange);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border-3);
+      padding-bottom: 4px;
+    }
+    .issues-list, .imports-list, .exports-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    .issue-item {
+      background-color: rgba(255, 77, 0, 0.03);
+      border: 1px solid var(--border-3);
+      border-left: 3px solid var(--orange);
+      padding: 12px;
+      border-radius: 4px;
+    }
+    .issue-item.warning {
+      border-left-color: #EAB308;
+      background-color: rgba(234, 179, 8, 0.02);
+    }
+    .issue-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .issue-rule {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 1px 6px;
+      border-radius: 2px;
+      background-color: var(--black-4);
+    }
+    .issue-msg {
+      font-size: 13px;
+      color: var(--beige-2);
+      margin-bottom: 4px;
+    }
+    .issue-sugg {
+      font-size: 12px;
+      color: var(--beige-3);
+      font-style: italic;
+    }
+    .list-item-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .list-item-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .list-item-name {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .list-item-name.clickable {
+      color: var(--orange);
+    }
+    .list-item-name.clickable:hover {
+      text-decoration: underline;
+    }
+
+    /* View 4: Dependency Graph SVG */
+    #view-graph {
+      background-color: var(--black);
+    }
+    #svg-graph {
+      width: 100%;
+      height: 100%;
+    }
+    .graph-tooltip {
+      position: absolute;
+      background-color: var(--black-3);
+      border: 1px solid var(--border-2);
+      border-radius: 4px;
+      padding: 6px 12px;
+      pointer-events: none;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--beige-2);
+      display: none;
+      z-index: 100;
+    }
+
+    /* View 5: Tech Stack */
+    #view-stack {
+      overflow-y: auto;
+      padding: 48px;
+    }
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 24px;
+      margin-top: 24px;
+    }
+    .stack-card {
+      background-color: var(--black-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .stack-card:hover {
+      border-color: var(--orange-glow);
+      transform: translateY(-2px);
+    }
+    .stack-header-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .stack-logo-wrap {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      background-color: var(--black-3);
+      border: 1px solid var(--border-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .stack-logo-wrap img {
+      width: 32px;
+      height: 32px;
+    }
+    .stack-logo-fallback {
+      font-family: 'Space Mono', monospace;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--beige-2);
+    }
+    .stack-info {
+      overflow: hidden;
+    }
+    .stack-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--beige);
+      margin-bottom: 2px;
+    }
+    .stack-version {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--beige-3);
+      margin-bottom: 4px;
+    }
+    .stack-cat-badge {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      color: var(--orange);
+      text-transform: uppercase;
+    }
+    .stack-card-desc {
+      font-size: 13px;
+      color: var(--beige-2);
+      line-height: 1.5;
+    }
+    .stack-card-files-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--beige-3);
+      text-transform: uppercase;
+      margin-top: 8px;
+      border-top: 1px solid var(--border-2);
+      padding-top: 12px;
+    }
+    .stack-card-file-link {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--orange);
+      cursor: pointer;
+      text-decoration: none;
+      display: block;
+      margin-top: 4px;
+    }
+    .stack-card-file-link:hover {
+      text-decoration: underline;
+    }
+
+    /* View 6: Data Flow View (Vertical Flowchart) */
+    #view-flow {
+      overflow-y: auto;
+      padding: 48px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: var(--black);
+    }
+    .flow-step-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 600px;
+    }
+    .flow-layer-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--beige);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .flow-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 8px;
+      width: 100%;
+      margin-bottom: 16px;
+    }
+    .flow-file-card {
+      background-color: var(--black-2);
+      border: 1px solid var(--border-2);
+      border-radius: 4px;
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .flow-file-card:hover {
+      border-color: var(--orange);
+      transform: translateY(-2px);
+    }
+    .flow-file-name {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--beige-2);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .flow-file-lines {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      color: var(--beige-3);
+      margin-top: 4px;
+    }
+    .flow-arrow-down {
+      width: 24px;
+      height: 24px;
+      margin: 12px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .flow-arrow-down::after {
+      content: '↓';
+      font-size: 20px;
+      color: var(--orange);
+      animation: bounceFlow 1.5s infinite ease-in-out;
+    }
+    @keyframes bounceFlow {
+      0%, 100% { transform: translateY(0); opacity: 0.6; }
+      50% { transform: translateY(4px); opacity: 1; }
+    }
+
+    /* Detail Panel (320px) */
+    .detail-panel {
+      position: fixed;
+      right: -320px;
+      top: 48px;
+      bottom: 0;
+      width: 320px;
+      background-color: var(--black-2);
+      border-left: 1px solid var(--border);
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      transition: right 0.25s cubic-bezier(0.19, 1, 0.22, 1);
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .detail-panel.open { right: 0; }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border-3);
+      padding-bottom: 12px;
+    }
+    .panel-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--beige);
+    }
+    .btn-close {
+      background: transparent;
+      border: none;
+      color: var(--beige-3);
+      cursor: pointer;
+      font-size: 18px;
+    }
+    .btn-close:hover { color: var(--beige); }
+
+    /* Chat Panel (300px) */
+    .chat-panel {
+      position: fixed;
+      left: 56px;
+      right: 0;
+      bottom: -300px;
+      height: 300px;
+      background-color: var(--black-2);
+      border-top: 1px solid var(--border);
+      z-index: 998;
+      display: flex;
+      flex-direction: column;
+      transition: bottom 0.25s cubic-bezier(0.19, 1, 0.22, 1);
+    }
+    .chat-panel.open { bottom: 0; }
+    .chat-panel.side-open { right: 320px; }
+    .chat-header {
+      height: 36px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background-color: var(--black-3);
+    }
+    .chat-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--orange);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .chat-messages {
+      flex-grow: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .chat-bubble {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .chat-bubble.user {
+      align-self: flex-end;
+      background-color: var(--orange-dim);
+      border: 1px solid var(--orange-glow);
+      color: var(--beige);
+    }
+    .chat-bubble.bot {
+      align-self: flex-start;
+      background-color: var(--black-3);
+      border: 1px solid var(--border);
+      color: var(--beige-2);
+    }
+    .chat-input-row {
+      height: 48px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      background-color: var(--black-4);
+    }
+    .chat-input {
+      flex-grow: 1;
+      background: transparent;
+      border: none;
+      padding: 0 16px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      color: var(--beige);
+    }
+    .chat-input:focus { outline: none; }
+    .chat-send-btn {
+      background-color: var(--orange);
+      color: var(--black);
+      border: none;
+      padding: 0 20px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .chat-toggle-btn {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      background-color: var(--orange);
+      color: var(--black);
+      border: none;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 1000;
+      transition: transform 0.2s;
+    }
+    .chat-toggle-btn:hover { transform: scale(1.05); }
+    .chat-toggle-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: var(--black);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <header class="navbar">
+    <div class="nav-left">
+      <div class="wordmark">
+        <span class="first">CODEBASE</span> <span class="second">X-RAY</span>
+      </div>
+      <span class="separator">·</span>
+      <div class="project-name" id="nav-project-name">...</div>
+      <span class="file-count" id="nav-file-count">0 files</span>
+    </div>
+    
+    <div class="nav-middle" id="nav-tech-container">
+      <!-- Loaded dynamically -->
+    </div>
+
+    <div class="nav-right">
+      <div class="findings-badge clean" id="nav-badge-clean">✓ clean</div>
+      <div class="findings-badge errors" id="nav-badge-errors" style="display:none">0 errors</div>
+      <div class="findings-badge warnings" id="nav-badge-warnings" style="display:none">0 warnings</div>
+      <button class="btn-action" onclick="newAnalysis()">New analysis</button>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-btn active" onclick="switchView('architecture')" id="btn-view-architecture">
+      <svg viewBox="0 0 24 24"><path d="M4 15h6v6H4v-6zm0-10h6v6H4V5zm10 10h6v6h-6v-6zm0-10h6v6h-6V5z"/></svg>
+      <div class="tooltip">System Architecture</div>
+    </div>
+    <div class="sidebar-btn" onclick="switchView('layers')" id="btn-view-layers">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      <div class="tooltip">Layer Diagram</div>
+    </div>
+    <div class="sidebar-btn" onclick="switchView('explorer')" id="btn-view-explorer">
+      <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 10H6v-2h8v2zm4-4H6v-2h12v2z"/></svg>
+      <div class="tooltip">File Explorer</div>
+    </div>
+    <div class="sidebar-btn" onclick="switchView('graph')" id="btn-view-graph">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+      <div class="tooltip">Dependency Graph</div>
+    </div>
+    <div class="sidebar-btn" onclick="switchView('stack')" id="btn-view-stack">
+      <svg viewBox="0 0 24 24"><path d="M12.89 3.03a1 1 0 0 0-1.78 0L3.05 17.06a1 1 0 0 0 .89 1.44h16.12a1 1 0 0 0 .89-1.44L12.89 3.03z"/></svg>
+      <div class="tooltip">Tech Stack</div>
+    </div>
+    <div class="sidebar-btn" onclick="switchView('flow')" id="btn-view-flow">
+      <svg viewBox="0 0 24 24"><path d="M16.01 11H4v2h12.01v3L20 12l-3.99-4v3z"/></svg>
+      <div class="tooltip">Data Flow</div>
+    </div>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="main-content" id="main-layout">
+    
+    <!-- View 1: System Architecture Canvas & Editor -->
+    <div class="view-container active" id="view-architecture">
+      <!-- Diagram Editor Toolbar -->
+      <div class="editor-toolbar">
+        <button class="tool-btn active" id="tool-select" onclick="setEditorTool('select')">
+          <svg style="width:14px; height:14px; fill:currentColor" viewBox="0 0 24 24"><path d="M7 2l12 11.2-5.8.8 3.5 6-1.7 1-3.5-6-4.5 4.5z"/></svg>
+          Pointer
+        </button>
+        <button class="tool-btn" id="tool-connect" onclick="setEditorTool('connect')">
+          <svg style="width:14px; height:14px; fill:currentColor" viewBox="0 0 24 24"><path d="M16.01 11H4v2h12.01v3L20 12l-3.99-4v3z"/></svg>
+          Link
+        </button>
+        <button class="tool-btn" onclick="addShape('component')">
+          + Node
+        </button>
+        <button class="tool-btn" onclick="addShape('rectangle')">
+          + Zone Box
+        </button>
+        <button class="tool-btn" onclick="addShape('circle')">
+          + Circle
+        </button>
+        <button class="tool-btn" onclick="addShape('text')">
+          + Text
+        </button>
+        <button class="tool-btn" style="color:#EF4444" onclick="deleteSelectedShape()">
+          Delete
+        </button>
+        <button class="tool-btn" onclick="resetDiagramLayout()">
+          Reset
+        </button>
+      </div>
+
+      <canvas id="canvas-architecture"></canvas>
+      
+      <div class="canvas-controls">
+        <button onclick="canvasZoom(-0.1)">−</button>
+        <span id="canvas-zoom-text">100%</span>
+        <button onclick="canvasZoom(0.1)">+</button>
+      </div>
+    </div>
+
+    <!-- View 2: Layer Diagram -->
+    <div class="view-container" id="view-layers">
+      <!-- Rendered dynamically -->
+    </div>
+
+    <!-- View 3: File Explorer -->
+    <div class="view-container" id="view-explorer">
+      <div class="explorer-left">
+        <div class="explorer-header">Files</div>
+        <input type="text" class="explorer-search" id="explorer-search-input" placeholder="filter files..." oninput="filterExplorerTree()">
+        <div class="explorer-tree" id="explorer-tree-container">
+          <!-- Tree Nodes -->
+        </div>
+      </div>
+      
+      <div class="explorer-right">
+        <div class="explorer-placeholder" id="explorer-placeholder-screen">
+          <svg style="width:32px; height:32px; fill:var(--border-3);" viewBox="0 0 24 24">
+            <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+          </svg>
+          <div style="font-size:15px; font-weight:500;">select a file</div>
+          <div style="font-size:13px;">click anything to inspect it</div>
+        </div>
+
+        <div class="explorer-detail" id="explorer-detail-screen">
+          <div class="detail-header">
+            <h2 class="detail-title" id="exp-file-name">...</h2>
+            <div class="detail-path" id="exp-file-path">...</div>
+            <div class="detail-badges" id="exp-file-badges">
+              <!-- Layer Badge + Role Badge -->
+            </div>
+          </div>
+
+          <div class="detail-grid">
+            <div class="detail-stat-card">
+              <div class="detail-stat-label">Lines</div>
+              <div class="detail-stat-val" id="exp-stat-lines">0</div>
+            </div>
+            <div class="detail-stat-card">
+              <div class="detail-stat-label">Imports In</div>
+              <div class="detail-stat-val" id="exp-stat-imports-in">0</div>
+            </div>
+            <div class="detail-stat-card">
+              <div class="detail-stat-label">Imports Out</div>
+              <div class="detail-stat-val" id="exp-stat-imports-out">0</div>
+            </div>
+            <div class="detail-stat-card">
+              <div class="detail-stat-label">Exports</div>
+              <div class="detail-stat-val" id="exp-stat-exports">0</div>
+            </div>
+          </div>
+
+          <div class="detail-section-title" id="exp-issues-title" style="display:none">Issues</div>
+          <div class="issues-list" id="exp-issues-list">
+            <!-- Issues list -->
+          </div>
+
+          <div class="detail-section-title">Imports From</div>
+          <div class="imports-list" id="exp-imports-list">
+            <!-- Imports list -->
+          </div>
+
+          <div class="detail-section-title">Exports</div>
+          <div class="exports-list" id="exp-exports-list">
+            <!-- Exports list -->
+          </div>
+          
+          <div class="detail-section-title">Imported By</div>
+          <div class="imports-list" id="exp-imported-by-list">
+            <!-- Imported by list -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- View 4: Dependency Graph SVG -->
+    <div class="view-container" id="view-graph">
+      <svg id="svg-graph">
+        <defs>
+          <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+      </svg>
+      <div class="graph-tooltip" id="graph-tooltip"></div>
+    </div>
+
+    <!-- View 5: Tech Stack -->
+    <div class="view-container" id="view-stack">
+      <h2 style="font-size:32px; font-weight:700;">Tech Stack</h2>
+      <p style="color:var(--beige-3); font-size:14px; margin-top:4px;">Detected frameworks, databases, libraries, and devops layers with detailed workspace contexts.</p>
+      
+      <div class="stack-grid" id="stack-grid-container">
+        <!-- Stack Cards -->
+      </div>
+    </div>
+
+    <!-- View 6: Data Flow flowchart -->
+    <div class="view-container" id="view-flow">
+      <!-- Vertical Flow Nodes -->
+    </div>
+  </main>
+
+  <!-- Right Detail Panel -->
+  <div class="detail-panel" id="right-detail-panel">
+    <div class="panel-header">
+      <h3 class="panel-title" id="panel-title-text">Component Info</h3>
+      <button class="btn-close" onclick="closeDetailPanel()">×</button>
+    </div>
+    <div id="panel-body-content">
+      <!-- Component info details -->
+    </div>
+  </div>
+
+  <!-- Bottom Chat Panel -->
+  <div class="chat-panel" id="bottom-chat-panel">
+    <div class="chat-header">
+      <div class="chat-title">AI assistant</div>
+      <button class="btn-close" style="font-size:14px;" onclick="closeChatPanel()">×</button>
+    </div>
+    <div class="chat-messages" id="chat-messages-box">
+      <div class="chat-bubble bot">Hello! Ask me any questions about the codebase architecture, file layers, or dependencies.</div>
+    </div>
+    <div class="chat-input-row">
+      <input type="text" class="chat-input" id="chat-input-text" placeholder="Ask about this codebase..." onkeydown="handleChatKey(event)">
+      <button class="chat-send-btn" onclick="sendChatMessage()">Send</button>
+    </div>
+  </div>
+
+  <!-- Shape Editing Popup Modal -->
+  <div class="editor-modal" id="shape-edit-modal" style="display:none">
+    <h3>Modify Element</h3>
+    <label>Name</label>
+    <input type="text" id="edit-shape-name">
+    <label>Description</label>
+    <input type="text" id="edit-shape-desc">
+    <label>Brand Color</label>
+    <input type="color" id="edit-shape-color" value="#FF4D00">
+    <div class="modal-actions">
+      <button onclick="saveShapeEdits()">Save</button>
+      <button onclick="closeShapeModal()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Float Chat Toggle -->
+  <button class="chat-toggle-btn" id="chat-toggle-btn" onclick="toggleChatPanel()">
+    <svg viewBox="0 0 24 24">
+      <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
+    </svg>
+  </button>
+
+  <!-- CDN Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+
+  <script>
+    let DATA = null;
+    let currentView = 'architecture';
+    
+    // Load result from localStorage
+    document.addEventListener('DOMContentLoaded', () => {
+      const stored = localStorage.getItem('xrayResult');
+      if (!stored) {
+        window.location.href = '/';
+        return;
+      }
+      DATA = JSON.parse(stored);
+      console.log('Successfully loaded scan result:', DATA);
+      
+      // Page Fade-in
+      gsap.fromTo('body', { opacity: 0 }, { opacity: 1, duration: 0.4 });
+      
+      // Fill UI details
+      document.getElementById('nav-project-name').innerText = DATA.project.name;
+      document.getElementById('nav-file-count').innerText = `${DATA.project.totalFiles} files`;
+      
+      setupNavbarFindings();
+      setupNavbarTechs();
+      
+      // Initialize view architecture light beige
+      setArchitectureBackground();
+
+      // Preload Canvas Architecture images & render
+      initCanvasArchitecture();
+
+      // Setup other static views
+      setupLayersView();
+      setupExplorerView();
+      setupGraphView();
+      setupStackView();
+      setupFlowView();
+    });
+
+    function newAnalysis() {
+      localStorage.clear();
+      window.location.href = '/';
+    }
+
+    // Navbar findings
+    function setupNavbarFindings() {
+      let errorCount = 0;
+      let warningCount = 0;
+      
+      DATA.files.forEach(f => {
+        f.findings.forEach(fin => {
+          if (fin.type === 'error') errorCount++;
+          if (fin.type === 'warning') warningCount++;
+        });
+      });
+
+      if (errorCount === 0 && warningCount === 0) {
+        document.getElementById('nav-badge-clean').style.display = 'block';
+        document.getElementById('nav-badge-errors').style.display = 'none';
+        document.getElementById('nav-badge-warnings').style.display = 'none';
+      } else {
+        document.getElementById('nav-badge-clean').style.display = 'none';
+        if (errorCount > 0) {
+          const eb = document.getElementById('nav-badge-errors');
+          eb.innerText = `${errorCount} error${errorCount > 1 ? 's' : ''}`;
+          eb.style.display = 'block';
+        }
+        if (warningCount > 0) {
+          const wb = document.getElementById('nav-badge-warnings');
+          wb.innerText = `${warningCount} warning${warningCount > 1 ? 's' : ''}`;
+          wb.style.display = 'block';
+        }
+      }
+    }
+
+    function setupNavbarTechs() {
+      const container = document.getElementById('nav-tech-container');
+      container.innerHTML = '';
+      
+      const first6 = DATA.stack.detected.slice(0, 6);
+      first6.forEach(tech => {
+        const logoUrl = getTechLogoUrl(tech.logoKey);
+        
+        const pill = document.createElement('div');
+        pill.className = 'tech-pill';
+        pill.innerHTML = `
+          <img class="tech-pill-logo" src="${logoUrl}" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2214%22 height=%2214%22 viewBox=%220 0 14 14%22><circle cx=%227%22 cy=%227%22 r=%226%22 fill=%22%23${tech.brandColor.replace('#', '')}%22/></svg>'">
+          <span>${tech.name}</span>
+        `;
+        container.appendChild(pill);
+      });
+
+      if (DATA.stack.detected.length > 6) {
+        const moreCount = DATA.stack.detected.length - 6;
+        const pill = document.createElement('div');
+        pill.className = 'tech-pill';
+        pill.innerHTML = `<span>+${moreCount} more</span>`;
+        container.appendChild(pill);
+      }
+    }
+
+    // Technology branding logos
+    function getTechLogoUrl(logoKey) {
+      if (logoKey.startsWith('inline-') || logoKey === 'inline') {
+        return '';
+      }
+      return `https://cdn.jsdelivr.net/gh/devicons/devicon/icons/${logoKey}/${logoKey}-original.svg`;
+    }
+
+    // View switcher
+    function switchView(viewName) {
+      if (currentView === viewName) return;
+      
+      document.querySelectorAll('.sidebar-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`btn-view-${viewName}`).classList.add('active');
+
+      const currentDiv = document.getElementById(`view-${currentView}`);
+      const newDiv = document.getElementById(`view-${viewName}`);
+
+      gsap.to(currentDiv, {
+        opacity: 0,
+        duration: 0.15,
+        onComplete: () => {
+          currentDiv.classList.remove('active');
+          newDiv.classList.add('active');
+          gsap.fromTo(newDiv, { opacity: 0 }, { opacity: 1, duration: 0.2 });
+          currentView = viewName;
+          
+          setArchitectureBackground();
+
+          if (viewName === 'graph') {
+            triggerGraphSimulation();
+          } else if (viewName === 'architecture') {
+            drawArchitectureCanvas();
+          }
+        }
+      });
+    }
+
+    function setArchitectureBackground() {
+      const viewArch = document.getElementById('view-architecture');
+      if (currentView === 'architecture') {
+        viewArch.style.backgroundColor = '#EBF5F3';
+        viewArch.classList.add('light-bg');
+      } else {
+        viewArch.style.backgroundColor = 'var(--black)';
+        viewArch.classList.remove('light-bg');
+      }
+    }
+
+    // Panels UI managers
+    const mainLayout = document.getElementById('main-layout');
+    const rightPanel = document.getElementById('right-detail-panel');
+    const chatPanel = document.getElementById('bottom-chat-panel');
+    const chatBtn = document.getElementById('chat-toggle-btn');
+    
+    let isRightOpen = false;
+    let isChatOpen = false;
+
+    function openDetailPanel(title, htmlContent) {
+      document.getElementById('panel-title-text').innerText = title;
+      document.getElementById('panel-body-content').innerHTML = htmlContent;
+      
+      isRightOpen = true;
+      rightPanel.classList.add('open');
+      chatPanel.classList.add('side-open');
+      updateLayoutClasses();
+    }
+
+    function closeDetailPanel() {
+      isRightOpen = false;
+      rightPanel.classList.remove('open');
+      chatPanel.classList.remove('side-open');
+      updateLayoutClasses();
+    }
+
+    function toggleChatPanel() {
+      if (isChatOpen) {
+        closeChatPanel();
+      } else {
+        openChatPanel();
+      }
+    }
+
+    function openChatPanel() {
+      isChatOpen = true;
+      chatPanel.classList.add('open');
+      updateLayoutClasses();
+    }
+
+    function closeChatPanel() {
+      isChatOpen = false;
+      chatPanel.classList.remove('open');
+      updateLayoutClasses();
+    }
+
+    function updateLayoutClasses() {
+      mainLayout.className = 'main-content';
+      if (isRightOpen && isChatOpen) {
+        mainLayout.classList.add('both-open');
+      } else if (isRightOpen) {
+        mainLayout.classList.add('panel-open');
+      } else if (isChatOpen) {
+        mainLayout.classList.add('chat-open');
+      }
+      
+      setTimeout(() => {
+        if (currentView === 'architecture') {
+          drawArchitectureCanvas();
+        }
+      }, 300);
+    }
+
+    // ============================================
+    // VIEW 1: SYSTEM ARCHITECTURE DIAGRAM EDITOR
+    // ============================================
+    let canvas, ctx;
+    let zoomScale = 1.0;
+    let panX = 0;
+    let panY = 0;
+    let isDragging = false;
+    let startX = 0, startY = 0;
+
+    let activeTool = 'select'; // 'select', 'connect'
+    let selectedShapeId = null;
+    let connectSourceId = null;
+    let draggingShapeId = null;
+    let dragOffset = { x: 0, y: 0 };
+
+    // Elements & lines are mutable clone arrays of scanned architecture data
+    let localComponents = [];
+    let localZones = [];
+    let localConnections = [];
+    const imagesCache = {};
+
+    function initCanvasArchitecture() {
+      canvas = document.getElementById('canvas-architecture');
+      ctx = canvas.getContext('2d');
+
+      window.addEventListener('resize', resizeCanvas);
+      
+      // Events
+      canvas.addEventListener('mousedown', onCanvasMouseDown);
+      canvas.addEventListener('mousemove', onCanvasMouseMove);
+      canvas.addEventListener('mouseup', onCanvasMouseUp);
+      canvas.addEventListener('dblclick', onCanvasDoubleClick);
+      canvas.addEventListener('wheel', onCanvasWheel, { passive: false });
+
+      // Initialize diagram components with computed coordinate offsets
+      resetDiagramData();
+      
+      // Preload devicons
+      const loaders = localComponents.map(comp => {
+        return new Promise((resolve) => {
+          if (!comp.techKey || comp.techKey.startsWith('inline-') || comp.techKey === 'client') {
+            resolve();
+            return;
+          }
+          const img = new Image();
+          img.src = getTechLogoUrl(comp.techKey);
+          img.onload = () => {
+            imagesCache[comp.techKey] = img;
+            resolve();
+          };
+          img.onerror = () => {
+            resolve();
+          };
+        });
+      });
+
+      Promise.all(loaders).then(() => {
+        resizeCanvas();
+      });
+    }
+
+    function resetDiagramData() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const W = rect.width || window.innerWidth - 56;
+      const H = rect.height || window.innerHeight - 48;
+      
+      const centerX = W / 2;
+      localComponents = [];
+      
+      // 14 standard microservices blueprint nodes (ditto Image 3)
+      const blueprint = [
+        { id: 'api-server', name: 'API Gateway', type: 'api-gateway', brandColor: '#C084FC', shape: 'component-card-purple', x: centerX - 35, y: 180, w: 70, h: 80, number: 1, description: 'Single entry point for client requests, routing traffic to services.', active: false },
+        { id: 'service-registry', name: 'Service Registry', type: 'infra', brandColor: '#EA580C', shape: 'hexagon-brackets', x: centerX - 180, y: 230, w: 48, h: 48, number: 2, description: 'Maintains service addresses and tracks system node health.', active: false },
+        
+        // Service Layer Box
+        { id: 'ui-views', name: 'Service A (UI)', type: 'client', brandColor: '#F472B6', shape: 'component-card-pink', x: centerX - 170, y: 350, w: 90, h: 60, number: 3, description: 'Renders frontend screens and handles layout controls.', active: false },
+        { id: 'state-stores', name: 'Service B (State)', type: 'client', brandColor: '#60A5FA', shape: 'component-card-blue', x: centerX - 45, y: 350, w: 90, h: 60, number: 3, description: 'Manages reactive stores and client state.', active: false },
+        { id: 'domain-services', name: 'Service C (Logic)', type: 'service', brandColor: '#34D399', shape: 'component-card-green', x: centerX + 80, y: 350, w: 90, h: 60, number: 3, description: 'Core business domain algorithms and handlers.', active: false },
+        
+        { id: 'auth-service', name: 'Authorization Server', type: 'auth', brandColor: '#FDE047', shape: 'component-card-yellow', x: centerX + 260, y: 340, w: 100, h: 60, number: 4, description: 'Handles credentials, validates sessions, and generates tokens.', active: false },
+        { id: 'database', name: 'Database Layer', type: 'database', brandColor: '#34D399', shape: 'database-layout-green', x: centerX - 80, y: 615, w: 160, h: 100, number: 5, description: 'Primary and secondary replicated database nodes.', active: false },
+        { id: 'cache-server', name: 'Distributed Cache', type: 'cache', brandColor: '#EF4444', shape: 'cylinder-stack', x: centerX + 120, y: 520, w: 50, h: 40, number: 6, description: 'High-speed in-memory database caching store.', active: false },
+        { id: 'messaging', name: 'Distributed Messaging', type: 'infra', brandColor: '#3B82F6', shape: 'message-box', x: centerX - 160, y: 520, w: 80, h: 50, number: 7, description: 'Message broker routing event queues asynchronously.', active: false },
+        
+        // Logstash, Elasticsearch, Kibana column (9)
+        { id: 'logstash', name: 'Logstash', type: 'infra', brandColor: '#60A5FA', shape: 'component-card-blue', x: W - 130, y: 440, w: 70, h: 45, number: 9, description: 'Ingests and parses log streams.', active: false },
+        { id: 'elasticsearch', name: 'Elasticsearch', type: 'infra', brandColor: '#34D399', shape: 'component-card-green', x: W - 130, y: 500, w: 70, h: 45, number: 9, description: 'Indexes and searches system logs.', active: false },
+        { id: 'kibana', name: 'Kibana', type: 'infra', brandColor: '#F472B6', shape: 'component-card-pink', x: W - 130, y: 560, w: 70, h: 45, number: 9, description: 'Visualizes elasticsearch dashboard charts.', active: false },
+
+        // Prometheus, Grafana column (8)
+        { id: 'prometheus', name: 'Prometheus', type: 'infra', brandColor: '#FDE047', shape: 'component-card-yellow', x: 60, y: 520, w: 70, h: 45, number: 8, description: 'Collects metrics endpoints.', active: false },
+        { id: 'grafana', name: 'Grafana', type: 'infra', brandColor: '#C084FC', shape: 'component-card-purple', x: 60, y: 580, w: 70, h: 45, number: 8, description: 'Visualizes system metrics charts.', active: false }
+      ];
+
+      // Overlay active scanned components
+      blueprint.forEach(node => {
+        let matched = null;
+        if (node.id === 'ui-views') {
+          matched = DATA.arch.components.find(c => c.id === 'ui-views' || c.id === 'client');
+        } else if (node.id === 'api-server') {
+          matched = DATA.arch.components.find(c => c.id === 'api-server' || c.id === 'api-controllers');
+        } else if (node.id === 'database') {
+          matched = DATA.arch.components.find(c => c.id === 'database' || c.id === 'database-models');
+        } else if (node.id === 'logstash') {
+          matched = DATA.arch.components.find(c => c.id === 'core-helpers');
+        } else if (node.id === 'prometheus') {
+          matched = DATA.arch.components.find(c => c.id === 'test-suite');
+        } else {
+          matched = DATA.arch.components.find(c => c.id === node.id);
+        }
+
+        if (matched) {
+          node.active = true;
+          // Overlay info
+          node.description = matched.description;
+          node.techKey = matched.techKey;
+          node.connectedTo = matched.connectedTo || [];
+        }
+        
+        localComponents.push(node);
+      });
+
+      // Also copy other custom components added/detected
+      DATA.arch.components.forEach(comp => {
+        const isStandard = ['ui-views', 'client', 'state-stores', 'domain-services', 'api-server', 'api-controllers', 'auth-service', 'database', 'database-models', 'cache-server', 'messaging', 'logstash', 'elasticsearch', 'kibana', 'prometheus', 'grafana'].includes(comp.id);
+        if (!isStandard) {
+          localComponents.push({
+            ...comp,
+            x: comp.x || W - 160,
+            y: comp.y || 140 + localComponents.length * 30,
+            w: comp.w || 64,
+            h: comp.h || 80,
+            shape: comp.shape || 'component-card-pink',
+            active: true
+          });
+        }
+      });
+
+      // Connections mapping
+      localConnections = [];
+      const defaultConnections = [
+        { from: 'api-server', to: 'ui-views' },
+        { from: 'api-server', to: 'state-stores' },
+        { from: 'api-server', to: 'domain-services' },
+        { from: 'api-server', to: 'auth-service' },
+        { from: 'api-server', to: 'service-registry' },
+        { from: 'ui-views', to: 'messaging' },
+        { from: 'state-stores', to: 'messaging' },
+        { from: 'domain-services', to: 'cache-server' },
+        { from: 'domain-services', to: 'database' },
+        { from: 'messaging', to: 'database' },
+        { from: 'cache-server', to: 'database' }
+      ];
+
+      defaultConnections.forEach(conn => {
+        const fromNode = localComponents.find(c => c.id === conn.from);
+        const toNode = localComponents.find(c => c.id === conn.to);
+        localConnections.push({
+          from: conn.from,
+          to: conn.to,
+          active: (fromNode && fromNode.active && toNode && toNode.active)
+        });
+      });
+
+      // Dynamic connections from codebase scan
+      DATA.arch.connections.forEach(conn => {
+        // Map any controller/model edge queries correctly
+        let mappedFrom = conn.from === 'api-controllers' ? 'api-server' : conn.from;
+        let mappedTo = conn.to === 'database-models' ? 'database' : conn.to;
+        
+        const exists = localConnections.some(c => c.from === mappedFrom && c.to === mappedTo);
+        if (!exists && mappedFrom !== mappedTo) {
+          localConnections.push({
+            from: mappedFrom,
+            to: mappedTo,
+            active: true
+          });
+        }
+      });
+
+      // Layout boundaries (Zones)
+      localZones = [
+        { id: 'frontend-zone', name: 'Service Layer (Presentation)', color: 'rgba(251,113,133,0.01)', border: '#FB7185', x: centerX - 220, y: 320, w: 430, h: 110 },
+        { id: 'data-zone', name: 'Database Layer', color: 'rgba(16,185,129,0.01)', border: '#10B981', x: centerX - 120, y: 600, w: 240, h: 135 }
+      ];
+      
+      selectedShapeId = null;
+      connectSourceId = null;
+      draggingShapeId = null;
+    }
+
+    function resetDiagramLayout() {
+      resetDiagramData();
+      drawArchitectureCanvas();
+    }
+
+    function setEditorTool(tool) {
+      activeTool = tool;
+      document.getElementById('tool-select').classList.toggle('active', tool === 'select');
+      document.getElementById('tool-connect').classList.toggle('active', tool === 'connect');
+      connectSourceId = null;
+    }
+
+    function addShape(shapeType) {
+      const W = canvas.width / (2 * (window.devicePixelRatio || 1)) - panX;
+      const H = canvas.height / (2 * (window.devicePixelRatio || 1)) - panY;
+
+      const randomId = `shape-${Date.now()}`;
+      const nextNum = localComponents.length + 1;
+
+      let newShape = {
+        id: randomId,
+        number: nextNum,
+        name: `New ${shapeType}`,
+        description: `Custom added diagram ${shapeType}.`,
+        type: shapeType === 'component' ? 'service' : 'infra',
+        techKey: 'inline',
+        brandColor: '#FF4D00',
+        zoneId: 'api-zone',
+        x: W - 32,
+        y: H - 40,
+        w: shapeType === 'rectangle' ? 120 : (shapeType === 'text' ? 100 : 64),
+        h: shapeType === 'circle' ? 64 : 80,
+        shape: shapeType === 'component' ? 'component-card-pink' : shapeType,
+        connectedTo: []
+      };
+
+      localComponents.push(newShape);
+      selectedShapeId = randomId;
+      drawArchitectureCanvas();
+      showComponentDetails(randomId);
+    }
+
+    function deleteSelectedShape() {
+      if (!selectedShapeId) return;
+
+      // Filter connections
+      localConnections = localConnections.filter(c => c.from !== selectedShapeId && c.to !== selectedShapeId);
+      // Remove component
+      localComponents = localComponents.filter(c => c.id !== selectedShapeId);
+      selectedShapeId = null;
+      closeDetailPanel();
+      drawArchitectureCanvas();
+    }
+
+    // Helper to draw user monitors & silhouettes matching Image 3
+    function drawUserScreen(ctx, x, y, label) {
+      ctx.save();
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 1.5;
+      
+      // Monitor Screen
+      ctx.fillStyle = '#ffffff';
+      drawRoundedRect(ctx, x - 18, y - 24, 36, 24, 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Screen grid/inner
+      ctx.fillStyle = '#E5E7EB';
+      ctx.fillRect(x - 14, y - 20, 28, 16);
+
+      // Stand
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y + 6);
+      ctx.moveTo(x - 10, y + 6);
+      ctx.lineTo(x + 10, y + 6);
+      ctx.stroke();
+
+      // User Silhouette
+      ctx.beginPath();
+      ctx.arc(x, y + 18, 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#4B5563';
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x - 9, y + 28);
+      ctx.quadraticCurveTo(x, y + 22, x + 9, y + 28);
+      ctx.fillStyle = '#4B5563';
+      ctx.fill();
+      ctx.stroke();
+
+      // Label text
+      ctx.fillStyle = '#374151';
+      ctx.font = '600 9px "Space Grotesk"';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(label, x, y + 32);
+
+      ctx.restore();
+    }
+
+    // Helper to draw green envelope capsule on connection lines
+    function drawEnvelopeCapsule(ctx, x, y) {
+      ctx.save();
+      ctx.fillStyle = '#E6F4F1';
+      ctx.strokeStyle = '#10B981';
+      ctx.lineWidth = 1.2;
+      drawRoundedRect(ctx, x - 10, y - 6, 20, 12, 3);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = '#10B981';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x - 7, y - 3);
+      ctx.lineTo(x, y + 1);
+      ctx.lineTo(x + 7, y - 3);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Canvas drawing orchestrator
+    function drawArchitectureCanvas() {
+      if (!ctx) return;
+      ctx.save();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.translate(panX, panY);
+      ctx.scale(zoomScale, zoomScale);
+
+      const W = canvas.width / (window.devicePixelRatio || 1);
+      const H = canvas.height / (window.devicePixelRatio || 1);
+      const centerX = W / 2;
+
+      // 1. Draw header accent bar (ditto Image 3)
+      ctx.fillStyle = '#10B981';
+      ctx.fillRect(40, 36, 4, 20);
+
+      ctx.fillStyle = '#111827';
+      ctx.font = '700 18px "Space Grotesk"';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Components of a Microservice Architecture — ' + DATA.project.name, 52, 46);
+
+      // 2. Draw Client Devices at the top
+      ctx.save();
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 1.5;
+
+      // Browser/Web Globe (centerX - 180, 100)
+      ctx.fillStyle = '#ffffff';
+      drawRoundedRect(ctx, centerX - 200, 75, 40, 30, 2);
+      ctx.fill();
+      ctx.stroke();
+      // macOS red/yellow/green dots
+      ctx.fillStyle = '#EF4444'; ctx.beginPath(); ctx.arc(centerX - 194, 81, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#F59E0B'; ctx.beginPath(); ctx.arc(centerX - 189, 81, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#10B981'; ctx.beginPath(); ctx.arc(centerX - 184, 81, 2, 0, Math.PI * 2); ctx.fill();
+      // Globe lines
+      ctx.beginPath(); ctx.arc(centerX - 180, 93, 8, 0, Math.PI * 2); ctx.fillStyle = '#BFDBFE'; ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(centerX - 180, 93, 3, 8, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(centerX - 188, 93); ctx.lineTo(centerX - 172, 93); ctx.stroke();
+
+      // Server Cylinder (centerX, 90)
+      for (let i = 0; i < 3; i++) {
+        const cyY = 74 + i * 8;
+        ctx.fillStyle = '#FEF08A';
+        ctx.fillRect(centerX - 15, cyY + 4, 30, 8);
+        ctx.beginPath(); ctx.ellipse(centerX, cyY + 4, 15, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(centerX, cyY + 12, 15, 3, 0, 0, Math.PI); ctx.stroke();
+      }
+
+      // Mobile device (centerX + 180, 90)
+      ctx.fillStyle = '#ffffff';
+      drawRoundedRect(ctx, centerX + 168, 70, 24, 40, 4);
+      ctx.fill();
+      ctx.stroke();
+      // screen reflection & home button
+      ctx.fillStyle = '#111827';
+      ctx.fillRect(centerX + 171, 74, 18, 30);
+      ctx.fillStyle = '#BFDBFE';
+      ctx.beginPath(); ctx.arc(centerX + 180, 82, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(centerX + 180, 39, 1, 0, Math.PI * 2); ctx.fill();
+
+      // Top Connection Lines pointing to API Gateway (y=180)
+      ctx.beginPath(); ctx.moveTo(centerX - 180, 105); ctx.lineTo(centerX - 24, 180); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(centerX, 114);     ctx.lineTo(centerX, 180);     ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(centerX + 180, 110); ctx.lineTo(centerX + 24, 180); ctx.stroke();
+      
+      // Top arrowheads
+      ctx.fillStyle = '#111827';
+      ctx.beginPath(); ctx.moveTo(centerX - 27, 174); ctx.lineTo(centerX - 24, 180); ctx.lineTo(centerX - 21, 172); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(centerX - 3, 174);  ctx.lineTo(centerX, 180);     ctx.lineTo(centerX + 3, 174);  ctx.fill();
+      ctx.beginPath(); ctx.moveTo(centerX + 21, 172); ctx.lineTo(centerX + 24, 180); ctx.lineTo(centerX + 27, 174); ctx.fill();
+
+      ctx.restore();
+
+      // 3. Draw dashed grouping boxes (Zones)
+      localZones.forEach(zone => {
+        ctx.save();
+        ctx.fillStyle = zone.color;
+        drawRoundedRect(ctx, zone.x, zone.y, zone.w, zone.h, 8);
+        ctx.fill();
+
+        ctx.strokeStyle = zone.border;
+        ctx.lineWidth = 1.8;
+        ctx.setLineDash([6, 5]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Zone header/badge matching Image 3
+        if (zone.id === 'frontend-zone') {
+          ctx.fillStyle = '#111827';
+          drawRoundedRect(ctx, zone.x + zone.w - 110, zone.y - 10, 90, 20, 4);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '700 9px "Space Mono"';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('Service Layer', zone.x + zone.w - 65, zone.y);
+        } else if (zone.id === 'data-zone') {
+          ctx.fillStyle = '#D97706';
+          ctx.font = '700 11px "Space Grotesk"';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+          ctx.fillText('Database Layer', zone.x + 16, zone.y + 12);
+        }
+        ctx.restore();
+      });
+
+      // 4. Draw Connections (Arrows)
+      localConnections.forEach(conn => {
+        const fromComp = localComponents.find(c => c.id === conn.from);
+        const toComp = localComponents.find(c => c.id === conn.to);
+        if (fromComp && toComp) {
+          const fromCenter = { x: fromComp.x + fromComp.w / 2, y: fromComp.y + fromComp.h / 2 };
+          const toCenter = { x: toComp.x + toComp.w / 2, y: toComp.y + toComp.h / 2 };
+
+          const angle = Math.atan2(toCenter.y - fromCenter.y, toCenter.x - fromCenter.x);
+          const startX = fromCenter.x + (fromComp.w / 2) * Math.cos(angle);
+          const startY = fromCenter.y + (fromComp.h / 2) * Math.sin(angle);
+          const endX = toCenter.x - (toComp.w / 2) * Math.cos(angle);
+          const endY = toCenter.y - (toComp.h / 2) * Math.sin(angle);
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(startX, startY);
+
+          // Curve bezier paths
+          const dx = endX - startX;
+          const dy = endY - startY;
+          const cp1x = startX + dx * 0.25 - dy * 0.08;
+          const cp1y = startY + dy * 0.25 + dx * 0.08;
+          const cp2x = startX + dx * 0.75 - dy * 0.08;
+          const cp2y = startY + dy * 0.75 + dx * 0.08;
+
+          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
+
+          // Make lines fully visible (Active: solid black, Inactive: dashed dark grey)
+          const isActive = conn.active && fromComp.active && toComp.active;
+          ctx.strokeStyle = isActive ? '#111827' : '#4B5563';
+          ctx.lineWidth = isActive ? 2.0 : 1.0;
+          if (!isActive) {
+            ctx.setLineDash([4, 4]);
+          }
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Compute midpoint to draw green envelope ✉ capsule (Service Layer connection style)
+          if (isActive && (fromComp.id === 'ui-views' || toComp.id === 'messaging')) {
+            const midX = startX * 0.125 + cp1x * 0.375 + cp2x * 0.375 + endX * 0.125;
+            const midY = startY * 0.125 + cp1y * 0.375 + cp2y * 0.375 + endY * 0.125;
+            drawEnvelopeCapsule(ctx, midX, midY);
+          }
+
+          // Arrowhead
+          ctx.translate(endX, endY);
+          ctx.rotate(Math.atan2(endY - cp2y, endX - cp2x));
+          ctx.beginPath();
+          ctx.moveTo(-6, -4);
+          ctx.lineTo(0, 0);
+          ctx.lineTo(-6, 4);
+          ctx.fillStyle = isActive ? '#111827' : '#4B5563';
+          ctx.fill();
+          ctx.restore();
+        }
+      });
+
+      // 5. Draw Component Cards and Custom Shapes (Ditto Image 3)
+      localComponents.forEach(comp => {
+        const isSelected = selectedShapeId === comp.id;
+        ctx.save();
+
+        // Stage A: Draw the shape container background
+        if (comp.active === false) {
+          ctx.globalAlpha = 0.35; // faded container card
+        }
+
+        // Draw selection highlight outline
+        if (isSelected) {
+          ctx.shadowColor = 'var(--orange)';
+          ctx.shadowBlur = 12;
+        }
+
+        if (comp.shape.startsWith('component-card-')) {
+          // Microservices Style stacked card layouts (Service A, B, C)
+          const type = comp.shape.split('-')[2];
+          let colorBg = '#ffffff';
+          let borderClr = '#111827';
+          
+          if (type === 'purple') { colorBg = '#C084FC'; borderClr = '#7C3AED'; }
+          else if (type === 'pink')  { colorBg = '#F472B6'; borderClr = '#DB2777'; }
+          else if (type === 'blue')  { colorBg = '#60A5FA'; borderClr = '#2563EB'; }
+          else if (type === 'green') { colorBg = '#34D399'; borderClr = '#059669'; }
+          else if (type === 'yellow'){ colorBg = '#FDE047'; borderClr = '#CA8A04'; }
+
+          // If stacked (Service A, B, C), draw 2 layered cards behind
+          if (type === 'pink' || type === 'blue' || type === 'green') {
+            ctx.save();
+            ctx.fillStyle = colorBg;
+            ctx.strokeStyle = borderClr;
+            ctx.lineWidth = 1.5;
+            // Card 3 (back)
+            drawRoundedRect(ctx, comp.x + 8, comp.y - 8, comp.w, comp.h, 4);
+            ctx.fill(); ctx.stroke();
+            // Card 2 (mid)
+            drawRoundedRect(ctx, comp.x + 4, comp.y - 4, comp.w, comp.h, 4);
+            ctx.fill(); ctx.stroke();
+            ctx.restore();
+          }
+
+          // Main Card Container
+          ctx.fillStyle = colorBg;
+          drawRoundedRect(ctx, comp.x, comp.y, comp.w, comp.h, 4);
+          ctx.fill();
+          ctx.strokeStyle = isSelected ? 'var(--orange)' : borderClr;
+          ctx.lineWidth = isSelected ? 2 : 1.5;
+          ctx.stroke();
+
+          // Draw small blue square controller chip inside
+          ctx.fillStyle = '#60A5FA';
+          ctx.fillRect(comp.x + comp.w - 16, comp.y + comp.h - 16, 10, 10);
+          ctx.strokeStyle = '#1E40AF';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(comp.x + comp.w - 16, comp.y + comp.h - 16, 10, 10);
+
+          // STAGE B: Restore full text contrast (100% opacity)
+          ctx.globalAlpha = 1.0;
+
+          // Card label
+          ctx.fillStyle = '#111827';
+          ctx.font = '700 9px "Space Grotesk"';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(comp.name, comp.x + comp.w / 2, comp.y + comp.h / 2);
+
+          // Small subtitle info below
+          ctx.fillStyle = '#4B5563';
+          ctx.font = '500 8px "Space Mono"';
+          ctx.fillText(comp.techKey || 'Module', comp.x + comp.w / 2, comp.y + comp.h + 8);
+
+        } else if (comp.shape === 'hexagon-brackets') {
+          // Service Registry hexagons inside brackets { [Hex] }
+          const radius = comp.w / 2;
+          ctx.save();
+          // Draw brackets
+          ctx.strokeStyle = '#111827';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          // Left bracket {
+          ctx.moveTo(comp.x - 4, comp.y); ctx.lineTo(comp.x - 8, comp.y);
+          ctx.lineTo(comp.x - 8, comp.y + comp.h); ctx.lineTo(comp.x - 4, comp.y + comp.h);
+          // Right bracket }
+          ctx.moveTo(comp.x + comp.w + 4, comp.y); ctx.lineTo(comp.x + comp.w + 8, comp.y);
+          ctx.lineTo(comp.x + comp.w + 8, comp.y + comp.h); ctx.lineTo(comp.x + comp.w + 4, comp.y + comp.h);
+          ctx.stroke();
+
+          // Hexagon in orange
+          ctx.fillStyle = '#FF9900';
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const angle = i * Math.PI / 3;
+            ctx.lineTo(comp.x + radius + radius * Math.cos(angle), comp.y + radius + radius * Math.sin(angle));
+          }
+          ctx.closePath();
+          ctx.fill();
+          
+          ctx.strokeStyle = '#D97706';
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+          ctx.restore();
+
+          // STAGE B: Restore full text contrast
+          ctx.globalAlpha = 1.0;
+
+          // Label below
+          ctx.fillStyle = '#111827';
+          ctx.font = '700 9px "Space Grotesk"';
+          ctx.textAlign = 'center';
+          ctx.fillText(comp.name, comp.x + radius, comp.y + comp.h + 8);
+
+        } else if (comp.shape === 'cylinder-stack') {
+          // Distributed cache red cylinders stack (❻)
+          const w = comp.w;
+          const h = comp.h;
+          const cyH = h / 3;
+          
+          ctx.save();
+          for (let i = 0; i < 3; i++) {
+            const cyY = comp.y + i * (cyH - 2);
+            ctx.fillStyle = '#FCA5A5';
+            ctx.fillRect(comp.x, cyY + cyH / 2, w, cyH / 2);
+            
+            ctx.beginPath();
+            ctx.ellipse(comp.x + w / 2, cyY + cyH / 2, w / 2, cyH / 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#DC2626';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.ellipse(comp.x + w / 2, cyY + cyH, w / 2, cyH / 4, 0, 0, Math.PI);
+            ctx.stroke();
+          }
+          ctx.restore();
+
+          // STAGE B: Restore full text contrast
+          ctx.globalAlpha = 1.0;
+
+          // Label
+          ctx.fillStyle = '#111827';
+          ctx.font = '700 9px "Space Grotesk"';
+          ctx.textAlign = 'center';
+          ctx.fillText(comp.name, comp.x + w / 2, comp.y + h + 8);
+
+        } else if (comp.shape === 'message-box') {
+          // Distributed Messaging envelope queue box (❼)
+          ctx.save();
+          ctx.strokeStyle = '#F472B6';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 3]);
+          drawRoundedRect(ctx, comp.x, comp.y, comp.w, comp.h, 6);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Inner blue message card
+          ctx.fillStyle = '#3B82F6';
+          drawRoundedRect(ctx, comp.x + 8, comp.y + 8, comp.w - 16, comp.h - 16, 4);
+          ctx.fill();
+          ctx.strokeStyle = '#1D40AF';
+          ctx.stroke();
+
+          // Node points inside messaging node
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(comp.x + 20, comp.y + comp.h/2, 3, 0, Math.PI*2);
+          ctx.arc(comp.x + comp.w/2, comp.y + comp.h/2, 3, 0, Math.PI*2);
+          ctx.arc(comp.x + comp.w - 20, comp.y + comp.h/2, 3, 0, Math.PI*2);
+          ctx.fill();
+          ctx.restore();
+
+          // STAGE B: Restore full text contrast
+          ctx.globalAlpha = 1.0;
+
+          // Label
+          ctx.fillStyle = '#111827';
+          ctx.font = '700 9px "Space Grotesk"';
+          ctx.textAlign = 'center';
+          ctx.fillText(comp.name, comp.x + comp.w / 2, comp.y + comp.h + 8);
+
+        } else if (comp.shape === 'database-layout-green') {
+          // Replicated database layout (❺)
+          const w = comp.w;
+          const h = comp.h;
+          const pts = [
+            { x: comp.x + w / 2, y: comp.y + 16 },
+            { x: comp.x + 24, y: comp.y + h - 24 },
+            { x: comp.x + w - 24, y: comp.y + h - 24 }
+          ];
+
+          // Triangle replication link
+          ctx.strokeStyle = '#10B981';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          ctx.lineTo(pts[1].x, pts[1].y);
+          ctx.lineTo(pts[2].x, pts[2].y);
+          ctx.closePath();
+          ctx.stroke();
+
+          // Text replication
+          ctx.fillStyle = '#065F46';
+          ctx.font = '600 8px "Space Grotesk"';
+          ctx.textAlign = 'center';
+          ctx.fillText('Replication', comp.x + w / 2, comp.y + h/2 + 6);
+
+          // Cylinders
+          pts.forEach(pt => {
+            ctx.save();
+            ctx.fillStyle = '#A7F3D0';
+            ctx.fillRect(pt.x - 12, pt.y - 4, 24, 16);
+            ctx.beginPath();
+            ctx.ellipse(pt.x, pt.y - 4, 12, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#059669';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.ellipse(pt.x, pt.y + 12, 12, 4, 0, 0, Math.PI);
+            ctx.stroke();
+            ctx.restore();
+          });
+
+          // STAGE B: Restore full text contrast
+          ctx.globalAlpha = 1.0;
+
+          // Label
+          ctx.fillStyle = '#111827';
+          ctx.font = '700 9px "Space Grotesk"';
+          ctx.textAlign = 'center';
+          ctx.fillText(comp.name, comp.x + w / 2, comp.y + h + 8);
+
+        } else {
+          // Standard generic fallback shapes (user custom nodes)
+          ctx.fillStyle = comp.brandColor || '#4B5563';
+          if (comp.shape === 'circle') {
+            const radius = comp.w / 2;
+            ctx.beginPath();
+            ctx.arc(comp.x + radius, comp.y + radius, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = isSelected ? 'var(--orange)' : 'rgba(255,255,255,0.15)';
+            ctx.stroke();
+          } else {
+            drawRoundedRect(ctx, comp.x, comp.y, comp.w, comp.h, 4);
+            ctx.fill();
+            ctx.strokeStyle = isSelected ? 'var(--orange)' : 'rgba(255,255,255,0.15)';
+            ctx.stroke();
+          }
+
+          // STAGE B: Restore full text contrast
+          ctx.globalAlpha = 1.0;
+
+          // Name label
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '600 9px "Space Grotesk"';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(comp.name, comp.x + comp.w / 2, comp.y + comp.h / 2);
+        }
+
+        // Draw black circular index numbers (❶, ❷, ❸, ❹, ❺, ❻, ❼, ❽, ❾) matching Image 3
+        if (comp.number) {
+          ctx.save();
+          ctx.globalAlpha = 1.0; // always fully solid black circle & text
+          ctx.fillStyle = '#111827';
+          ctx.beginPath();
+          ctx.arc(comp.x - 8, comp.y - 8, 7, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '700 8px "Space Mono"';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(comp.number, comp.x - 8, comp.y - 8);
+          ctx.restore();
+        }
+
+        ctx.restore();
+      });
+
+      // 6. Draw User Access silhouette monitors (Admin, Metrics, Logs, Queue Manager)
+      drawUserScreen(ctx, W - 140, 220, 'Admin Access');
+      drawUserScreen(ctx, centerX - 240, 640, 'Queue Management');
+      drawUserScreen(ctx, 80, 720, 'Metrics Viz');
+      drawUserScreen(ctx, W - 140, 720, 'Logs Viz');
+
+      // 7. Draw connection indicator line if link mode active
+      if (activeTool === 'connect' && connectSourceId) {
+        const src = localComponents.find(c => c.id === connectSourceId);
+        if (src) {
+          ctx.beginPath();
+          ctx.moveTo(src.x + src.w / 2, src.y + src.h / 2);
+          ctx.lineTo(mousePos.x, mousePos.y);
+          ctx.strokeStyle = 'var(--orange)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 3]);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      ctx.restore();
+    }
+
+    function resizeCanvas() {
+      if (canvas) {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+        drawArchitectureCanvas();
+      }
+    }
+
+    function onCanvasMouseDown(e) {
+      const coords = getCanvasMouseCoords(e);
+
+      // 1. Check if shape clicked
+      const clickedShape = [...localComponents].reverse().find(comp => {
+        return coords.x >= comp.x && coords.x <= comp.x + comp.w &&
+               coords.y >= comp.y && coords.y <= comp.y + comp.h;
+      });
+
+      if (clickedShape) {
+        if (activeTool === 'connect') {
+          if (!connectSourceId) {
+            connectSourceId = clickedShape.id;
+            selectedShapeId = clickedShape.id;
+          } else {
+            // connect source to target
+            if (connectSourceId !== clickedShape.id) {
+              // Add Connection
+              localConnections.push({ from: connectSourceId, to: clickedShape.id });
+              const src = localComponents.find(c => c.id === connectSourceId);
+              if (src && !src.connectedTo.includes(clickedShape.id)) {
+                src.connectedTo.push(clickedShape.id);
+              }
+            }
+            connectSourceId = null;
+          }
+          drawArchitectureCanvas();
+        } else {
+          // Select & Drag mode
+          selectedShapeId = clickedShape.id;
+          draggingShapeId = clickedShape.id;
+          dragOffset.x = coords.x - clickedShape.x;
+          dragOffset.y = coords.y - clickedShape.y;
+          showComponentDetails(clickedShape.id);
+          drawArchitectureCanvas();
+        }
+      } else {
+        // Drag background to pan
+        selectedShapeId = null;
+        connectSourceId = null;
+        isDragging = true;
+        startX = e.clientX - panX;
+        startY = e.clientY - panY;
+        drawArchitectureCanvas();
+      }
+    }
+
+    function onCanvasMouseMove(e) {
+      const coords = getCanvasMouseCoords(e);
+
+      if (isDragging) {
+        panX = e.clientX - startX;
+        panY = e.clientY - startY;
+        drawArchitectureCanvas();
+      } else if (draggingShapeId && activeTool === 'select') {
+        const shape = localComponents.find(c => c.id === draggingShapeId);
+        if (shape) {
+          shape.x = coords.x - dragOffset.x;
+          shape.y = coords.y - dragOffset.y;
+          drawArchitectureCanvas();
+        }
+      } else {
+        // Hover pointer cursor check
+        const isHover = localComponents.some(comp => {
+          return coords.x >= comp.x && coords.x <= comp.x + comp.w &&
+                 coords.y >= comp.y && coords.y <= comp.y + comp.h;
+        });
+        canvas.style.cursor = isHover ? 'pointer' : 'default';
+      }
+    }
+
+    function onCanvasMouseUp() {
+      isDragging = false;
+      draggingShapeId = null;
+    }
+
+    function onCanvasDoubleClick(e) {
+      const coords = getCanvasMouseCoords(e);
+      const clickedShape = localComponents.find(comp => {
+        return coords.x >= comp.x && coords.x <= comp.x + comp.w &&
+               coords.y >= comp.y && coords.y <= comp.y + comp.h;
+      });
+
+      if (clickedShape) {
+        selectedShapeId = clickedShape.id;
+        openShapeModal(clickedShape);
+      }
+    }
+
+    function onCanvasWheel(e) {
+      e.preventDefault();
+      if (e.deltaY < 0) {
+        canvasZoom(0.05);
+      } else {
+        canvasZoom(-0.05);
+      }
+    }
+
+    // Modal popup editing helpers
+    function openShapeModal(shape) {
+      document.getElementById('edit-shape-name').value = shape.name;
+      document.getElementById('edit-shape-desc').value = shape.description || '';
+      document.getElementById('edit-shape-color').value = shape.brandColor || '#FF4D00';
+      document.getElementById('shape-edit-modal').style.display = 'block';
+    }
+
+    function closeShapeModal() {
+      document.getElementById('shape-edit-modal').style.display = 'none';
+    }
+
+    function saveShapeEdits() {
+      if (!selectedShapeId) return;
+      const shape = localComponents.find(c => c.id === selectedShapeId);
+      if (shape) {
+        shape.name = document.getElementById('edit-shape-name').value;
+        shape.description = document.getElementById('edit-shape-desc').value;
+        shape.brandColor = document.getElementById('edit-shape-color').value;
+        
+        drawArchitectureCanvas();
+        showComponentDetails(selectedShapeId);
+      }
+      closeShapeModal();
+    }
+
+    function getCanvasMouseCoords(e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+      return {
+        x: (clientX - panX) / zoomScale,
+        y: (clientY - panY) / zoomScale
+      };
+    }
+
+    function drawRoundedRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    function showComponentDetails(compId) {
+      const comp = localComponents.find(c => c.id === compId);
+      if (!comp) return;
+
+      const matchedFiles = DATA.files.filter(f => {
+        if (comp.id === 'ui-views' && f.layer === 'Presentation') return true;
+        if (comp.id === 'api-controllers' && f.layer === 'Gateway') return true;
+        if (comp.id === 'domain-services' && f.layer === 'Domain') return true;
+        if (comp.id === 'database-models' && f.layer === 'Persistence') return true;
+        if (comp.id === 'state-stores' && f.layer === 'Interaction') return true;
+        if (comp.id === 'core-helpers' && f.layer === 'Foundation') return true;
+        if (comp.id === 'test-suite' && f.layer === 'Test') return true;
+        
+        if (comp.type === 'client' && f.layer === 'Presentation') return true;
+        if (comp.type === 'api-gateway' && f.layer === 'Gateway') return true;
+        if (comp.type === 'auth' && f.layer === 'Interaction') return true;
+        if (comp.type === 'database' && f.layer === 'Persistence') return true;
+        if (comp.type === 'cache' && f.layer === 'Persistence') return true;
+        return false;
+      });
+
+      let filesHtml = matchedFiles.map(f => {
+        return `<div class="list-item-row">
+          <div class="list-item-left">
+            <span style="width:6px; height:6px; border-radius:50%; background-color:var(--layer-${f.layer.toLowerCase()})"></span>
+            <span class="list-item-name clickable" onclick="inspectExplorerFile('${f.relativePath}')">${f.name}</span>
+          </div>
+          <span style="font-family:'Space Mono'; font-size:10px; color:var(--beige-3)">${f.lines} lines</span>
+        </div>`;
+      }).join('');
+
+      if (matchedFiles.length === 0) {
+        filesHtml = '<div style="font-size:12px; color:var(--beige-3); margin-top:8px;">No files mapped directly to this component.</div>';
+      }
+
+      const connectedToIds = comp.connectedTo || [];
+      const connectedHtml = connectedToIds.map(cid => {
+        const target = localComponents.find(c => c.id === cid);
+        return target ? `<div class="list-item-row" style="font-size:12px; border-bottom:1px solid var(--border-3)">
+          <span>${comp.name} ➔ ${target.name}</span>
+        </div>` : '';
+      }).join('');
+
+      const html = `
+        <div style="display:flex; flex-direction:column; gap:16px; font-family:'Space Grotesk', sans-serif;">
+          <div style="background-color:${comp.brandColor || 'var(--orange-dim)'}; border-radius:6px; padding:16px; border:1px solid rgba(255,255,255,0.15)">
+            <div style="font-size:18px; font-weight:700; color:#fff">${comp.name}</div>
+            <div style="font-size:11px; font-family:'Space Mono'; color:var(--beige-2); text-transform:uppercase; margin-top:4px;">${comp.type || 'Custom Element'}</div>
+          </div>
+          <div>
+            <div class="detail-stat-label">Description</div>
+            <div style="font-size:13px; color:var(--beige-2); line-height:1.5;">${comp.description || 'No description provided.'}</div>
+          </div>
+          <div>
+            <div class="detail-stat-label">Mapped Files</div>
+            <div style="display:flex; flex-direction:column; gap:4px; max-height:240px; overflow-y:auto;">
+              ${filesHtml}
+            </div>
+          </div>
+          ${connectedHtml ? `
+          <div>
+            <div class="detail-stat-label">Integrations</div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              ${connectedHtml}
+            </div>
+          </div>` : ''}
+        </div>
+      `;
+
+      openDetailPanel(comp.name, html);
+    }
+
+    // ============================================
+    // VIEW 2: LAYER DIAGRAM DYNAMIC RENDERING
+    // ============================================
+    function setupLayersView() {
+      const container = document.getElementById('view-layers');
+      container.innerHTML = '';
+
+      const orderedLayers = ['Presentation', 'Interaction', 'Gateway', 'Domain', 'Persistence', 'Foundation', 'Infrastructure', 'Test', 'Unknown'];
+      
+      let layerIndex = 0;
+      orderedLayers.forEach(layerName => {
+        const filePaths = DATA.layers[layerName];
+        if (!filePaths || filePaths.length === 0) return;
+
+        const filesData = filePaths.map(p => DATA.files.find(f => f.relativePath === p)).filter(Boolean);
+
+        if (layerIndex > 0) {
+          const arrow = document.createElement('div');
+          arrow.className = 'layer-connector';
+          let importsCount = 0;
+          DATA.files.forEach(f => {
+            f.imports.forEach(imp => {
+              if (imp.status === 'resolved' && filePaths.includes(imp.resolvedPath)) {
+                importsCount++;
+              }
+            });
+          });
+          arrow.innerHTML = `<div class="layer-connector-label">↓ ${importsCount} imports</div>`;
+          container.appendChild(arrow);
+        }
+
+        const band = document.createElement('div');
+        band.className = 'layer-band';
+        
+        const labelCol = document.createElement('div');
+        labelCol.className = 'layer-label-col';
+        labelCol.style.backgroundColor = `rgba(255, 77, 0, 0.03)`;
+        labelCol.style.borderRight = `1px solid var(--border)`;
+        
+        labelCol.innerHTML = `
+          <div class="layer-title-row">
+            <span class="layer-dot" style="background-color:var(--layer-${layerName.toLowerCase()})"></span>
+            <span class="layer-name" style="color:var(--layer-${layerName.toLowerCase()})">${layerName}</span>
+          </div>
+          <span class="layer-count">${filesData.length} file${filesData.length > 1 ? 's' : ''}</span>
+        `;
+        band.appendChild(labelCol);
+
+        const filesCol = document.createElement('div');
+        filesCol.className = 'layer-files-col';
+        
+        filesData.forEach(file => {
+          const card = document.createElement('div');
+          card.className = 'file-card';
+          
+          let findingDot = '';
+          const hasErrors = file.findings.some(f => f.type === 'error');
+          const hasWarnings = file.findings.some(f => f.type === 'warning');
+          
+          if (hasErrors) {
+            findingDot = `<span class="finding-dot error"></span>`;
+          } else if (hasWarnings) {
+            findingDot = `<span class="finding-dot warning"></span>`;
+          }
+
+          card.innerHTML = `
+            ${findingDot}
+            <span class="name">${file.name}</span>
+          `;
+          card.onclick = () => inspectExplorerFile(file.relativePath);
+          
+          card.addEventListener('mouseenter', () => {
+            gsap.to(card, { borderColor: `var(--layer-${layerName.toLowerCase()})`, y: -2, duration: 0.2 });
+          });
+          card.addEventListener('mouseleave', () => {
+            gsap.to(card, { borderColor: 'var(--border-2)', y: 0, duration: 0.2 });
+          });
+
+          filesCol.appendChild(card);
+        });
+
+        band.appendChild(filesCol);
+        container.appendChild(band);
+        layerIndex++;
+      });
+    }
+
+    // ============================================
+    // VIEW 3: FILE EXPLORER
+    // ============================================
+    let activeFileRelativePath = null;
+    let expandedDirs = new Set();
+
+    function setupExplorerView() {
+      buildExplorerTree();
+    }
+
+    function buildExplorerTree() {
+      const container = document.getElementById('explorer-tree-container');
+      container.innerHTML = '';
+      
+      const searchVal = document.getElementById('explorer-search-input').value.toLowerCase();
+      const grouped = {};
+      
+      DATA.files.forEach(f => {
+        if (searchVal && !f.relativePath.toLowerCase().includes(searchVal)) return;
+
+        const dir = f.directory === '' ? '.' : f.directory;
+        if (!grouped[dir]) {
+          grouped[dir] = [];
+        }
+        grouped[dir].push(f);
+      });
+
+      const dirs = Object.keys(grouped).sort();
+
+      dirs.forEach(dir => {
+        const isRoot = dir === '.';
+        const parts = isRoot ? [] : dir.split('/');
+        const depth = parts.length;
+        const dirName = isRoot ? '/' : parts[parts.length - 1];
+
+        if (!isRoot && !searchVal) {
+          const dirRow = document.createElement('div');
+          dirRow.className = 'tree-row';
+          dirRow.style.paddingLeft = `${(depth - 1) * 12 + 12}px`;
+          
+          const isCollapsed = !expandedDirs.has(dir);
+          
+          let errs = 0, warns = 0;
+          grouped[dir].forEach(f => {
+            f.findings.forEach(fin => {
+              if (fin.type === 'error') errs++;
+              if (fin.type === 'warning') warns++;
+            });
+          });
+
+          let badgeHtml = '';
+          if (errs > 0) badgeHtml = `<span class="badge-count error">${errs}</span>`;
+          else if (warns > 0) badgeHtml = `<span class="badge-count warning">${warns}</span>`;
+
+          dirRow.innerHTML = `
+            <div class="tree-node-left">
+              <svg class="tree-chevron ${isCollapsed ? 'collapsed' : ''}" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+              <svg class="tree-icon" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+              <span class="tree-label">${dirName}</span>
+            </div>
+            <div class="tree-row-badges">${badgeHtml}</div>
+          `;
+
+          dirRow.onclick = () => {
+            if (expandedDirs.has(dir)) {
+              expandedDirs.delete(dir);
+            } else {
+              expandedDirs.add(dir);
+            }
+            buildExplorerTree();
+          };
+          container.appendChild(dirRow);
+
+          if (isCollapsed) return;
+        }
+
+        const filesInDir = grouped[dir].sort((a, b) => a.name.localeCompare(b.name));
+        filesInDir.forEach(file => {
+          const fileRow = document.createElement('div');
+          fileRow.className = `tree-row ${activeFileRelativePath === file.relativePath ? 'selected' : ''}`;
+          
+          const fileDepth = searchVal ? 0 : (isRoot ? 0 : depth);
+          fileRow.style.paddingLeft = `${fileDepth * 12 + 24}px`;
+
+          let errs = 0, warns = 0;
+          file.findings.forEach(fin => {
+            if (fin.type === 'error') errs++;
+            if (fin.type === 'warning') warns++;
+          });
+
+          let badgeHtml = '';
+          if (errs > 0) badgeHtml = `<span class="badge-count error">${errs}</span>`;
+          else if (warns > 0) badgeHtml = `<span class="badge-count warning">${warns}</span>`;
+
+          fileRow.innerHTML = `
+            <div class="tree-node-left">
+              <span style="width:6px; height:6px; border-radius:50%; background-color:var(--layer-${file.layer.toLowerCase()}); flex-shrink:0;"></span>
+              <span class="tree-label file">${file.name}</span>
+            </div>
+            <div class="tree-row-badges">
+              <span class="pill-badge" style="background-color:rgba(255,255,255,0.05); color:var(--layer-${file.layer.toLowerCase()}); padding:1px 6px;">${file.layer}</span>
+              ${badgeHtml}
+            </div>
+          `;
+
+          fileRow.onclick = () => {
+            inspectExplorerFile(file.relativePath);
+          };
+
+          container.appendChild(fileRow);
+        });
+      });
+    }
+
+    function filterExplorerTree() {
+      buildExplorerTree();
+    }
+
+    function inspectExplorerFile(relativePath) {
+      activeFileRelativePath = relativePath;
+      buildExplorerTree();
+      
+      const file = DATA.files.find(f => f.relativePath === relativePath);
+      if (!file) return;
+
+      switchView('explorer');
+
+      document.getElementById('explorer-placeholder-screen').style.display = 'none';
+      const detailScreen = document.getElementById('explorer-detail-screen');
+      detailScreen.style.display = 'block';
+
+      document.getElementById('exp-file-name').innerText = file.name;
+      document.getElementById('exp-file-path').innerText = file.relativePath;
+      
+      const badgesContainer = document.getElementById('exp-file-badges');
+      badgesContainer.innerHTML = `
+        <span class="pill-badge" style="background-color:var(--layer-${file.layer.toLowerCase()}); color:var(--black)">${file.layer}</span>
+        ${file.apiRoute ? `<span class="pill-badge" style="background-color:var(--orange-dim); border:1px solid var(--orange-glow); color:var(--orange)">API ROUTE</span>` : ''}
+      `;
+
+      document.getElementById('exp-stat-lines').innerText = file.lines;
+      document.getElementById('exp-stat-imports-in').innerText = file.incomingCount;
+      document.getElementById('exp-stat-imports-out').innerText = file.outgoingCount;
+      document.getElementById('exp-stat-exports').innerText = file.exports.length;
+
+      // Issues
+      const issuesTitle = document.getElementById('exp-issues-title');
+      const issuesList = document.getElementById('exp-issues-list');
+      issuesList.innerHTML = '';
+      
+      if (file.findings.length > 0) {
+        issuesTitle.style.display = 'block';
+        file.findings.forEach(fin => {
+          const item = document.createElement('div');
+          item.className = `issue-item ${fin.type === 'warning' ? 'warning' : ''}`;
+          item.innerHTML = `
+            <div class="issue-header">
+              <span class="issue-rule">${fin.rule}</span>
+              <span style="font-family:'Space Mono'; font-size:10px; color:${fin.type === 'error' ? 'var(--orange)' : '#EAB308'}">${fin.type}</span>
+            </div>
+            <div class="issue-msg">${fin.message}</div>
+            <div class="issue-sugg">${fin.suggestion}</div>
+          `;
+          issuesList.appendChild(item);
+        });
+      } else {
+        issuesTitle.style.display = 'none';
+      }
+
+      // Imports
+      const importsList = document.getElementById('exp-imports-list');
+      importsList.innerHTML = '';
+      if (file.imports.length > 0) {
+        file.imports.forEach(imp => {
+          const isResolved = imp.status === 'resolved';
+          const nameHtml = isResolved 
+            ? `<span class="list-item-name clickable" onclick="inspectExplorerFile('${imp.resolvedPath}')">${imp.specifier}</span>`
+            : `<span class="list-item-name">${imp.specifier}</span>`;
+            
+          const labelHtml = `<span style="font-family:'Space Mono'; font-size:9px; color:var(--beige-3); text-transform:uppercase;">${imp.type} (${imp.status})</span>`;
+
+          const row = document.createElement('div');
+          row.className = 'list-item-row';
+          row.innerHTML = `
+            <div class="list-item-left">
+              <span style="width:6px; height:6px; border-radius:50%; background-color:${isResolved ? 'var(--orange)' : 'var(--border-3)'}"></span>
+              ${nameHtml}
+            </div>
+            ${labelHtml}
+          `;
+          importsList.appendChild(row);
+        });
+      } else {
+        importsList.innerHTML = '<div style="font-size:12px; color:var(--beige-3)">No imports defined in this file.</div>';
+      }
+
+      // Exports
+      const exportsList = document.getElementById('exp-exports-list');
+      exportsList.innerHTML = '';
+      if (file.exports.length > 0) {
+        file.exports.forEach(exp => {
+          const row = document.createElement('div');
+          row.className = 'list-item-row';
+          row.innerHTML = `
+            <span style="font-family:'Space Mono'; font-size:11px;">${exp.name}</span>
+            <span style="font-family:'Space Mono'; font-size:9px; color:var(--beige-3); text-transform:uppercase;">${exp.kind}</span>
+          `;
+          exportsList.appendChild(row);
+        });
+      } else {
+        exportsList.innerHTML = '<div style="font-size:12px; color:var(--beige-3)">No exports defined in this file.</div>';
+      }
+
+      // Imported By
+      const importedByList = document.getElementById('exp-imported-by-list');
+      importedByList.innerHTML = '';
+      
+      const importers = DATA.files.filter(f => f.imports.some(imp => imp.resolvedPath === file.relativePath));
+      if (importers.length > 0) {
+        importers.forEach(imp => {
+          const row = document.createElement('div');
+          row.className = 'list-item-row';
+          row.innerHTML = `
+            <div class="list-item-left">
+              <span style="width:6px; height:6px; border-radius:50%; background-color:var(--layer-${imp.layer.toLowerCase()})"></span>
+              <span class="list-item-name clickable" onclick="inspectExplorerFile('${imp.relativePath}')">${imp.name}</span>
+            </div>
+            <span style="font-family:'Space Mono'; font-size:9px; color:var(--beige-3); text-transform:uppercase;">${imp.layer}</span>
+          `;
+          importedByList.appendChild(row);
+        });
+      } else {
+        importedByList.innerHTML = '<div style="font-size:12px; color:var(--beige-3)">Nothing imports this file.</div>';
+      }
+    }
+
+    // ============================================
+    // VIEW 4: DEPENDENCY GRAPH (D3.JS GLOW NEON)
+    // ============================================
+    let d3Simulation = null;
+
+    function setupGraphView() {}
+
+    function triggerGraphSimulation() {
+      const svg = d3.select('#svg-graph');
+      svg.selectAll('*').remove();
+
+      const width = document.getElementById('view-graph').clientWidth;
+      const height = document.getElementById('view-graph').clientHeight;
+
+      const nodes = DATA.graph.nodes.map(d => ({ ...d }));
+      const edges = DATA.graph.edges.map(d => ({ ...d }));
+
+      const maxCentrality = d3.max(nodes, d => d.centrality) || 1;
+      const centralityValues = nodes.map(d => d.centrality).sort((a,b)=>a-b);
+      const medianCentrality = centralityValues[Math.floor(centralityValues.length/2)] || 0;
+
+      const g = svg.append('g');
+
+      svg.call(d3.zoom().on('zoom', (event) => {
+        g.attr('transform', event.transform);
+      }));
+
+      // Directed arrows
+      svg.append('defs').append('marker')
+        .attr('id', 'arrow')
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 22)
+        .attr('refY', 0)
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M0,-4L10,0L0,4')
+        .attr('fill', 'var(--border-3)');
+
+      // Link lines
+      const link = g.append('g')
+        .selectAll('path')
+        .data(edges)
+        .enter().append('path')
+        .attr('stroke', 'var(--border-3)')
+        .attr('stroke-opacity', 0.5)
+        .attr('stroke-width', 1.5)
+        .attr('fill', 'none')
+        .attr('marker-end', 'url(#arrow)');
+
+      // Nodes
+      const node = g.append('g')
+        .selectAll('g')
+        .data(nodes)
+        .enter().append('g')
+        .call(d3.drag()
+          .on('start', dragstarted)
+          .on('drag', dragged)
+          .on('end', dragended));
+
+      // Glowing Neon Circles (Increased Radius)
+      node.append('circle')
+        .attr('r', d => 8 + (d.centrality / maxCentrality) * 20)
+        .attr('fill', d => `var(--layer-${d.layer.toLowerCase()})`)
+        .attr('fill-opacity', 0.65)
+        .attr('stroke', d => `var(--layer-${d.layer.toLowerCase()})`)
+        .attr('stroke-width', 2)
+        .style('filter', 'url(#neon-glow)')
+        .on('mouseover', showGraphTooltip)
+        .on('mouseout', hideGraphTooltip)
+        .on('click', (event, d) => inspectExplorerFile(d.id));
+
+      // Labels (Space Grotesk, bigger and cleaner)
+      node.append('text')
+        .attr('dx', d => 12 + (d.centrality / maxCentrality) * 20)
+        .attr('dy', '.35em')
+        .text(d => d.label)
+        .attr('font-family', '"Space Grotesk", sans-serif')
+        .attr('font-size', '11px')
+        .attr('font-weight', '500')
+        .attr('fill', 'var(--beige-2)')
+        .style('display', d => d.centrality > medianCentrality ? 'block' : 'none');
+
+      d3Simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(edges).id(d => d.id).distance(120))
+        .force('charge', d3.forceManyBody().strength(-180))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(d => 16 + (d.centrality / maxCentrality) * 20));
+
+      d3Simulation.on('tick', () => {
+        link.attr('d', d => {
+          const dx = d.target.x - d.source.x;
+          const dy = d.target.y - d.source.y;
+          const dr = Math.sqrt(dx * dx + dy * dy);
+          return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+        });
+        node.attr('transform', d => `translate(${d.x},${d.y})`);
+      });
+
+      function dragstarted(event, d) {
+        if (!event.active) d3Simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+      }
+      function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+      }
+      function dragended(event, d) {
+        if (!event.active) d3Simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+      }
+
+      const tooltip = document.getElementById('graph-tooltip');
+
+      function showGraphTooltip(event, d) {
+        // Neighborhood lighting
+        const neighbors = new Set();
+        neighbors.add(d.id);
+        edges.forEach(e => {
+          if (e.source.id === d.id) neighbors.add(e.target.id);
+          if (e.target.id === d.id) neighbors.add(e.source.id);
+        });
+
+        node.select('circle')
+          .attr('fill-opacity', n => neighbors.has(n.id) ? 0.95 : 0.15)
+          .attr('stroke-opacity', n => neighbors.has(n.id) ? 1.0 : 0.1);
+          
+        node.select('text')
+          .style('display', n => neighbors.has(n.id) ? 'block' : 'none')
+          .attr('fill', n => n.id === d.id ? 'var(--beige)' : 'var(--beige-3)');
+
+        link
+          .attr('stroke', e => (e.source.id === d.id || e.target.id === d.id) ? 'var(--orange)' : 'var(--border-3)')
+          .attr('stroke-opacity', e => (e.source.id === d.id || e.target.id === d.id) ? 0.95 : 0.1);
+
+        tooltip.innerHTML = `
+          <strong>${d.label}</strong><br>
+          Path: ${d.id}<br>
+          Layer: ${d.layer}<br>
+          Incoming: ${d.incomingCount} | Outgoing: ${d.outgoingCount}
+        `;
+        tooltip.style.display = 'block';
+        tooltip.style.left = (event.pageX + 16) + 'px';
+        tooltip.style.top = (event.pageY - 30) + 'px';
+      }
+
+      function hideGraphTooltip(event, d) {
+        node.select('circle')
+          .attr('fill-opacity', 0.65)
+          .attr('stroke-opacity', 1.0);
+        
+        node.select('text')
+          .style('display', n => n.centrality > medianCentrality ? 'block' : 'none')
+          .attr('fill', 'var(--beige-3)');
+
+        link
+          .attr('stroke', 'var(--border-3)')
+          .attr('stroke-opacity', 0.5);
+
+        tooltip.style.display = 'none';
+      }
+    }
+
+    // ============================================
+    // VIEW 5: TECH STACK VIEW (ENRICHED CARDS)
+    // ============================================
+    function setupStackView() {
+      const container = document.getElementById('stack-grid-container');
+      container.innerHTML = '';
+
+      DATA.stack.detected.forEach(tech => {
+        const logoUrl = getTechLogoUrl(tech.logoKey);
+        
+        // Find project files referencing this stack's core library
+        const mappedFiles = DATA.files.filter(f => {
+          if (tech.category === 'framework' && (f.layer === 'Presentation' || f.layer === 'Gateway')) return true;
+          if (tech.category === 'database' && f.layer === 'Persistence') return true;
+          if (tech.category === 'auth' && f.layer === 'Interaction') return true;
+          if (tech.category === 'ui' && f.layer === 'Presentation') return true;
+          if (tech.category === 'state' && f.layer === 'Interaction') return true;
+          // check direct import keyword matches
+          return f.imports.some(imp => imp.specifier.includes(tech.key) || imp.specifier.includes(tech.name.toLowerCase()));
+        }).slice(0, 3); // show up to 3 links
+
+        let logoHtml = '';
+        if (logoUrl) {
+          logoHtml = `<img src="${logoUrl}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                      <span class="stack-logo-fallback" style="display:none">${tech.name.slice(0,2).toUpperCase()}</span>`;
+        } else {
+          logoHtml = `<span class="stack-logo-fallback">${tech.name.slice(0,2).toUpperCase()}</span>`;
+        }
+
+        // Custom description paragraph
+        let desc = `${tech.name} provides system core capabilities for the ${tech.category} zone.`;
+        if (tech.category === 'framework') desc = `${tech.name} serves as the primary system framework orchestrating route handling and layout compilation.`;
+        if (tech.category === 'database') desc = `${tech.name} stores structural relational model entities and manages transactional reads/writes.`;
+        if (tech.category === 'auth') desc = `${tech.name} manages identity authentication, secure session verification, and token operations.`;
+        if (tech.category === 'ui') desc = `${tech.name} builds styling components, layout rules, and premium interface rendering.`;
+
+        const filesLinksHtml = mappedFiles.map(f => {
+          return `<div class="stack-card-file-link" onclick="inspectExplorerFile('${f.relativePath}')">➔ ${f.name}</div>`;
+        }).join('');
+
+        const card = document.createElement('div');
+        card.className = 'stack-card';
+        card.innerHTML = `
+          <div class="stack-header-row">
+            <div class="stack-logo-wrap" style="border-color:${tech.brandColor}">
+              ${logoHtml}
+            </div>
+            <div class="stack-info">
+              <h3 class="stack-name">${tech.name}</h3>
+              <div class="stack-version">Version: ${tech.version}</div>
+              <span class="stack-cat-badge">${tech.category}</span>
+            </div>
+          </div>
+          <p class="stack-card-desc">${desc}</p>
+          ${mappedFiles.length > 0 ? `
+          <div class="stack-card-files-title">Active Mapped Files</div>
+          ${filesLinksHtml}` : ''}
+        `;
+
+        container.appendChild(card);
+      });
+    }
+
+    // ============================================
+    // VIEW 6: DATA FLOW VIEW (VERTICAL FLOWCHART WITH ACTUAL FILES)
+    // ============================================
+    function setupFlowView() {
+      const container = document.getElementById('view-flow');
+      container.innerHTML = '';
+
+      const steps = [
+        {
+          key: 'Presentation',
+          title: 'Presentation Layer (User Interface)',
+          desc: 'Serves layouts, components, views, and frontend pages.',
+          color: 'var(--layer-presentation)'
+        },
+        {
+          key: 'Gateway',
+          title: 'Gateway Layer (API Handlers)',
+          desc: 'API routers, handlers, endpoints, and server routes.',
+          color: 'var(--layer-gateway)'
+        },
+        {
+          key: 'Domain',
+          title: 'Domain Layer (Business Services)',
+          desc: 'Business models, validators, and core logic functions.',
+          color: 'var(--layer-domain)'
+        },
+        {
+          key: 'Persistence',
+          title: 'Persistence Layer (Data operations)',
+          desc: 'Database schemas, query builders, and migration scripts.',
+          color: 'var(--layer-persistence)'
+        }
+      ];
+
+      steps.forEach((step, idx) => {
+        // Collect actual files matching this layer
+        const filePaths = DATA.layers[step.key] || [];
+        const filesData = filePaths.map(p => DATA.files.find(f => f.relativePath === p)).filter(Boolean).slice(0, 8); // show max 8 files
+
+        if (filesData.length === 0) return;
+
+        const stepDiv = document.createElement('div');
+        stepDiv.className = 'flow-step-container';
+
+        // Layer Header
+        const header = document.createElement('div');
+        header.className = 'flow-layer-header';
+        header.innerHTML = `
+          <span style="width:10px; height:10px; border-radius:50%; background-color:${step.color}"></span>
+          <span>${step.title}</span>
+        `;
+        stepDiv.appendChild(header);
+
+        // Grid listing files inside layer
+        const grid = document.createElement('div');
+        grid.className = 'flow-cards-grid';
+        
+        filesData.forEach(file => {
+          const card = document.createElement('div');
+          card.className = 'flow-file-card';
+          card.innerHTML = `
+            <div class="flow-file-name">${file.name}</div>
+            <div class="flow-file-lines">${file.lines} lines</div>
+          `;
+          card.onclick = () => inspectExplorerFile(file.relativePath);
+          grid.appendChild(card);
+        });
+
+        stepDiv.appendChild(grid);
+        container.appendChild(stepDiv);
+
+        // Vertical arrow divider between steps
+        if (idx < steps.length - 1) {
+          const arrow = document.createElement('div');
+          arrow.className = 'flow-arrow-down';
+          container.appendChild(arrow);
+        }
+      });
+    }
+
+    // Zoom helpers for Canvas
+    function canvasZoom(amount) {
+      zoomScale = Math.max(0.3, Math.min(3.0, zoomScale + amount));
+      document.getElementById('canvas-zoom-text').innerText = `${Math.round(zoomScale * 100)}%`;
+      drawArchitectureCanvas();
+    }
+
+    // ============================================
+    // CHAT BOT ASSISTANT
+    // ============================================
+    function handleChatKey(e) {
+      if (e.key === 'Enter') {
+        sendChatMessage();
+      }
+    }
+
+    async function sendChatMessage() {
+      const input = document.getElementById('chat-input-text');
+      const question = input.value.trim();
+      if (!question) return;
+
+      const chatBox = document.getElementById('chat-messages-box');
+      
+      const userBubble = document.createElement('div');
+      userBubble.className = 'chat-bubble user';
+      userBubble.innerText = question;
+      chatBox.appendChild(userBubble);
+
+      input.value = '';
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      const typingBubble = document.createElement('div');
+      typingBubble.className = 'chat-bubble bot';
+      typingBubble.innerText = 'thinking...';
+      chatBox.appendChild(typingBubble);
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      const context = `
+        Project: ${DATA.project.name}
+        Total files: ${DATA.project.totalFiles}
+        Total lines: ${DATA.project.totalLines}
+        Detected technologies: ${DATA.stack.detected.map(t => t.name).join(', ')}
+        Active open file: ${activeFileRelativePath || 'None selected'}
+      `;
+
+      try {
+        const response = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question, context })
+        });
+        const data = await response.json();
+        typingBubble.innerText = data.answer;
+      } catch (err) {
+        typingBubble.innerText = 'Sorry, the chat server returned an error.';
+      }
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+  </script>
+</body>
+</html>

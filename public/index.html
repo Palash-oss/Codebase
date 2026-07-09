@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Codebase X-Ray — Static Analysis & Architecture Mapping</title>
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  
+  <!-- Locomotive Scroll CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/locomotive-scroll@4.1.4/dist/locomotive-scroll.min.css">
+  
+  <style>
+    :root {
+      /* Backgrounds */
+      --black:      #080808;
+      --black-2:    #111111;
+      --black-3:    #1a1a1a;
+      --black-4:    #242424;
+
+      /* The neon */
+      --orange:     #FF4D00;
+      --orange-dim: rgba(255,77,0,0.08);
+      --orange-glow:rgba(255,77,0,0.20);
+
+      /* Text */
+      --beige:      #F5F0E8;
+      --beige-2:    #C8C0B0;
+      --beige-3:    #7A7268;
+
+      /* Borders */
+      --border:     #1e1e1e;
+      --border-2:   #2a2a2a;
+      --border-3:   #3a3a3a;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: var(--black); }
+    ::-webkit-scrollbar-thumb { background: var(--orange); border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--beige); }
+    * { 
+      scrollbar-width: thin; 
+      scrollbar-color: var(--orange) var(--black); 
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    ::selection { background: var(--orange); color: var(--black); }
+
+    body {
+      background-color: var(--black);
+      color: var(--beige);
+      font-family: 'Space Grotesk', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Navbar */
+    .navbar {
+      height: 56px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background-color: var(--black);
+      border-bottom: 1px solid var(--border);
+      padding: 0 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 1000;
+    }
+    .wordmark {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+    .wordmark span.first { color: var(--beige); }
+    .wordmark span.second { color: var(--orange); }
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .version {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--beige-3);
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border-3);
+      border-radius: 4px;
+      padding: 7px 16px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--beige-2);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+    .btn-outline:hover {
+      border-color: var(--orange);
+      color: var(--beige);
+    }
+
+    /* Hero Section */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 0 48px;
+      padding-top: 56px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-bg-text {
+      position: absolute;
+      bottom: -20px;
+      right: -20px;
+      font-size: 220px;
+      font-weight: 700;
+      color: var(--border);
+      opacity: 0.25;
+      z-index: 0;
+      pointer-events: none;
+      user-select: none;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .hero-foreground {
+      position: relative;
+      z-index: 1;
+      max-width: 800px;
+    }
+    .badge {
+      display: inline-block;
+      background: var(--orange-dim);
+      border: 1px solid var(--orange-glow);
+      border-radius: 2px;
+      padding: 4px 10px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--orange);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+    }
+    .hero-line-container {
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .hero-line {
+      font-size: 72px;
+      font-weight: 700;
+      line-height: 1.0;
+      text-transform: uppercase;
+    }
+    .hero-line.beige { color: var(--beige); }
+    .hero-line.orange { color: var(--orange); }
+    .hero-line.light-beige { color: var(--beige-2); font-weight: 300; }
+    .hero-sub {
+      font-size: 18px;
+      font-weight: 300;
+      color: var(--beige-3);
+      max-width: 520px;
+      line-height: 1.6;
+      margin-top: 24px;
+      margin-bottom: 40px;
+    }
+    .hero-ctas {
+      display: flex;
+      gap: 12px;
+    }
+    .btn-primary {
+      background-color: var(--orange);
+      color: var(--black);
+      border: none;
+      border-radius: 4px;
+      padding: 13px 28px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      text-decoration: none;
+    }
+    .btn-primary:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+
+    /* Marquee */
+    .marquee-strip {
+      height: 48px;
+      background-color: var(--black-2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      position: relative;
+    }
+    .marquee-content {
+      display: flex;
+      white-space: nowrap;
+      animation: marquee 30s linear infinite;
+    }
+    .marquee-item {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--beige-3);
+      letter-spacing: 0.08em;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+    }
+    .marquee-item span {
+      color: var(--orange);
+      margin-left: 15px;
+    }
+    @keyframes marquee {
+      from { transform: translateX(0); }
+      to { transform: translateX(-50%); }
+    }
+
+    /* How It Works */
+    .how-it-works {
+      padding: 120px 48px;
+    }
+    .section-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--orange);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      display: block;
+    }
+    .section-title {
+      font-size: 52px;
+      font-weight: 700;
+      color: var(--beige);
+      margin-bottom: 72px;
+    }
+    .section-title span {
+      color: var(--beige-3);
+      font-weight: 300;
+    }
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .step-card {
+      background-color: var(--black-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 32px;
+      transition: border-color 0.3s ease, transform 0.3s ease;
+    }
+    .step-card:hover {
+      border-color: var(--orange-glow);
+      transform: translateY(-4px);
+    }
+    .step-num {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--orange);
+      margin-bottom: 16px;
+    }
+    .step-line {
+      width: 32px;
+      height: 1px;
+      background-color: var(--orange-dim);
+      margin-bottom: 24px;
+    }
+    .step-heading {
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--beige);
+      margin-bottom: 16px;
+    }
+    .step-desc {
+      font-size: 15px;
+      font-weight: 300;
+      color: var(--beige-3);
+      line-height: 1.7;
+    }
+
+    /* Upload Section */
+    .upload-section {
+      padding: 120px 48px;
+      background-color: var(--black-2);
+      border-top: 1px solid var(--border);
+    }
+    .options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 56px;
+    }
+    .option-container {
+      background-color: var(--black-3);
+      border: 1px solid var(--border-2);
+      border-radius: 8px;
+      padding: 48px 32px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 380px;
+    }
+    .option-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--beige-3);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .drop-zone {
+      border: 2px dashed var(--border-2);
+      border-radius: 8px;
+      background-color: var(--black-4);
+      padding: 48px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background-color 0.15s ease;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .drop-zone.dragover {
+      border-color: var(--orange);
+      background-color: var(--orange-dim);
+    }
+    .drop-zone-text {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--beige-2);
+      margin-top: 12px;
+    }
+    .drop-zone-subtext {
+      font-size: 12px;
+      color: var(--beige-3);
+      margin-top: 4px;
+    }
+    .drop-icon {
+      width: 40px;
+      height: 40px;
+      fill: var(--border-3);
+      transition: fill 0.2s ease;
+    }
+    .drop-zone:hover .drop-icon {
+      fill: var(--orange);
+    }
+    .filename-display {
+      margin-top: 12px;
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      color: var(--orange);
+      display: none;
+    }
+    .input-text {
+      width: 100%;
+      background-color: var(--black-4);
+      border: 1px solid var(--border-2);
+      border-radius: 4px;
+      padding: 12px 16px;
+      font-family: 'Space Mono', monospace;
+      font-size: 13px;
+      color: var(--beige);
+      margin-bottom: 20px;
+    }
+    .input-text:focus {
+      outline: none;
+      border-color: var(--orange);
+    }
+    .chips-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 30px;
+    }
+    .chip {
+      background-color: var(--black-4);
+      border: 1px solid var(--border-2);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--beige-3);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .chip:hover {
+      border-color: var(--orange);
+      color: var(--beige-2);
+    }
+    .submit-btn {
+      width: 100%;
+      background-color: var(--orange);
+      color: var(--black);
+      border: none;
+      border-radius: 4px;
+      padding: 13px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s ease;
+    }
+    .submit-btn:disabled {
+      background-color: var(--border-3);
+      color: var(--beige-3);
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    /* Loading State */
+    .loading-container {
+      display: none;
+      text-align: center;
+      padding: 80px 0;
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .loading-wordmark {
+      font-family: 'Space Mono', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--orange);
+      letter-spacing: 0.25em;
+      margin-bottom: 24px;
+    }
+    .loading-status {
+      font-size: 15px;
+      color: var(--beige-3);
+      margin-bottom: 32px;
+      height: 24px;
+      overflow: hidden;
+      position: relative;
+    }
+    .loading-status-text {
+      position: absolute;
+      width: 100%;
+      left: 0;
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    .progress-bar-container {
+      width: 100%;
+      height: 2px;
+      background-color: var(--border);
+      overflow: hidden;
+      border-radius: 1px;
+    }
+    .progress-bar-fill {
+      width: 0%;
+      height: 100%;
+      background-color: var(--orange);
+    }
+    .error-display {
+      margin-top: 24px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      color: #EF4444;
+      display: none;
+    }
+
+    /* Footer */
+    .footer {
+      padding: 80px 48px 48px 48px;
+      border-top: 1px solid var(--border);
+      background-color: var(--black);
+    }
+    .footer-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 48px;
+    }
+    .footer-links {
+      display: flex;
+      gap: 32px;
+    }
+    .footer-link {
+      font-size: 13px;
+      color: var(--beige-3);
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+    .footer-link:hover {
+      color: var(--orange);
+    }
+    .footer-bottom-text {
+      font-size: 13px;
+      color: var(--beige-3);
+      text-align: center;
+      font-weight: 300;
+    }
+
+    @media(max-width: 768px) {
+      .steps-grid, .options-grid {
+        grid-template-columns: 1fr;
+      }
+      .navbar, .hero, .how-it-works, .upload-section, .footer {
+        padding-left: 24px;
+        padding-right: 24px;
+      }
+      .hero-line {
+        font-size: 48px;
+      }
+      .option-container {
+        min-height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="loco" data-scroll-container>
+    <!-- Navbar -->
+    <header class="navbar" data-scroll-section>
+      <div class="wordmark">
+        <span class="first">CODEBASE</span> <span class="second">X-RAY</span>
+      </div>
+      <div class="nav-right">
+        <span class="version">v3.0</span>
+        <button class="btn-outline" onclick="scrollToUpload()">Start analyzing →</button>
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero" data-scroll-section>
+      <div class="hero-bg-text">X-RAY</div>
+      <div class="hero-foreground">
+        <div class="badge">open source · static analysis</div>
+        <div class="hero-line-container">
+          <div class="hero-line beige">Your codebase</div>
+        </div>
+        <div class="hero-line-container">
+          <div class="hero-line orange">has secrets.</div>
+        </div>
+        <div class="hero-line-container">
+          <div class="hero-line light-beige">We find them.</div>
+        </div>
+        <p class="hero-sub">Drop any JavaScript or TypeScript project. Get a complete architecture map in seconds. No config. No setup. No bullshit.</p>
+        <div class="hero-ctas">
+          <button class="btn-primary" onclick="scrollToUpload()">Upload your project</button>
+          <button class="btn-outline" onclick="focusGithub()">Try with GitHub →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Marquee strip -->
+    <div class="marquee-strip" data-scroll-section>
+      <div class="marquee-content">
+        <!-- 2x repetition for infinite loop -->
+        <div class="marquee-item">Next.js <span>◆</span></div>
+        <div class="marquee-item">React <span>◆</span></div>
+        <div class="marquee-item">TypeScript <span>◆</span></div>
+        <div class="marquee-item">Prisma <span>◆</span></div>
+        <div class="marquee-item">Express <span>◆</span></div>
+        <div class="marquee-item">AWS <span>◆</span></div>
+        <div class="marquee-item">Supabase <span>◆</span></div>
+        <div class="marquee-item">NestJS <span>◆</span></div>
+        <div class="marquee-item">Vue <span>◆</span></div>
+        <div class="marquee-item">Drizzle <span>◆</span></div>
+        <div class="marquee-item">Docker <span>◆</span></div>
+        <div class="marquee-item">PostgreSQL <span>◆</span></div>
+        <div class="marquee-item">Redis <span>◆</span></div>
+        <div class="marquee-item">Tailwind <span>◆</span></div>
+        <div class="marquee-item">Firebase <span>◆</span></div>
+        
+        <div class="marquee-item">Next.js <span>◆</span></div>
+        <div class="marquee-item">React <span>◆</span></div>
+        <div class="marquee-item">TypeScript <span>◆</span></div>
+        <div class="marquee-item">Prisma <span>◆</span></div>
+        <div class="marquee-item">Express <span>◆</span></div>
+        <div class="marquee-item">AWS <span>◆</span></div>
+        <div class="marquee-item">Supabase <span>◆</span></div>
+        <div class="marquee-item">NestJS <span>◆</span></div>
+        <div class="marquee-item">Vue <span>◆</span></div>
+        <div class="marquee-item">Drizzle <span>◆</span></div>
+        <div class="marquee-item">Docker <span>◆</span></div>
+        <div class="marquee-item">PostgreSQL <span>◆</span></div>
+        <div class="marquee-item">Redis <span>◆</span></div>
+        <div class="marquee-item">Tailwind <span>◆</span></div>
+        <div class="marquee-item">Firebase <span>◆</span></div>
+      </div>
+    </div>
+
+    <!-- How it works -->
+    <section class="how-it-works" data-scroll-section>
+      <span class="section-label">how it works</span>
+      <h2 class="section-title">Three steps. <br><span>That's it.</span></h2>
+      
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-num">01</div>
+          <div class="step-line"></div>
+          <h3 class="step-heading">Drop it.</h3>
+          <p class="step-desc">ZIP or GitHub URL. We handle the rest. No local setup or keys required.</p>
+        </div>
+        
+        <div class="step-card">
+          <div class="step-num">02</div>
+          <div class="step-line"></div>
+          <h3 class="step-heading">We dissect it.</h3>
+          <p class="step-desc">Every file. Every import. Every connection. Mapped with AST parsing.</p>
+        </div>
+        
+        <div class="step-card">
+          <div class="step-num">03</div>
+          <div class="step-line"></div>
+          <h3 class="step-heading">You understand it.</h3>
+          <p class="step-desc">Six views. Real logos. Click anything. Ask questions. Actually know your code.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Upload/GitHub input section -->
+    <section class="upload-section" id="upload" data-scroll-section>
+      <span class="section-label">get started</span>
+      <h2 class="section-title" style="margin-bottom:12px;">Drop your codebase.</h2>
+      <p class="step-desc" style="margin-bottom: 56px;">Under 30 seconds.</p>
+
+      <!-- Main Input Controls -->
+      <div class="options-grid" id="controls-grid">
+        <!-- ZIP Upload -->
+        <div class="option-container">
+          <div>
+            <div class="option-title">Option A — ZIP upload</div>
+            <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+              <svg class="drop-icon" viewBox="0 0 24 24">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+              </svg>
+              <div class="drop-zone-text">drop your zip here</div>
+              <div class="drop-zone-subtext">or click to browse</div>
+              <div class="filename-display" id="filename-display"></div>
+            </div>
+            <input type="file" id="file-input" accept=".zip" style="display:none" onchange="handleFileSelect(event)">
+          </div>
+          <button class="submit-btn" id="zip-submit-btn" disabled onclick="submitZip()">Analyze project →</button>
+        </div>
+
+        <!-- GitHub URL -->
+        <div class="option-container">
+          <div>
+            <div class="option-title">Option B — GitHub URL</div>
+            <div style="display:flex; flex-direction:column; align-items:center; margin-bottom: 24px;">
+              <svg class="git-icon" style="width:32px; height:32px; fill:var(--beige-2); margin-bottom:16px;" viewBox="0 0 24 24">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.11.82-.26.82-.577v-2.234c-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.43.372.82 1.102.82 2.222v3.293c0 .319.22.694.825.576C20.565 21.795 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
+              </svg>
+              <label class="version" style="letter-spacing:0.08em; text-transform:uppercase; margin-bottom:12px;">paste a github url</label>
+              <input type="text" class="input-text" id="github-url-input" placeholder="https://github.com/owner/repo" oninput="checkGithubInput()">
+            </div>
+            
+            <div class="chips-container">
+              <div class="chip" onclick="fillGithub('https://github.com/t3-oss/create-t3-app')">t3-oss/create-t3-app</div>
+              <div class="chip" onclick="fillGithub('https://github.com/expressjs/express')">expressjs/express</div>
+              <div class="chip" onclick="fillGithub('https://github.com/vuejs/vue')">vuejs/vue</div>
+            </div>
+          </div>
+          <button class="submit-btn" id="github-submit-btn" disabled onclick="submitGithub()">Clone and analyze →</button>
+        </div>
+      </div>
+
+      <!-- Loading State -->
+      <div class="loading-container" id="loading-container">
+        <div class="loading-wordmark">CODEBASE X-RAY</div>
+        <div class="loading-status">
+          <div class="loading-status-text" id="status-1">scanning files...</div>
+          <div class="loading-status-text" id="status-2">detecting stack...</div>
+          <div class="loading-status-text" id="status-3">mapping dependencies...</div>
+          <div class="loading-status-text" id="status-4">building architecture...</div>
+          <div class="loading-status-text" id="status-5">almost there...</div>
+        </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
+        <div class="error-display" id="error-display"></div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer" data-scroll-section>
+      <div class="footer-top">
+        <div class="wordmark">
+          <span class="first">CODEBASE</span> <span class="second">X-RAY</span>
+        </div>
+        <div class="footer-links">
+          <a href="#" class="footer-link">GitHub</a>
+          <a href="#" class="footer-link">Report an issue</a>
+        </div>
+      </div>
+      <div class="footer-bottom-text">
+        Built for developers who want to understand their code, not just write it.
+      </div>
+    </footer>
+  </div>
+
+  <!-- CDN scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/locomotive-scroll@4.1.4/dist/locomotive-scroll.min.js"></script>
+
+  <script>
+    // Locomotive Scroll Init
+    let locoScroll;
+    window.addEventListener('load', () => {
+      locoScroll = new LocomotiveScroll({
+        el: document.querySelector('#loco'),
+        smooth: true,
+        multiplier: 0.9,
+        lerp: 0.08
+      });
+      locoScroll.on('scroll', ScrollTrigger.update);
+      ScrollTrigger.scrollerProxy('#loco', {
+        scrollTop(v) { 
+          return arguments.length ? locoScroll.scrollTo(v, { duration: 0, disableLerp: true }) : locoScroll.scroll.instance.scroll.y; 
+        },
+        getBoundingClientRect() { 
+          return { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight }; 
+        },
+        pinType: document.querySelector('#loco').style.transform ? 'transform' : 'fixed'
+      });
+      ScrollTrigger.addEventListener('refresh', () => locoScroll.update());
+      ScrollTrigger.refresh();
+
+      // GSAP Entrance
+      gsap.from('.hero-line', { y: 60, opacity: 0, skewY: 3, duration: 0.9, ease: 'power4.out', stagger: 0.12 });
+      gsap.from('.hero-sub', { y: 30, opacity: 0, duration: 0.8, delay: 0.5 });
+      gsap.from('.hero-ctas', { y: 20, opacity: 0, duration: 0.7, delay: 0.7 });
+
+      gsap.from('.step-card', {
+        scrollTrigger: { 
+          trigger: '.steps-grid', 
+          scroller: '#loco', 
+          start: 'top 80%' 
+        },
+        y: 50, 
+        opacity: 0, 
+        duration: 0.7, 
+        ease: 'power3.out', 
+        stagger: 0.15
+      });
+    });
+
+    // Helper functions
+    function scrollToUpload() {
+      if (locoScroll) {
+        locoScroll.scrollTo('#upload');
+      } else {
+        document.getElementById('upload').scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+
+    function focusGithub() {
+      scrollToUpload();
+      setTimeout(() => {
+        document.getElementById('github-url-input').focus();
+      }, 850);
+    }
+
+    function fillGithub(url) {
+      document.getElementById('github-url-input').value = url;
+      checkGithubInput();
+    }
+
+    // Drag and Drop
+    const dropZone = document.getElementById('drop-zone');
+    let selectedFile = null;
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        if (file.name.endsWith('.zip')) {
+          setZipFile(file);
+        } else {
+          alert('Only .zip files are supported.');
+        }
+      }
+    });
+
+    function handleFileSelect(e) {
+      if (e.target.files && e.target.files.length > 0) {
+        setZipFile(e.target.files[0]);
+      }
+    }
+
+    function setZipFile(file) {
+      selectedFile = file;
+      const display = document.getElementById('filename-display');
+      display.innerText = `✓ ${file.name}`;
+      display.style.display = 'block';
+      document.getElementById('zip-submit-btn').disabled = false;
+    }
+
+    function checkGithubInput() {
+      const val = document.getElementById('github-url-input').value.trim();
+      const isValid = val.includes('github.com');
+      document.getElementById('github-submit-btn').disabled = !isValid;
+    }
+
+    // Loader Cycling Animation
+    let progressTween = null;
+    let cycleInterval = null;
+
+    function showLoading() {
+      document.getElementById('controls-grid').style.display = 'none';
+      document.getElementById('loading-container').style.display = 'block';
+      document.getElementById('error-display').style.display = 'none';
+
+      // GSAP status cycle
+      const statuses = [
+        document.getElementById('status-1'),
+        document.getElementById('status-2'),
+        document.getElementById('status-3'),
+        document.getElementById('status-4'),
+        document.getElementById('status-5')
+      ];
+
+      let currentIndex = 0;
+      
+      function cycleStatus() {
+        const prev = statuses[currentIndex];
+        currentIndex = (currentIndex + 1) % statuses.length;
+        const next = statuses[currentIndex];
+
+        gsap.to(prev, { opacity: 0, y: -10, duration: 0.3 });
+        gsap.fromTo(next, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.3 });
+      }
+
+      gsap.set(statuses[0], { opacity: 1, y: 0 });
+      cycleInterval = setInterval(cycleStatus, 4000);
+
+      // Progress bar tween (0% to 90% over 25s)
+      document.getElementById('progress-fill').style.width = '0%';
+      progressTween = gsap.to('#progress-fill', {
+        width: '90%',
+        duration: 25,
+        ease: 'power1.out'
+      });
+    }
+
+    function hideLoading() {
+      clearInterval(cycleInterval);
+      if (progressTween) progressTween.kill();
+    }
+
+    function showError(msg) {
+      hideLoading();
+      document.getElementById('error-display').innerText = msg;
+      document.getElementById('error-display').style.display = 'block';
+      document.getElementById('controls-grid').style.display = 'grid';
+      document.getElementById('loading-container').style.display = 'none';
+      if (locoScroll) locoScroll.update();
+    }
+
+    function handleSuccess(data) {
+      hideLoading();
+      gsap.to('#progress-fill', {
+        width: '100%',
+        duration: 0.3,
+        onComplete: () => {
+          localStorage.setItem('xrayResult', JSON.stringify(data));
+          gsap.to('body', {
+            opacity: 0,
+            duration: 0.4,
+            onComplete: () => {
+              window.location.href = '/report';
+            }
+          });
+        }
+      });
+    }
+
+    async function submitZip() {
+      if (!selectedFile) return;
+      showLoading();
+      
+      const formData = new FormData();
+      formData.append('project', selectedFile);
+
+      try {
+        const response = await fetch('/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await response.json();
+        if (response.ok) {
+          handleSuccess(data);
+        } else {
+          showError(data.error || 'Failed to analyze project.');
+        }
+      } catch (err) {
+        showError('Network error or server unavailable.');
+      }
+    }
+
+    async function submitGithub() {
+      const url = document.getElementById('github-url-input').value.trim();
+      if (!url) return;
+      showLoading();
+
+      try {
+        const response = await fetch('/github', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ url })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          handleSuccess(data);
+        } else {
+          showError(data.error || 'Failed to clone and analyze repo.');
+        }
+      } catch (err) {
+        showError('Network error or server unavailable.');
+      }
+    }
+  </script>
+</body>
+</html>
