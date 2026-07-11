@@ -10,7 +10,13 @@ export async function scanFiles(projectRoot) {
     '.netlify', '.svelte-kit', 'vendor', 'bower_components'
   ]);
   
-  const includeExts = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
+  // We no longer limit by includeExts. We fetch ALL files except binaries.
+  const excludeExts = new Set([
+    '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.webp', '.avif',
+    '.mp4', '.webm', '.ogg', '.mp3', '.wav', '.flac', '.aac',
+    '.ttf', '.otf', '.woff', '.woff2', '.eot',
+    '.pdf', '.zip', '.tar', '.gz', '.rar', '.7z', '.exe', '.dll', '.so', '.dylib', '.bin', '.dat'
+  ]);
   
   function walk(dir) {
     const list = fs.readdirSync(dir);
@@ -25,13 +31,16 @@ export async function scanFiles(projectRoot) {
         walk(fullPath);
       } else if (stat.isFile()) {
         const ext = path.extname(item).toLowerCase();
-        if (includeExts.has(ext)) {
+        if (!excludeExts.has(ext)) {
           // EXCLUDE checks: anything ending in .d.ts, .min.js, .min.ts, .test.js.map, .spec.js.map
           if (item.endsWith('.d.ts') || 
               item.endsWith('.min.js') || 
               item.endsWith('.min.ts') || 
               item.endsWith('.test.js.map') || 
-              item.endsWith('.spec.js.map')) {
+              item.endsWith('.spec.js.map') ||
+              item === 'package-lock.json' ||
+              item === 'yarn.lock' ||
+              item === 'pnpm-lock.yaml') {
             continue;
           }
           

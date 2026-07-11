@@ -23,14 +23,22 @@ export function detectLayers(files) {
       layer = 'Test';
     }
     // 2. Infrastructure
-    else if (infraNames.has(file.name) || file.relativePath.startsWith('.github/')) {
+    else if (
+      infraNames.has(file.name) || 
+      file.relativePath.startsWith('.github/') ||
+      ['.json', '.yml', '.yaml', '.toml', '.gitignore', '.env', '.example'].includes(file.extension) ||
+      file.name.toLowerCase().startsWith('.env') ||
+      file.name.toLowerCase().endsWith('config.mjs') ||
+      file.name.toLowerCase().endsWith('config.js')
+    ) {
       layer = 'Infrastructure';
     }
     // 3. Persistence
     else if (
       file.imports.some(imp => persistenceImports.has(imp.specifier) || Array.from(persistenceImports).some(p => imp.specifier.startsWith(p))) ||
       rel.includes('/models/') || rel.includes('/repositories/') || rel.includes('/migrations/') ||
-      rel.includes('/db/') || rel.includes('/database/') || rel.includes('/prisma/') || rel.includes('/schemas/')
+      rel.includes('/db/') || rel.includes('/database/') || rel.includes('/prisma/') || rel.includes('/schemas/') ||
+      ['.prisma', '.sql'].includes(file.extension)
     ) {
       layer = 'Persistence';
     }
@@ -68,7 +76,8 @@ export function detectLayers(files) {
     else if (
       rel.includes('/lib/') || rel.includes('/utils/') || rel.includes('/helpers/') ||
       rel.includes('/shared/') || rel.includes('/common/') || rel.includes('/constants/') ||
-      rel.includes('/types/') || rel.includes('/config/')
+      rel.includes('/types/') || rel.includes('/config/') ||
+      file.extension === '.md'
     ) {
       layer = 'Foundation';
     }
