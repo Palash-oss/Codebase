@@ -2287,12 +2287,17 @@
       ctx.restore()
     }
 
-    function isConnectedToHovered(compId) {
-      if (!hoveredCompId) return true;
-      if (compId === hoveredCompId) return true;
+    function getActiveFocusId() {
+      return selectedCompId || hoveredCompId;
+    }
+
+    function isConnectedToFocus(compId) {
+      const focusId = getActiveFocusId();
+      if (!focusId) return true;
+      if (compId === focusId) return true;
       return archData.connections.some(conn => 
-        (conn.from === compId && conn.to === hoveredCompId) ||
-        (conn.from === hoveredCompId && conn.to === compId)
+        (conn.from === compId && conn.to === focusId) ||
+        (conn.from === focusId && conn.to === compId)
       );
     }
 
@@ -2300,12 +2305,13 @@
       const { x, y, w, h } = comp
       const isHovered = hoveredCompId === comp.id
       const isSelected = selectedCompId === comp.id
-      const isConnected = isConnectedToHovered(comp.id)
+      const isConnected = isConnectedToFocus(comp.id)
  
       ctx.save()
  
       let opacity = 1.0;
-      if (hoveredCompId && !isConnected) {
+      const focusId = getActiveFocusId();
+      if (focusId && !isConnected) {
         opacity = 0.15;
       }
       ctx.globalAlpha = opacity;
@@ -2411,8 +2417,9 @@
       let color = '#444452';
       let lineWidth = 1.0;
  
-      if (hoveredCompId) {
-        if (conn.from === hoveredCompId || conn.to === hoveredCompId) {
+      const focusId = getActiveFocusId();
+      if (focusId) {
+        if (conn.from === focusId || conn.to === focusId) {
           isHighlighted = true;
           opacity = 1.0;
           color = '#ffffff';
