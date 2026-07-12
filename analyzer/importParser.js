@@ -77,6 +77,19 @@ export function parseImports(files, tsconfigPaths, projectRoot) {
     const apiRoute = file.relativePath.includes('/api/') || file.name.startsWith('route.');
 
     try {
+      const ext = path.extname(file.name).toLowerCase();
+      const parsableExts = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs'];
+      if (!parsableExts.includes(ext)) {
+        return {
+          ...file,
+          imports,
+          exports,
+          layer: 'Unknown',
+          apiRoute,
+          lines: file.content ? file.content.split('\\n').length : 0
+        };
+      }
+
       const ast = parse(file.content, {
         jsx: true,
         loc: true,

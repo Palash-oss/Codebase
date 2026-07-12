@@ -2114,19 +2114,39 @@
       const zones = [];
       const connections = [];
  
-      // 1. Add all files in the project as components
+      // 1. Add files in the project as components (limit per layer for performance)
       const LAYER_COLOR = { Presentation: '#FF4D00', Interaction: '#A855F7', Gateway: '#3B82F6', Domain: '#06B6D4', Persistence: '#22C55E', Foundation: '#7A7268', Infrastructure: '#4B5563', Test: '#EAB308', Unknown: '#3A3A3A' };
-      DATA.files.forEach((file, idx) => {
-        components.push({
-          id: file.relativePath,
-          name: file.name,
-          subtitle: file.relativePath,
-          layer: file.layer || 'Unknown',
-          number: idx + 1,
-          borderColor: LAYER_COLOR[file.layer] || '#888888',
-          color: '#16161a',
-          isEntryPoint: file.isEntryPoint
-        });
+      const MAX_CANVAS_FILES_PER_LAYER = 60;
+      
+      const layerGroups = {};
+      DATA.files.forEach(f => {
+         const layer = f.layer || 'Unknown';
+         if (!layerGroups[layer]) layerGroups[layer] = [];
+         layerGroups[layer].push(f);
+      });
+
+      Object.keys(layerGroups).forEach(layerName => {
+         let filesInLayer = layerGroups[layerName];
+         filesInLayer.sort((a, b) => {
+           const aConn = (a.imports ? a.imports.length : 0) + (a.exports ? a.exports.length : 0);
+           const bConn = (b.imports ? b.imports.length : 0) + (b.exports ? b.exports.length : 0);
+           return bConn - aConn;
+         });
+         
+         filesInLayer = filesInLayer.slice(0, MAX_CANVAS_FILES_PER_LAYER);
+         
+         filesInLayer.forEach((file, idx) => {
+            components.push({
+              id: file.relativePath,
+              name: file.name,
+              subtitle: file.relativePath,
+              layer: layerName,
+              number: idx + 1,
+              borderColor: LAYER_COLOR[layerName] || '#888888',
+              color: '#16161a',
+              isEntryPoint: file.isEntryPoint
+            });
+         });
       });
  
       // 2. Setup zones based on layers present in the components
@@ -2156,6 +2176,7 @@
  
       // 3. Create connections based on imports between files
       DATA.files.forEach(file => {
+        if (!components.some(c => c.id === file.relativePath)) return;
         (file.imports || []).forEach(imp => {
           let resolved = imp.resolvedPath;
           
@@ -2784,7 +2805,16 @@
         const filePaths = DATA.layers[layerName];
         if (!filePaths || filePaths.length === 0) return;
 
-        const filesData = filePaths.map(p => DATA.files.find(f => f.relativePath === p)).filter(Boolean);
+        let filesData = filePaths.map(p => DATA.files.find(f => f.relativePath === p)).filter(Boolean);
+        filesData.sort((a, b) => {
+           const aConn = (a.imports ? a.imports.length : 0) + (a.exports ? a.exports.length : 0);
+           const bConn = (b.imports ? b.imports.length : 0) + (b.exports ? b.exports.length : 0);
+           return bConn - aConn;
+        });
+
+        const MAX_FILES = 80;
+        const visibleFiles = filesData.slice(0, MAX_FILES);
+        const hiddenCount = filesData.length - visibleFiles.length;
 
         if (layerIndex > 0) {
           const arrow = document.createElement('div');
@@ -2821,7 +2851,7 @@
         const filesCol = document.createElement('div');
         filesCol.className = 'layer-files-col';
 
-        filesData.forEach(file => {
+        visibleFiles.forEach(file => {
           const card = document.createElement('div');
           card.className = 'file-card';
 
@@ -2848,11 +2878,20 @@
             gsap.to(card, { borderColor: `var(--layer-${layerName.toLowerCase()})`, y: -2, duration: 0.2 });
           });
           card.addEventListener('mouseleave', () => {
-            gsap.to(card, { borderColor: 'var(--border-2)', y: 0, duration: 0.2 });
+            gsap.to(card, { borderColor: `var(--border-2)`, y: 0, duration: 0.2 });
           });
 
           filesCol.appendChild(card);
         });
+
+        if (hiddenCount > 0) {
+           const moreCard = document.createElement('div');
+           moreCard.className = 'file-card';
+           moreCard.style.opacity = '0.6';
+           moreCard.style.cursor = 'default';
+           moreCard.innerHTML = `<span class="name" style="color:var(--beige-3); font-style:italic;">+ ${hiddenCount} more files</span>`;
+           filesCol.appendChild(moreCard);
+        }
 
         band.appendChild(filesCol);
         container.appendChild(band);
@@ -3295,6 +3334,12 @@
         typingBubble.innerText = 'Sorry, the chat server returned an error.';
       }
       chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    
+    function newAnalysis() {
+      // Clear storage and go back to home page
+      localStorage.removeItem('xrayResult');
+      window.location.href = '/';
     }
   </script>
 </body>
