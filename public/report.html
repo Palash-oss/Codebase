@@ -1567,14 +1567,17 @@
     let DATA = null;
     let currentView = 'architecture';
 
-    // Load result from localStorage
-    document.addEventListener('DOMContentLoaded', () => {
-      const stored = localStorage.getItem('xrayResult');
-      if (!stored) {
+    // Load result from backend
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const res = await fetch('/api/latest-result');
+        if (!res.ok) throw new Error('No result');
+        DATA = await res.json();
+      } catch (e) {
+        console.error('Failed to load scan result:', e);
         window.location.href = '/';
         return;
       }
-      DATA = JSON.parse(stored);
       console.log('Successfully loaded scan result:', DATA);
 
       // Page Fade-in

@@ -887,7 +887,6 @@
         width: '100%',
         duration: 0.3,
         onComplete: () => {
-          localStorage.setItem('xrayResult', JSON.stringify(data));
           gsap.to('body', {
             opacity: 0,
             duration: 0.4,

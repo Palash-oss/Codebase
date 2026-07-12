@@ -38,6 +38,8 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+let latestAnalysisResult = null;
+
 // Routes
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -45,6 +47,14 @@ app.get('/', (req, res) => {
 
 app.get('/report', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'report.html'));
+});
+
+app.get('/api/latest-result', (req, res) => {
+  if (latestAnalysisResult) {
+    res.json(latestAnalysisResult);
+  } else {
+    res.status(404).json({ error: 'No analysis found' });
+  }
 });
 
 // POST /upload -> single file ZIP analysis
@@ -83,8 +93,9 @@ app.post('/upload', upload.single('project'), async (req, res) => {
 
     const result = await analyzeProject(projectRoot);
 
+    latestAnalysisResult = result;
     // Send result as JSON
-    res.json(result);
+    res.json({ success: true });
   } catch (error) {
     console.error('[X-RAY] Error during ZIP analysis:', error);
     res.status(500).json({ error: error.message });
@@ -131,7 +142,8 @@ app.post('/github', async (req, res) => {
 
     // Use clonePath as projectRoot (Fix 2)
     const result = await analyzeProject(clonePath);
-    res.json(result);
+    latestAnalysisResult = result;
+    res.json({ success: true });
   } catch (error) {
     console.error('[X-RAY] Error during GitHub analysis:', error);
     res.status(500).json({ error: error.message });
