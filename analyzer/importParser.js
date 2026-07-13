@@ -86,7 +86,10 @@ export function parseImports(files, tsconfigPaths, projectRoot) {
           exports,
           layer: 'Unknown',
           apiRoute,
-          lines: file.content ? file.content.split('\\n').length : 0
+          lines: file.content ? file.content.split('\n').length : 0,
+          envVars,
+          fetchUrls,
+          httpMethods: []
         };
       }
 

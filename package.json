@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "build": "npm run build --prefix frontend"
   },
   "dependencies": {
     "@typescript-eslint/typescript-estree": "^6.7.0",

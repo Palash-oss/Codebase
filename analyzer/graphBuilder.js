@@ -223,7 +223,7 @@ export function buildGraph(files) {
   // Collect all envVars across files
   const allEnvVars = new Set();
   for (const file of files) {
-    for (const ev of file.envVars) {
+    for (const ev of (file.envVars || [])) {
       allEnvVars.add(ev);
     }
   }
@@ -237,7 +237,7 @@ export function buildGraph(files) {
   // Add missing env var findings to files referencing them
   for (const ev of missingEnvVars) {
     for (const file of files) {
-      if (file.envVars.includes(ev)) {
+      if (file.envVars && file.envVars.includes(ev)) {
         const node = nodeMap.get(file.relativePath);
         if (node) {
           node.findings.push({

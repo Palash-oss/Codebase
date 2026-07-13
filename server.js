@@ -46,7 +46,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/report', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'report.html'));
+  res.redirect('/');
 });
 
 app.get('/api/latest-result', (req, res) => {
