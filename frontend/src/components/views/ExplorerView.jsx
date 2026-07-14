@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import DetailPanel from '../DetailPanel';
 
-function ExplorerView({ data, selectedFile, onSelectFile }) {
+function ExplorerView({ data, selectedFile, onSelectFile, setImpactHighlight }) {
   const [searchVal, setSearchVal] = useState('');
   const [expandedDirs, setExpandedDirs] = useState(new Set());
 
@@ -169,9 +169,10 @@ function ExplorerView({ data, selectedFile, onSelectFile }) {
             <DetailPanel 
               file={selectedFile} 
               files={data.files} 
-              onClose={() => onSelectFile(null)} 
+              onClose={() => { onSelectFile(null); if (setImpactHighlight) setImpactHighlight(null); }} 
               onSelectFile={onSelectFile}
               layout="inline"
+              setImpactHighlight={setImpactHighlight}
             />
           </div>
         ) : (

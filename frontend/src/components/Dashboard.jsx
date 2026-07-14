@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import DetailPanel from './DetailPanel';
@@ -15,6 +15,30 @@ function Dashboard({ data, onNewAnalysis }) {
   const [currentView, setCurrentView] = useState('architecture');
   const [selectedFile, setSelectedFile] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [impactHighlight, setImpactHighlight] = useState(null);
+
+  // Clear impact highlight when selected file changes
+  useEffect(() => {
+    setImpactHighlight(null);
+  }, [selectedFile]);
+
+  // Keyboard shortcut listener
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (selectedFile && (e.key === 'i' || e.key === 'I')) {
+        e.preventDefault();
+        const element = document.getElementById('impact-radar-section');
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedFile]);
 
   // Navigate to Explorer and focus on a specific file
   const handleSelectFile = (file) => {
@@ -53,6 +77,7 @@ function Dashboard({ data, onNewAnalysis }) {
             <ArchitectureView 
               data={data} 
               onSelectFile={handleSelectFile} 
+              impactHighlight={impactHighlight}
             />
           )}
         </div>
@@ -72,6 +97,7 @@ function Dashboard({ data, onNewAnalysis }) {
               data={data} 
               selectedFile={selectedFile} 
               onSelectFile={setSelectedFile} 
+              setImpactHighlight={setImpactHighlight}
             />
           )}
         </div>
@@ -100,8 +126,9 @@ function Dashboard({ data, onNewAnalysis }) {
         <DetailPanel 
           file={selectedFile} 
           files={data.files}
-          onClose={() => setSelectedFile(null)} 
+          onClose={() => { setSelectedFile(null); setImpactHighlight(null); }} 
           onSelectFile={handleSelectFile}
+          setImpactHighlight={setImpactHighlight}
         />
       )}
 

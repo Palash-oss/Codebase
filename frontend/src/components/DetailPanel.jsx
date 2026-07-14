@@ -1,9 +1,72 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
-function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar' }) {
+function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', setImpactHighlight }) {
   if (!file) return null;
 
   const isComponentZone = file.type === 'component' || file.zone;
+
+  const [impactData, setImpactData] = useState(null);
+  const [impactLoading, setImpactLoading] = useState(false);
+  const [directExpanded, setDirectExpanded] = useState(true);
+  const [indirectExpanded, setIndirectExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!file || isComponentZone || !file.relativePath) {
+      setImpactData(null);
+      setImpactLoading(false);
+      if (setImpactHighlight) setImpactHighlight(null);
+      return;
+    }
+
+    setImpactLoading(true);
+    setImpactData(null);
+    if (setImpactHighlight) setImpactHighlight(null);
+
+    const controller = new AbortController();
+    const signal = controller.signal;
+
+    async function fetchImpact() {
+      try {
+        const res = await fetch('/api/impact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ relativePath: file.relativePath }),
+          signal
+        });
+        if (!res.ok) throw new Error('Failed to load impact');
+        const data = await res.json();
+        setImpactData(data);
+        setImpactLoading(false);
+        
+        const severityColors = {
+          safe: '#22C55E',
+          low: '#EAB308',
+          medium: '#F97316',
+          high: '#FF4D00',
+          critical: '#EF4444'
+        };
+        
+        if (setImpactHighlight) {
+          setImpactHighlight({
+            targetId: file.relativePath,
+            affectedIds: new Set([...data.directImpact, ...data.indirectImpact]),
+            severityColor: severityColors[data.severity] || '#8E8578'
+          });
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error(err);
+          setImpactLoading(false);
+        }
+      }
+    }
+
+    fetchImpact();
+
+    return () => {
+      controller.abort();
+    };
+  }, [file.relativePath, isComponentZone, setImpactHighlight]);
 
   const layerColors = {
     Presentation: '#FF4D00',
@@ -124,6 +187,148 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar' })
                 <div className={isInline ? "detail-stat-label" : ""} style={isInline ? {} : { fontFamily: 'Space Grotesk', fontSize: '10px', color: 'var(--beige-3)', fontWeight: '500', letterSpacing: '0.04em' }}>IMPORTS OUT</div>
                 <div className={isInline ? "detail-stat-val" : ""} style={isInline ? {} : { fontFamily: 'Space Mono', fontSize: '20px', fontWeight: '700', color: 'var(--beige)', marginTop: '2px' }}>{file.outgoingCount}</div>
               </div>
+            </div>
+
+            {/* Impact Radar Section */}
+            <div id="impact-radar-section" style={{ marginTop: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '20px' }}>
+              <div className="detail-section-title">IMPACT RADAR</div>
+              
+              {impactLoading && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 0', color: 'var(--beige-3)', fontSize: '12px' }}>
+                  <span className="inline-spinner" style={{ width: '12px', height: '12px', border: '2px solid var(--border-3)', borderTopColor: 'var(--orange)', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }}></span>
+                  <span>calculating blast radius...</span>
+                </div>
+              )}
+
+              {!impactLoading && impactData && (
+                <>
+                  {/* Severity Bar */}
+                  <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--border)', borderRadius: '3px', overflow: 'hidden', marginTop: '12px', marginBottom: '8px' }}>
+                    <div style={{ 
+                      height: '100%', 
+                      width: `${100 - impactData.safetyScore}%`, 
+                      backgroundColor: 
+                        impactData.severity === 'safe' ? '#22C55E' :
+                        impactData.severity === 'low' ? '#EAB308' :
+                        impactData.severity === 'medium' ? '#F97316' :
+                        impactData.severity === 'high' ? '#FF4D00' : '#EF4444',
+                      borderRadius: '3px',
+                      transition: 'width 0.4s ease'
+                    }}></div>
+                  </div>
+
+                  {/* Severity details row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ 
+                      fontFamily: 'Space Grotesk', 
+                      fontSize: '11px', 
+                      fontWeight: '700', 
+                      letterSpacing: '0.04em',
+                      color: 
+                        impactData.severity === 'safe' ? '#22C55E' :
+                        impactData.severity === 'low' ? '#EAB308' :
+                        impactData.severity === 'medium' ? '#F97316' :
+                        impactData.severity === 'high' ? '#FF4D00' : '#EF4444',
+                    }}>
+                      {impactData.severity.toUpperCase()}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--beige-3)' }}>
+                      {impactData.totalAffected} {impactData.totalAffected === 1 ? 'file' : 'files'} affected
+                    </span>
+                  </div>
+
+                  {/* Safety Score label */}
+                  <div style={{ fontFamily: 'Space Mono', fontSize: '11px', color: 'var(--beige-3)', marginBottom: '16px' }}>
+                    Safety score: {impactData.safetyScore}%
+                  </div>
+
+                  {/* Impact content */}
+                  {impactData.totalAffected === 0 ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--beige-3)', fontFamily: 'Space Grotesk', fontSize: '12px', padding: '8px 0' }}>
+                      <span style={{ color: '#22C55E', fontWeight: 'bold' }}>✓</span>
+                      Nothing imports this file. Safe to modify or delete.
+                    </div>
+                  ) : (
+                    <>
+                      {/* Direct Impact */}
+                      <div style={{ marginBottom: '10px' }}>
+                        <div 
+                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', padding: '4px 0' }}
+                          onClick={() => setDirectExpanded(!directExpanded)}
+                        >
+                          <span style={{ fontFamily: 'Space Grotesk', fontSize: '11px', fontWeight: '600', color: 'var(--beige-2)' }}>
+                            {directExpanded ? '▼' : '▶'} Direct impact ({impactData.directImpact.length})
+                          </span>
+                        </div>
+                        {directExpanded && (
+                          <div style={{ paddingLeft: '12px', marginTop: '4px' }}>
+                            {impactData.directImpact.length === 0 ? (
+                              <div style={{ fontSize: '11px', color: 'var(--beige-3)', fontStyle: 'italic' }}>No direct importers.</div>
+                            ) : (
+                              impactData.directImpact.map((path, idx) => {
+                                const filename = path.split('/').pop();
+                                const fileObj = files.find(f => f.relativePath === path) || { relativePath: path, name: filename, findings: [], imports: [], exports: [] };
+                                return (
+                                  <div key={idx} style={{ padding: '4px 0', borderBottom: '1px solid var(--border-2)' }}>
+                                    <span 
+                                      className="clickable" 
+                                      style={{ fontFamily: 'Space Mono', fontSize: '11px', color: 'var(--orange)', cursor: 'pointer', display: 'block' }}
+                                      onClick={() => onSelectFile(fileObj)}
+                                    >
+                                      {filename}
+                                    </span>
+                                    <span style={{ fontSize: '9px', color: 'var(--beige-3)', fontFamily: 'Space Mono', display: 'block', marginTop: '2px', wordBreak: 'break-all' }}>
+                                      {path}
+                                    </span>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Indirect Impact */}
+                      <div>
+                        <div 
+                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', padding: '4px 0' }}
+                          onClick={() => setIndirectExpanded(!indirectExpanded)}
+                        >
+                          <span style={{ fontFamily: 'Space Grotesk', fontSize: '11px', fontWeight: '600', color: 'var(--beige-2)' }}>
+                            {indirectExpanded ? '▼' : '▶'} Indirect impact ({impactData.indirectImpact.length})
+                          </span>
+                        </div>
+                        {indirectExpanded && (
+                          <div style={{ paddingLeft: '12px', marginTop: '4px' }}>
+                            {impactData.indirectImpact.length === 0 ? (
+                              <div style={{ fontSize: '11px', color: 'var(--beige-3)', fontStyle: 'italic' }}>No indirect importers.</div>
+                            ) : (
+                              impactData.indirectImpact.map((path, idx) => {
+                                const filename = path.split('/').pop();
+                                const fileObj = files.find(f => f.relativePath === path) || { relativePath: path, name: filename, findings: [], imports: [], exports: [] };
+                                return (
+                                  <div key={idx} style={{ padding: '4px 0', borderBottom: '1px solid var(--border-2)' }}>
+                                    <span 
+                                      className="clickable" 
+                                      style={{ fontFamily: 'Space Mono', fontSize: '11px', color: 'var(--beige-2)', cursor: 'pointer', display: 'block' }}
+                                      onClick={() => onSelectFile(fileObj)}
+                                    >
+                                      {filename}
+                                    </span>
+                                    <span style={{ fontSize: '9px', color: 'var(--beige-3)', fontFamily: 'Space Mono', display: 'block', marginTop: '2px', wordBreak: 'break-all' }}>
+                                      {path}
+                                    </span>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Findings/Issues */}

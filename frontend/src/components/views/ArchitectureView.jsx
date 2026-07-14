@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 
-function ArchitectureView({ data, onSelectFile }) {
+function ArchitectureView({ data, onSelectFile, impactHighlight }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   
@@ -29,6 +29,11 @@ function ArchitectureView({ data, onSelectFile }) {
   useEffect(() => {
     drawToolRef.current = drawTool;
   }, [drawTool]);
+
+  // Redraw when impactHighlight state changes
+  useEffect(() => {
+    drawDiagram();
+  }, [impactHighlight]);
 
   // Devicon map & inline SVG helpers
   const DEVICON_BASE = 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons';
@@ -342,16 +347,17 @@ function ArchitectureView({ data, onSelectFile }) {
       let color = '#A29B8F';
       let lineWidth = 1.0;
 
-      if (activeFocusId) {
-        if (conn.from === activeFocusId || conn.to === activeFocusId) {
+      const connectionFocusId = impactHighlight ? impactHighlight.targetId : activeFocusId;
+      if (connectionFocusId) {
+        if (conn.from === connectionFocusId || conn.to === connectionFocusId) {
           isHighlighted = true;
           opacity = 1.0;
-          color = '#1E1B18';
+          color = impactHighlight ? impactHighlight.severityColor : '#1E1B18';
           lineWidth = 2.0;
         } else {
-          opacity = 0.15;
+          opacity = 0.10;
           color = '#E5E0D5';
-          lineWidth = 0.6;
+          lineWidth = 0.5;
         }
       }
 
@@ -425,12 +431,36 @@ function ArchitectureView({ data, onSelectFile }) {
  
       ctx.save();
       let opacity = 1.0;
-      if (activeFocusId && !isConnected) {
-        opacity = 0.15;
+      let borderColor = comp.borderColor + '66';
+      let lineWidth = 1;
+      const isTarget = impactHighlight && comp.id === impactHighlight.targetId;
+      const isAffected = impactHighlight && impactHighlight.affectedIds.has(comp.id);
+
+      if (impactHighlight) {
+        if (isTarget) {
+          opacity = 1.0;
+          borderColor = '#ffffff';
+          lineWidth = 2.5;
+        } else if (isAffected) {
+          opacity = 1.0;
+          borderColor = impactHighlight.severityColor;
+          lineWidth = 1.5;
+        } else {
+          opacity = 0.3;
+        }
+      } else {
+        if (activeFocusId && !isConnected) {
+          opacity = 0.15;
+        }
+        if (isSelected) {
+          borderColor = '#1E1B18';
+          lineWidth = 1.8;
+        }
       }
+
       ctx.globalAlpha = opacity;
 
-      ctx.shadowColor = comp.borderColor;
+      ctx.shadowColor = isTarget ? '#EF4444' : (isAffected ? impactHighlight.severityColor : comp.borderColor);
       ctx.shadowBlur = isHovered ? 12 : 2;
       ctx.shadowOffsetY = isHovered ? 3 : 1;
  
@@ -439,8 +469,8 @@ function ArchitectureView({ data, onSelectFile }) {
       ctx.fill();
  
       ctx.shadowColor = 'transparent';
-      ctx.strokeStyle = isSelected ? '#1E1B18' : comp.borderColor + '66';
-      ctx.lineWidth = isSelected ? 1.8 : 1;
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = lineWidth;
       roundRect(ctx, x, y, w, h, 6);
       ctx.stroke();
  
@@ -480,6 +510,19 @@ function ArchitectureView({ data, onSelectFile }) {
         }
       }
       ctx.fillText(displaySub, x + 24, y + 32);
+      if (isTarget) {
+        ctx.save();
+        ctx.fillStyle = '#EF4444';
+        ctx.beginPath();
+        ctx.arc(x + w, y, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 9px "Space Grotesk", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('!', x + w, y);
+        ctx.restore();
+      }
       ctx.restore();
     });
 
@@ -505,6 +548,54 @@ function ArchitectureView({ data, onSelectFile }) {
     });
 
     ctx.restore();
+
+    // Draw Legend in screen space
+    if (impactHighlight) {
+      ctx.save();
+      const lx = 20;
+      const ly = H - 90;
+      const lw = 150;
+      const lh = 70;
+      
+      // Semi-transparent dark card background
+      ctx.fillStyle = 'rgba(30, 27, 24, 0.85)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.lineWidth = 1;
+      roundRect(ctx, lx, ly, lw, lh, 6);
+      ctx.fill();
+      ctx.stroke();
+      
+      // Legend Items
+      ctx.font = '10px "Space Grotesk", sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      
+      // 1. Impact Target
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(lx + 15, ly + 15, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#E5DFD4';
+      ctx.fillText('Impact target', lx + 26, ly + 15);
+      
+      // 2. Affected Components
+      ctx.fillStyle = impactHighlight.severityColor;
+      ctx.beginPath();
+      ctx.arc(lx + 15, ly + 35, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#E5DFD4';
+      ctx.fillText('Affected components', lx + 26, ly + 35);
+      
+      // 3. Unaffected
+      ctx.fillStyle = '#8E8578';
+      ctx.beginPath();
+      ctx.arc(lx + 15, ly + 55, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#E5DFD4';
+      ctx.fillText('Unaffected', lx + 26, ly + 55);
+      
+      ctx.restore();
+    }
   };
 
   // Helper Rect

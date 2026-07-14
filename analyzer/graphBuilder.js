@@ -269,3 +269,49 @@ export function buildGraph(files) {
 
   return { nodes, edges, circularDeps, deadFiles, deadExports, missingEnvVars };
 }
+
+export function computeImpactRadius(targetRelativePath, nodes, edges) {
+  const directSet = new Set();
+  for (const edge of edges) {
+    if (edge.target === targetRelativePath && edge.source !== targetRelativePath) {
+      directSet.add(edge.source);
+    }
+  }
+  const directImpact = Array.from(directSet);
+
+  const indirectSet = new Set();
+  for (const direct of directImpact) {
+    for (const edge of edges) {
+      if (edge.target === direct && edge.source !== direct) {
+        if (!directSet.has(edge.source) && edge.source !== targetRelativePath) {
+          indirectSet.add(edge.source);
+        }
+      }
+    }
+  }
+  const indirectImpact = Array.from(indirectSet).slice(0, 50);
+
+  const totalFiles = nodes.length || 1;
+  const affected = directImpact.length + indirectImpact.length;
+  const safetyScore = Math.round(Math.max(0, 100 - (affected / totalFiles) * 100));
+
+  let severity = 'safe';
+  if (safetyScore < 25) {
+    severity = 'critical';
+  } else if (safetyScore < 50) {
+    severity = 'high';
+  } else if (safetyScore < 70) {
+    severity = 'medium';
+  } else if (safetyScore < 90) {
+    severity = 'low';
+  }
+
+  return {
+    targetPath: targetRelativePath,
+    directImpact,
+    indirectImpact,
+    totalAffected: affected,
+    safetyScore,
+    severity
+  };
+}

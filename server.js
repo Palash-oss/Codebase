@@ -12,6 +12,7 @@ import { fileURLToPath } from 'url';
 import os from 'os';
 
 import { analyzeProject } from './analyzer/index.js';
+import { computeImpactRadius } from './analyzer/graphBuilder.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,6 +40,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 let latestAnalysisResult = null;
+let lastScanResult = null;
 
 // Routes
 app.get('/', (req, res) => {
@@ -51,6 +53,7 @@ app.get('/report', (req, res) => {
 
 app.get('/api/latest-result', (req, res) => {
   if (latestAnalysisResult) {
+    lastScanResult = latestAnalysisResult;
     res.json(latestAnalysisResult);
   } else {
     res.status(404).json({ error: 'No analysis found' });
@@ -94,6 +97,7 @@ app.post('/upload', upload.single('project'), async (req, res) => {
     const result = await analyzeProject(projectRoot);
 
     latestAnalysisResult = result;
+    lastScanResult = result;
     // Send result as JSON
     res.json({ success: true });
   } catch (error) {
@@ -143,6 +147,7 @@ app.post('/github', async (req, res) => {
     // Use clonePath as projectRoot (Fix 2)
     const result = await analyzeProject(clonePath);
     latestAnalysisResult = result;
+    lastScanResult = result;
     res.json({ success: true });
   } catch (error) {
     console.error('[X-RAY] Error during GitHub analysis:', error);
@@ -212,10 +217,36 @@ app.post('/chat', async (req, res) => {
   res.json({ answer });
 });
 
+// POST /api/impact -> Compute impact radius for a selected file
+app.post('/api/impact', (req, res) => {
+  const { relativePath } = req.body;
+  if (!lastScanResult) {
+    // Try to fallback to latestAnalysisResult if it exists
+    if (latestAnalysisResult) {
+      lastScanResult = latestAnalysisResult;
+    } else {
+      return res.status(400).json({ error: 'No scan available. Please scan a project first.' });
+    }
+  }
+  
+  if (!relativePath) {
+    return res.status(400).json({ error: 'Missing relativePath parameter.' });
+  }
+
+  try {
+    const impact = computeImpactRadius(relativePath, lastScanResult.graph.nodes, lastScanResult.graph.edges);
+    res.json(impact);
+  } catch (error) {
+    console.error('[X-RAY] Error computing impact radius:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // POST /api/reset -> Reset analysis cache on logout/new analysis
 app.post('/api/reset', (req, res) => {
   console.log('[X-RAY] Resetting analysis cache.');
   latestAnalysisResult = null;
+  lastScanResult = null;
   res.json({ success: true });
 });
 
