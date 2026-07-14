@@ -838,7 +838,7 @@ function ArchitectureView({ data, onSelectFile, impactHighlight }) {
       window.removeEventListener('resize', handleResize);
       resizeObserver.disconnect();
     };
-  }, [data]);
+  }, [data, onSelectFile, impactHighlight]);
 
   // Modal actions
   const saveShapeEdits = () => {
