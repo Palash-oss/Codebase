@@ -76,7 +76,7 @@ function Dashboard({ data, onNewAnalysis }) {
           {currentView === 'architecture' && (
             <ArchitectureView 
               data={data} 
-              onSelectFile={handleSelectFile} 
+              onSelectFile={setSelectedFile} 
               impactHighlight={impactHighlight}
             />
           )}
@@ -86,7 +86,7 @@ function Dashboard({ data, onNewAnalysis }) {
           {currentView === 'layers' && (
             <LayersView 
               data={data} 
-              onSelectFile={handleSelectFile} 
+              onSelectFile={setSelectedFile} 
             />
           )}
         </div>
@@ -106,7 +106,7 @@ function Dashboard({ data, onNewAnalysis }) {
           {currentView === 'stack' && (
             <TechStackView 
               data={data} 
-              onSelectFile={handleSelectFile} 
+              onSelectFile={setSelectedFile} 
             />
           )}
         </div>
@@ -115,7 +115,7 @@ function Dashboard({ data, onNewAnalysis }) {
           {currentView === 'flow' && (
             <FlowView 
               data={data} 
-              onSelectFile={handleSelectFile} 
+              onSelectFile={setSelectedFile} 
             />
           )}
         </div>
@@ -127,7 +127,7 @@ function Dashboard({ data, onNewAnalysis }) {
           file={selectedFile} 
           files={data.files}
           onClose={() => { setSelectedFile(null); setImpactHighlight(null); }} 
-          onSelectFile={handleSelectFile}
+          onSelectFile={setSelectedFile}
           setImpactHighlight={setImpactHighlight}
         />
       )}
