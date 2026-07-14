@@ -347,12 +347,13 @@ function ArchitectureView({ data, onSelectFile, impactHighlight }) {
       let color = '#A29B8F';
       let lineWidth = 1.0;
 
-      const connectionFocusId = impactHighlight ? impactHighlight.targetId : activeFocusId;
+      const connectionFocusId = hoveredCompIdRef.current || (impactHighlight ? impactHighlight.targetId : activeFocusId);
       if (connectionFocusId) {
         if (conn.from === connectionFocusId || conn.to === connectionFocusId) {
           isHighlighted = true;
           opacity = 1.0;
-          color = impactHighlight ? impactHighlight.severityColor : '#1E1B18';
+          const isImpactTargetConn = impactHighlight && connectionFocusId === impactHighlight.targetId;
+          color = isImpactTargetConn ? impactHighlight.severityColor : '#1E1B18';
           lineWidth = 2.0;
         } else {
           opacity = 0.10;
@@ -445,6 +446,10 @@ function ArchitectureView({ data, onSelectFile, impactHighlight }) {
           opacity = 1.0;
           borderColor = impactHighlight.severityColor;
           lineWidth = 1.5;
+        } else if (isHovered) {
+          opacity = 1.0;
+          borderColor = comp.borderColor;
+          lineWidth = 1.2;
         } else {
           opacity = 0.3;
         }
@@ -779,6 +784,8 @@ function ArchitectureView({ data, onSelectFile, impactHighlight }) {
         } else {
           onSelectFile({ type: 'component', data: clicked });
         }
+      } else {
+        onSelectFile(null);
       }
       drawDiagram();
     };
