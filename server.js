@@ -212,6 +212,13 @@ app.post('/chat', async (req, res) => {
   res.json({ answer });
 });
 
+// POST /api/reset -> Reset analysis cache on logout/new analysis
+app.post('/api/reset', (req, res) => {
+  console.log('[X-RAY] Resetting analysis cache.');
+  latestAnalysisResult = null;
+  res.json({ success: true });
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`[X-RAY] Server started at http://localhost:${PORT}`);

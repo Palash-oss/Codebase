@@ -202,7 +202,7 @@ function ArchitectureView({ data, onSelectFile }) {
   // 2. Compute Layout algorithm
   const computeLayout = (zones, components) => {
     const canvas = canvasRef.current;
-    const W = canvas ? canvas.offsetWidth : 1200;
+    const W = containerRef.current ? containerRef.current.offsetWidth : (canvas ? canvas.offsetWidth : 1200);
     const CARD_W = 180;
     const CARD_H = 46;
     const ZONE_PAD = 20;
@@ -259,14 +259,14 @@ function ArchitectureView({ data, onSelectFile }) {
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.scale, transform.scale);
 
-    ctx.fillStyle = '#0b0b0c';
+    ctx.fillStyle = '#F7F4EF';
     ctx.fillRect(-transform.x / transform.scale, -transform.y / transform.scale, W / transform.scale, H / transform.scale);
 
     // Title
     ctx.fillStyle = '#FF4D00';
     ctx.fillRect(32, 24, 4, 28);
     ctx.font = '600 18px "Space Grotesk", sans-serif';
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#1E1B18';
     ctx.fillText(data.project.name + ' — System Architecture', 44, 44);
 
     // Zones
@@ -338,19 +338,19 @@ function ArchitectureView({ data, onSelectFile }) {
       }
 
       let isHighlighted = false;
-      let opacity = 0.3;
-      let color = '#444452';
+      let opacity = 0.5;
+      let color = '#A29B8F';
       let lineWidth = 1.0;
 
       if (activeFocusId) {
         if (conn.from === activeFocusId || conn.to === activeFocusId) {
           isHighlighted = true;
           opacity = 1.0;
-          color = '#ffffff';
+          color = '#1E1B18';
           lineWidth = 2.0;
         } else {
-          opacity = 0.05;
-          color = '#25252e';
+          opacity = 0.15;
+          color = '#E5E0D5';
           lineWidth = 0.6;
         }
       }
@@ -400,15 +400,15 @@ function ArchitectureView({ data, onSelectFile }) {
         const mx = (x1 + x2) / 2;
         const my = (y1 + y2) / 2;
         ctx.font = '400 8px "Space Mono", monospace';
-        ctx.fillStyle = '#0b0b0c';
+        ctx.fillStyle = '#FAF7F2';
         const tw = ctx.measureText(conn.label).width;
         ctx.fillRect(mx - tw / 2 - 4, my - 6, tw + 8, 12);
         
-        ctx.strokeStyle = '#3a3a42';
+        ctx.strokeStyle = '#D5CFC5';
         ctx.lineWidth = 0.6;
         ctx.strokeRect(mx - tw / 2 - 4, my - 6, tw + 8, 12);
 
-        ctx.fillStyle = isHighlighted ? '#ffffff' : '#888899';
+        ctx.fillStyle = isHighlighted ? '#1E1B18' : '#8E8578';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(conn.label, mx, my);
@@ -434,12 +434,12 @@ function ArchitectureView({ data, onSelectFile }) {
       ctx.shadowBlur = isHovered ? 12 : 2;
       ctx.shadowOffsetY = isHovered ? 3 : 1;
  
-      ctx.fillStyle = '#16161a';
+      ctx.fillStyle = '#ffffff';
       roundRect(ctx, x, y, w, h, 6);
       ctx.fill();
  
       ctx.shadowColor = 'transparent';
-      ctx.strokeStyle = isSelected ? '#ffffff' : comp.borderColor + '88';
+      ctx.strokeStyle = isSelected ? '#1E1B18' : comp.borderColor + '66';
       ctx.lineWidth = isSelected ? 1.8 : 1;
       roundRect(ctx, x, y, w, h, 6);
       ctx.stroke();
@@ -452,7 +452,7 @@ function ArchitectureView({ data, onSelectFile }) {
  
       // File Name
       ctx.font = '600 11px "Space Grotesk", sans-serif';
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#1E1B18';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       
@@ -470,7 +470,7 @@ function ArchitectureView({ data, onSelectFile }) {
  
       // Subtitle
       ctx.font = '400 8px "Space Mono", monospace';
-      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillStyle = 'rgba(30,27,24,0.5)';
       let displaySub = comp.subtitle;
       let subWidth = ctx.measureText(displaySub).width;
       if (subWidth > maxTextWidth) {
@@ -718,8 +718,10 @@ function ArchitectureView({ data, onSelectFile }) {
     // Resize event
     const handleResize = () => {
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = canvas.offsetWidth * dpr;
-      canvas.height = canvas.offsetHeight * dpr;
+      const width = containerRef.current ? containerRef.current.offsetWidth : canvas.offsetWidth;
+      const height = containerRef.current ? containerRef.current.offsetHeight : canvas.offsetHeight;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
       canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
       if (archDataRef.current) {
         computeLayout(archDataRef.current.zones, archDataRef.current.components);
@@ -727,6 +729,13 @@ function ArchitectureView({ data, onSelectFile }) {
       }
     };
     window.addEventListener('resize', handleResize);
+
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
 
     return () => {
       canvas.removeEventListener('wheel', onWheel);
@@ -736,6 +745,7 @@ function ArchitectureView({ data, onSelectFile }) {
       canvas.removeEventListener('click', onClick);
       canvas.removeEventListener('dblclick', onDoubleClick);
       window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
     };
   }, [data]);
 

@@ -1,6 +1,6 @@
 import React from 'react';
 
-function DetailPanel({ file, files, onClose, onSelectFile }) {
+function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar' }) {
   if (!file) return null;
 
   const isComponentZone = file.type === 'component' || file.zone;
@@ -37,9 +37,11 @@ function DetailPanel({ file, files, onClose, onSelectFile }) {
   const importedBy = files.filter(f => f.imports?.some(i => i.resolvedPath === file.relativePath));
   const envVars = file.envVars || [];
 
+  const isInline = layout === 'inline';
+
   return (
-    <div className="detail-panel" style={{ transform: 'translateX(0)' }}>
-      <div className="panel-header">
+    <div className={isInline ? "explorer-detail" : "detail-panel"} style={isInline ? {} : { transform: 'translateX(0)' }}>
+      <div className={isInline ? "detail-header" : "panel-header"}>
         <h3 className="panel-title">{isComponentZone ? 'Component Zone' : 'File Detail'}</h3>
         <button className="btn-close" onClick={onClose}>×</button>
       </div>
@@ -105,22 +107,22 @@ function DetailPanel({ file, files, onClose, onSelectFile }) {
             </div>
 
             {/* Stats Grid */}
-            <div className="detail-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-              <div style={{ background: 'var(--black-3)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 14px' }}>
-                <div style={{ fontFamily: 'Space Grotesk', fontSize: '10px', color: 'var(--beige-3)', fontWeight: '500', letterSpacing: '0.04em' }}>LINES</div>
-                <div style={{ fontFamily: 'Space Mono', fontSize: '20px', fontWeight: '700', color: 'var(--beige)', marginTop: '2px' }}>{file.lines}</div>
+            <div className="detail-grid" style={isInline ? {} : { gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+              <div className={isInline ? "detail-stat-card" : ""} style={isInline ? {} : { background: 'var(--black-3)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 14px' }}>
+                <div className={isInline ? "detail-stat-label" : ""} style={isInline ? {} : { fontFamily: 'Space Grotesk', fontSize: '10px', color: 'var(--beige-3)', fontWeight: '500', letterSpacing: '0.04em' }}>LINES</div>
+                <div className={isInline ? "detail-stat-val" : ""} style={isInline ? {} : { fontFamily: 'Space Mono', fontSize: '20px', fontWeight: '700', color: 'var(--beige)', marginTop: '2px' }}>{file.lines}</div>
               </div>
-              <div style={{ background: 'var(--black-3)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 14px' }}>
-                <div style={{ fontFamily: 'Space Grotesk', fontSize: '10px', color: 'var(--beige-3)', fontWeight: '500', letterSpacing: '0.04em' }}>EXPORTS</div>
-                <div style={{ fontFamily: 'Space Mono', fontSize: '20px', fontWeight: '700', color: 'var(--beige)', marginTop: '2px' }}>{exports_.length}</div>
+              <div className={isInline ? "detail-stat-card" : ""} style={isInline ? {} : { background: 'var(--black-3)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 14px' }}>
+                <div className={isInline ? "detail-stat-label" : ""} style={isInline ? {} : { fontFamily: 'Space Grotesk', fontSize: '10px', color: 'var(--beige-3)', fontWeight: '500', letterSpacing: '0.04em' }}>EXPORTS</div>
+                <div className={isInline ? "detail-stat-val" : ""} style={isInline ? {} : { fontFamily: 'Space Mono', fontSize: '20px', fontWeight: '700', color: 'var(--beige)', marginTop: '2px' }}>{exports_.length}</div>
               </div>
-              <div style={{ background: 'var(--black-3)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 14px' }}>
-                <div style={{ fontFamily: 'Space Grotesk', fontSize: '10px', color: 'var(--beige-3)', fontWeight: '500', letterSpacing: '0.04em' }}>IMPORTS IN</div>
-                <div style={{ fontFamily: 'Space Mono', fontSize: '20px', fontWeight: '700', color: 'var(--beige)', marginTop: '2px' }}>{file.incomingCount}</div>
+              <div className={isInline ? "detail-stat-card" : ""} style={isInline ? {} : { background: 'var(--black-3)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 14px' }}>
+                <div className={isInline ? "detail-stat-label" : ""} style={isInline ? {} : { fontFamily: 'Space Grotesk', fontSize: '10px', color: 'var(--beige-3)', fontWeight: '500', letterSpacing: '0.04em' }}>IMPORTS IN</div>
+                <div className={isInline ? "detail-stat-val" : ""} style={isInline ? {} : { fontFamily: 'Space Mono', fontSize: '20px', fontWeight: '700', color: 'var(--beige)', marginTop: '2px' }}>{file.incomingCount}</div>
               </div>
-              <div style={{ background: 'var(--black-3)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 14px' }}>
-                <div style={{ fontFamily: 'Space Grotesk', fontSize: '10px', color: 'var(--beige-3)', fontWeight: '500', letterSpacing: '0.04em' }}>IMPORTS OUT</div>
-                <div style={{ fontFamily: 'Space Mono', fontSize: '20px', fontWeight: '700', color: 'var(--beige)', marginTop: '2px' }}>{file.outgoingCount}</div>
+              <div className={isInline ? "detail-stat-card" : ""} style={isInline ? {} : { background: 'var(--black-3)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 14px' }}>
+                <div className={isInline ? "detail-stat-label" : ""} style={isInline ? {} : { fontFamily: 'Space Grotesk', fontSize: '10px', color: 'var(--beige-3)', fontWeight: '500', letterSpacing: '0.04em' }}>IMPORTS OUT</div>
+                <div className={isInline ? "detail-stat-val" : ""} style={isInline ? {} : { fontFamily: 'Space Mono', fontSize: '20px', fontWeight: '700', color: 'var(--beige)', marginTop: '2px' }}>{file.outgoingCount}</div>
               </div>
             </div>
 

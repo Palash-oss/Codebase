@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import gsap from 'gsap';
+import LocomotiveScroll from 'locomotive-scroll';
 
 function LandingPage({ onAnalysisSuccess }) {
   const [dragOver, setDragOver] = useState(false);
@@ -9,8 +10,203 @@ function LandingPage({ onAnalysisSuccess }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [progressWidth, setProgressWidth] = useState('0%');
 
+  // Interactive Canvas Background
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    let animationFrameId;
+    let particles = [];
+    const maxParticles = 110;
+    const mouse = { x: null, y: null, radius: 160 };
+
+    const handleResize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    const handleMouseMove = (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    };
+    const handleMouseLeave = () => {
+      mouse.x = null;
+      mouse.y = null;
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseleave', handleMouseLeave);
+
+    class Particle {
+      constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.size = Math.random() * 2 + 1;
+        this.vx = (Math.random() - 0.5) * 0.4;
+        this.vy = (Math.random() - 0.5) * 0.4;
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Bounce off edges
+        if (this.x < 0 || this.x > canvas.width) this.vx = -this.vx;
+        if (this.y < 0 || this.y > canvas.height) this.vy = -this.vy;
+
+        // Mouse attraction (subtle drift towards mouse if close)
+        if (mouse.x !== null && mouse.y !== null) {
+          const dx = mouse.x - this.x;
+          const dy = mouse.y - this.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < mouse.radius) {
+            const force = (mouse.radius - dist) / mouse.radius;
+            this.x += (dx / dist) * force * 0.35;
+            this.y += (dy / dist) * force * 0.35;
+          }
+        }
+      }
+      draw() {
+        ctx.fillStyle = 'rgba(255, 77, 0, 0.65)'; // Much darker, highly visible orange particles
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Initialize particles
+    for (let i = 0; i < maxParticles; i++) {
+      particles.push(new Particle());
+    }
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw connections
+      for (let i = 0; i < particles.length; i++) {
+        particles[i].update();
+        particles[i].draw();
+
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist < 110) {
+            const alpha = (110 - dist) / 110 * 0.55; // Significantly darker lines
+            ctx.strokeStyle = `rgba(30, 27, 24, ${alpha})`; // Highly visible dark charcoal connection line
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.stroke();
+          }
+        }
+
+        // Connect to mouse
+        if (mouse.x !== null && mouse.y !== null) {
+          const dx = particles[i].x - mouse.x;
+          const dy = particles[i].y - mouse.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < mouse.radius) {
+            const alpha = (mouse.radius - dist) / mouse.radius * 0.85; // Bold interactive opacity
+            ctx.strokeStyle = `rgba(255, 77, 0, ${alpha})`; // Bold glowing orange connection to mouse
+            ctx.lineWidth = 0.6;
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(mouse.x, mouse.y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(animate);
+    };
+    animate();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseleave', handleMouseLeave);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  // Interactive Background Glowing Blobs Parallax
+  useEffect(() => {
+    const blobs1 = document.querySelectorAll('.blob-1a, .blob-1b');
+    const blobs2 = document.querySelectorAll('.blob-2a, .blob-2b');
+    const blobs3 = document.querySelectorAll('.blob-3a, .blob-3b');
+    
+    // Continuous floating idle animation
+    gsap.to('.blob-1a, .blob-2b', {
+      x: '+=30',
+      y: '-=45',
+      duration: 12,
+      repeat: -1,
+      yoyo: true,
+      ease: 'sine.inOut'
+    });
+    gsap.to('.blob-1b, .blob-3a', {
+      x: '-=40',
+      y: '+=30',
+      duration: 14,
+      repeat: -1,
+      yoyo: true,
+      ease: 'sine.inOut'
+    });
+    gsap.to('.blob-2a, .blob-3b', {
+      x: '+=25',
+      y: '+=35',
+      duration: 13,
+      repeat: -1,
+      yoyo: true,
+      ease: 'sine.inOut'
+    });
+
+    const handleMouseMove = (e) => {
+      const { clientX, clientY } = e;
+      const nx = (clientX / window.innerWidth) - 0.5; // -0.5 to 0.5
+      const ny = (clientY / window.innerHeight) - 0.5;
+
+      // Animate each pair with a slightly different shift amplitude and direction
+      gsap.to(blobs1, {
+        x: nx * 50,
+        y: ny * 50,
+        duration: 2.0,
+        overwrite: 'auto',
+        ease: 'power3.out'
+      });
+      
+      gsap.to(blobs2, {
+        x: -nx * 40,
+        y: -ny * 40,
+        duration: 2.2,
+        overwrite: 'auto',
+        ease: 'power3.out'
+      });
+
+      gsap.to(blobs3, {
+        x: nx * 25,
+        y: ny * 60,
+        duration: 2.5,
+        overwrite: 'auto',
+        ease: 'power3.out'
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, []);
+
   // GSAP animations on mount
   useEffect(() => {
+    const scroll = new LocomotiveScroll();
+
     gsap.fromTo('.hero-line', 
       { y: 60, opacity: 0, skewY: 3 },
       { y: 0, opacity: 1, skewY: 0, duration: 0.9, ease: 'power4.out', stagger: 0.12 }
@@ -23,6 +219,10 @@ function LandingPage({ onAnalysisSuccess }) {
       { y: 20, opacity: 0 },
       { y: 0, opacity: 1, duration: 0.7, delay: 0.7 }
     );
+
+    return () => {
+      if (scroll) scroll.destroy();
+    };
   }, []);
 
   // Loading animations state variables
@@ -216,6 +416,16 @@ function LandingPage({ onAnalysisSuccess }) {
 
   return (
     <div className="landing-container">
+      <canvas ref={canvasRef} className="landing-canvas-bg" />
+      {/* Background Glowing Blobs (3 pairs) */}
+      <div className="glow-blobs-container">
+        <div className="glow-blob blob-1a"></div>
+        <div className="glow-blob blob-1b"></div>
+        <div className="glow-blob blob-2a"></div>
+        <div className="glow-blob blob-2b"></div>
+        <div className="glow-blob blob-3a"></div>
+        <div className="glow-blob blob-3b"></div>
+      </div>
       {/* Navbar */}
       <header className="navbar">
         <div className="wordmark">

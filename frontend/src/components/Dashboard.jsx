@@ -24,9 +24,10 @@ function Dashboard({ data, onNewAnalysis }) {
 
   // Determine main layout shift classes
   let mainContentClass = 'main-content';
-  if (selectedFile && isChatOpen) {
+  const isSidebarOpen = selectedFile && currentView !== 'explorer';
+  if (isSidebarOpen && isChatOpen) {
     mainContentClass += ' both-open';
-  } else if (selectedFile) {
+  } else if (isSidebarOpen) {
     mainContentClass += ' panel-open';
   } else if (isChatOpen) {
     mainContentClass += ' chat-open';
@@ -95,7 +96,7 @@ function Dashboard({ data, onNewAnalysis }) {
       </main>
 
       {/* Selected file detail panel (slide out sidebar) */}
-      {selectedFile && (
+      {isSidebarOpen && (
         <DetailPanel 
           file={selectedFile} 
           files={data.files}

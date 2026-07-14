@@ -164,13 +164,14 @@ function ExplorerView({ data, selectedFile, onSelectFile }) {
 
       {/* Details Right Column */}
       <div className="explorer-right" style={{ flexGrow: 1, padding: 0 }}>
-        {selectedFile && !selectedFile.type ? (
+        {selectedFile ? (
           <div style={{ height: '100%', position: 'relative' }}>
             <DetailPanel 
               file={selectedFile} 
               files={data.files} 
               onClose={() => onSelectFile(null)} 
               onSelectFile={onSelectFile}
+              layout="inline"
             />
           </div>
         ) : (

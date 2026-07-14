@@ -26,8 +26,8 @@ function Navbar({ project, detectedStack, files, onNewAnalysis }) {
 
   const handleReset = async () => {
     try {
-      // Clean backend state
-      // Actually the backend stores latestAnalysisResult in memory, we can clear the frontend routing
+      // Clean backend state on the server
+      await fetch('/api/reset', { method: 'POST' });
       onNewAnalysis();
     } catch (e) {
       console.error(e);
