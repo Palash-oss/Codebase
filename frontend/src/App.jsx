@@ -10,7 +10,9 @@ function App() {
   useEffect(() => {
     async function checkLatestResult() {
       try {
-        const res = await fetch('/api/latest-result');
+        // Get the current hostname/protocol to handle both dev and production URLs
+        const baseUrl = window.location.origin;
+        const res = await fetch(`${baseUrl}/api/latest-result`);
         if (res.ok) {
           const data = await res.json();
           setLatestResult(data);

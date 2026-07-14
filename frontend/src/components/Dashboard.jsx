@@ -7,6 +7,7 @@ import ChatPanel from './ChatPanel';
 // View components
 import ArchitectureView from './views/ArchitectureView';
 import LayersView from './views/LayersView';
+import SystemDesignView from './views/SystemDesignView';
 import ExplorerView from './views/ExplorerView';
 import TechStackView from './views/TechStackView';
 import FlowView from './views/FlowView';
@@ -145,11 +146,20 @@ function Dashboard({ data, onNewAnalysis }) {
 
         <div className={`view-container ${currentView === 'story' ? 'active' : ''}`}>
           {currentView === 'story' && (
-            <CodeStoryView 
-              DATA={data} 
-              onFileSelect={setSelectedFile} 
-              currentStoryStep={currentStoryStep} 
+            <CodeStoryView
+              DATA={data}
+              onFileSelect={setSelectedFile}
+              currentStoryStep={currentStoryStep}
               onStoryStep={setCurrentStoryStep}
+            />
+          )}
+        </div>
+
+        <div className={`view-container ${currentView === 'system-design' ? 'active' : ''}`}>
+          {currentView === 'system-design' && (
+            <SystemDesignView
+              DATA={data}
+              isActive={currentView === 'system-design'}
             />
           )}
         </div>

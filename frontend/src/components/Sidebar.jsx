@@ -81,7 +81,7 @@ function Sidebar({ currentView, onViewChange }) {
       </div>
 
       {/* Button 2 — Code Story */}
-      <div 
+      <div
         className={`sidebar-btn ${currentView === 'story' ? 'active' : ''}`}
         onClick={() => onViewChange('story')}
       >
@@ -89,6 +89,20 @@ function Sidebar({ currentView, onViewChange }) {
           <path d="M8 5v14l11-7z" />
         </svg>
         <div className="tooltip">Code Story</div>
+      </div>
+
+      {/* Button 3 — System Design */}
+      <div
+        className={`sidebar-btn ${currentView === 'system-design' ? 'active' : ''}`}
+        onClick={() => onViewChange('system-design')}
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <rect x="2" y="3" width="7" height="5" rx="1"/>
+          <rect x="11" y="16" width="7" height="5" rx="1"/>
+          <path d="M7.5 13.5h2a2 2 0 012 2v4h-6a2 2 0 012-2h0"/>
+          <path d="M15.5 9l1.5-1.5L15.5 6"/>
+        </svg>
+        <div className="tooltip">System Design</div>
       </div>
     </aside>
   );

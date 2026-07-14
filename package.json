@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js",
+    "dev": "npm run build && node server.js",
     "build": "npm run build --prefix frontend"
   },
   "dependencies": {
