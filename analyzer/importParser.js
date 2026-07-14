@@ -156,7 +156,30 @@ export function parseImports(files, tsconfigPaths, projectRoot) {
               } else {
                 status = 'broken';
               }
-            } else {
+            }
+            
+            // Fallback for @/ or absolute imports relative to src/ or root/
+            if (status !== 'resolved') {
+              let cleanSpec = specifier;
+              if (specifier.startsWith('@/')) {
+                cleanSpec = specifier.slice(2);
+              }
+              const candidates = [
+                path.resolve(projectRoot, 'src', cleanSpec),
+                path.resolve(projectRoot, cleanSpec)
+              ];
+              for (const cand of candidates) {
+                const foundFile = findFileByPath(cand, files);
+                if (foundFile) {
+                  status = 'resolved';
+                  resolvedRelativePath = foundFile.relativePath;
+                  resolvedPath = cand;
+                  break;
+                }
+              }
+            }
+
+            if (status !== 'resolved') {
               status = 'external';
             }
           }

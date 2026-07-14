@@ -293,17 +293,15 @@ app.post('/api/story', async (req, res) => {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
       
       const techStackStr = lastScanResult.stack?.detected ? lastScanResult.stack.detected.map(t => t.name).join(', ') : 'JavaScript';
-      const layersContextStr = lastScanResult.layers ? Object.entries(lastScanResult.layers).map(([layer, files]) => 
-        files.length > 0 ? `${layer}: ${files.slice(0, 8).join(', ')}` : ''
-      ).filter(Boolean).join('\n') : '';
+      const allFilesListStr = lastScanResult.graph?.nodes ? lastScanResult.graph.nodes.map(n => `- ${n.id} (${n.layer})`).join('\n') : '';
 
       const prompt = `You are analyzing a JavaScript/TypeScript codebase.
 
 Project: ${lastScanResult.project?.name || 'Codebase'}
 Tech stack: ${techStackStr}
 
-Files in this project grouped by layer:
-${layersContextStr}
+List of files in this project:
+${allFilesListStr}
 
 The user wants to understand: "${question}"
 
@@ -315,7 +313,7 @@ Return ONLY a JSON array (no markdown, no explanation, no code blocks) with 4-8 
   "layer": "the layer this file belongs to"
 }
 
-Only include files that actually exist in the project. Start from the user-facing entry point and trace to the data layer.`;
+Only include files that actually exist in the project file list. Start from the user-facing entry point and trace to the data layer.`;
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -346,33 +344,96 @@ Only include files that actually exist in the project. Start from the user-facin
     }
   }
 
-  // Fallback Mock Story Generator
-  console.log('[X-RAY] Using mock story fallback.');
-  const allFiles = lastScanResult.graph.nodes;
+  // Fallback Mock Story Generator using Graph Traversal
+  console.log('[X-RAY] Using mock story fallback with graph traversal.');
+  const nodes = lastScanResult.graph.nodes;
+  const edges = lastScanResult.graph.edges;
   const lowerQ = question.toLowerCase();
-  
-  let selectedFiles = [];
+
+  // Find starting keywords
+  let keywords = [];
   if (lowerQ.includes('login') || lowerQ.includes('auth') || lowerQ.includes('sign')) {
-    selectedFiles = allFiles.filter(f => 
-      f.id.includes('login') || f.id.includes('auth') || f.id.includes('session') || f.id.includes('page') || f.id.includes('route') || f.id.includes('db') || f.id.includes('prisma')
-    ).slice(0, 5);
-  } else if (lowerQ.includes('save') || lowerQ.includes('write') || lowerQ.includes('db') || lowerQ.includes('database')) {
-    selectedFiles = allFiles.filter(f => 
-      f.id.includes('db') || f.id.includes('prisma') || f.id.includes('save') || f.id.includes('write') || f.id.includes('model') || f.id.includes('route')
-    ).slice(0, 5);
-  } else if (lowerQ.includes('api') || lowerQ.includes('request') || lowerQ.includes('server')) {
-    selectedFiles = allFiles.filter(f => 
-      f.id.includes('api') || f.id.includes('route') || f.id.includes('server') || f.id.includes('controller') || f.id.includes('gateway')
-    ).slice(0, 5);
+    keywords = ['login', 'auth', 'sign', 'session'];
+  } else if (lowerQ.includes('save') || lowerQ.includes('db') || lowerQ.includes('database') || lowerQ.includes('write') || lowerQ.includes('create')) {
+    keywords = ['db', 'prisma', 'model', 'save', 'write', 'create', 'schema'];
+  } else if (lowerQ.includes('api') || lowerQ.includes('request') || lowerQ.includes('server') || lowerQ.includes('fetch')) {
+    keywords = ['api', 'route', 'server', 'controller', 'handler', 'fetch'];
   } else {
-    selectedFiles = allFiles.slice(0, 5);
+    keywords = ['app', 'main', 'index', 'home', 'view'];
+  }
+  
+  // Find a starting node that matches key words, prioritizing Presentation or Gateway layers
+  let startNode = null;
+  for (const layer of ['Presentation', 'Gateway', 'Interaction', 'Domain', 'Persistence']) {
+    startNode = nodes.find(n => n.layer === layer && keywords.some(k => n.id.toLowerCase().includes(k)));
+    if (startNode) break;
+  }
+  if (!startNode) {
+    startNode = nodes.find(n => keywords.some(k => n.id.toLowerCase().includes(k)));
+  }
+  if (!startNode) {
+    startNode = nodes[0];
   }
 
-  if (selectedFiles.length === 0) {
-    selectedFiles = allFiles.slice(0, Math.min(allFiles.length, 5));
+  // Trace path using BFS/DFS connections in the project graph
+  const pathNodes = [startNode];
+  const visited = new Set([startNode.id]);
+  let currentId = startNode.id;
+
+  for (let step = 0; step < 5; step++) {
+    // Find outbound edges from currentId
+    const nextEdges = edges.filter(e => e.source === currentId);
+    let nextNode = null;
+    for (const edge of nextEdges) {
+      if (!visited.has(edge.target)) {
+        const targetNode = nodes.find(n => n.id === edge.target);
+        if (targetNode) {
+          nextNode = targetNode;
+          break;
+        }
+      }
+    }
+    if (!nextNode) {
+      // Try inbound edges in reverse (sometimes flow is conceptualized in reverse)
+      const prevEdges = edges.filter(e => e.target === currentId);
+      for (const edge of prevEdges) {
+        if (!visited.has(edge.source)) {
+          const sourceNode = nodes.find(n => n.id === edge.source);
+          if (sourceNode) {
+            nextNode = sourceNode;
+            break;
+          }
+        }
+      }
+    }
+    if (nextNode) {
+      pathNodes.push(nextNode);
+      visited.add(nextNode.id);
+      currentId = nextNode.id;
+    } else {
+      break;
+    }
   }
 
-  const steps = selectedFiles.map((file, index) => {
+  // If path is too short, pad with matching keyword files
+  if (pathNodes.length < 4) {
+    const matchingFiles = nodes.filter(n => !visited.has(n.id) && keywords.some(k => n.id.toLowerCase().includes(k))).slice(0, 5 - pathNodes.length);
+    matchingFiles.forEach(f => {
+      pathNodes.push(f);
+      visited.add(f.id);
+    });
+  }
+
+  // If still too short, pad with first few nodes
+  if (pathNodes.length < 4) {
+    const remaining = nodes.filter(n => !visited.has(n.id)).slice(0, 5 - pathNodes.length);
+    remaining.forEach(f => {
+      pathNodes.push(f);
+      visited.add(f.id);
+    });
+  }
+
+  const steps = pathNodes.map((file, index) => {
     let explanation = `Traces request flow through ${file.label}`;
     if (file.layer === 'Presentation') {
       explanation = `Frontend renders user interface and triggers user action.`;

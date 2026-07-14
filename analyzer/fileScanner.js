@@ -76,22 +76,25 @@ export async function scanFiles(projectRoot) {
     }
   }
   
-  // Read tsconfig.json (handling comments)
+  // Read tsconfig.json or jsconfig.json (handling comments)
   let tsconfigPaths = null;
   let baseUrl = null;
-  const tsConfigPath = path.join(projectRoot, 'tsconfig.json');
-  if (fs.existsSync(tsConfigPath)) {
+  let configPath = path.join(projectRoot, 'tsconfig.json');
+  if (!fs.existsSync(configPath)) {
+    configPath = path.join(projectRoot, 'jsconfig.json');
+  }
+  if (fs.existsSync(configPath)) {
     try {
-      let rawConfig = fs.readFileSync(tsConfigPath, 'utf8');
+      let rawConfig = fs.readFileSync(configPath, 'utf8');
       // Strip comments
       rawConfig = rawConfig.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1');
-      const tsconfig = JSON.parse(rawConfig);
-      if (tsconfig.compilerOptions) {
-        tsconfigPaths = tsconfig.compilerOptions.paths || null;
-        baseUrl = tsconfig.compilerOptions.baseUrl || null;
+      const config = JSON.parse(rawConfig);
+      if (config.compilerOptions) {
+        tsconfigPaths = config.compilerOptions.paths || null;
+        baseUrl = config.compilerOptions.baseUrl || null;
       }
     } catch (e) {
-      console.warn(`[X-RAY] Warning: Failed to parse tsconfig.json: ${e.message}`);
+      console.warn(`[X-RAY] Warning: Failed to parse configuration file: ${e.message}`);
     }
   }
   
