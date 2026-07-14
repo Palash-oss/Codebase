@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 
-function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight }) {
+function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, blastRadiusData, onClearBlastRadius, storyStep, previousStoryStep }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   
@@ -44,6 +44,27 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight })
     }
     drawDiagram();
   }, [selectedFile]);
+
+  const stepStartTimeRef = useRef(Date.now());
+  useEffect(() => {
+    stepStartTimeRef.current = Date.now();
+  }, [storyStep]);
+
+  // Animation loop for active blast radius pulsing or active code story animations
+  useEffect(() => {
+    if (!blastRadiusData && !storyStep) return;
+
+    let animFrame;
+    const tick = () => {
+      drawDiagram();
+      animFrame = requestAnimationFrame(tick);
+    };
+    animFrame = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(animFrame);
+    };
+  }, [blastRadiusData, storyStep]);
 
   // Devicon map & inline SVG helpers
   const DEVICON_BASE = 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons';
@@ -356,19 +377,46 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight })
       let opacity = 0.5;
       let color = '#A29B8F';
       let lineWidth = 1.0;
+      let isStoryTransition = false;
 
-      const connectionFocusId = hoveredCompIdRef.current || (impactHighlight ? impactHighlight.targetId : activeFocusId);
-      if (connectionFocusId) {
+      if (hoveredCompIdRef.current) {
+        const connectionFocusId = hoveredCompIdRef.current;
         if (conn.from === connectionFocusId || conn.to === connectionFocusId) {
           isHighlighted = true;
           opacity = 1.0;
-          const isImpactTargetConn = impactHighlight && connectionFocusId === impactHighlight.targetId;
-          color = isImpactTargetConn ? impactHighlight.severityColor : '#1E1B18';
+          color = '#1E1B18';
           lineWidth = 2.0;
         } else {
           opacity = 0.10;
           color = '#E5E0D5';
           lineWidth = 0.5;
+        }
+      } else if (storyStep) {
+        isStoryTransition = conn.from === previousStoryStep && conn.to === storyStep;
+        if (isStoryTransition) {
+          isHighlighted = true;
+          opacity = 1.0;
+          color = '#FF4D00';
+          lineWidth = 2.5;
+        } else {
+          opacity = 0.10;
+          color = '#E5E0D5';
+          lineWidth = 0.5;
+        }
+      } else {
+        const connectionFocusId = impactHighlight ? impactHighlight.targetId : activeFocusId;
+        if (connectionFocusId) {
+          if (conn.from === connectionFocusId || conn.to === connectionFocusId) {
+            isHighlighted = true;
+            opacity = 1.0;
+            const isImpactTargetConn = impactHighlight && connectionFocusId === impactHighlight.targetId;
+            color = isImpactTargetConn ? impactHighlight.severityColor : '#1E1B18';
+            lineWidth = 2.0;
+          } else {
+            opacity = 0.10;
+            color = '#E5E0D5';
+            lineWidth = 0.5;
+          }
         }
       }
 
@@ -377,41 +425,70 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight })
       ctx.strokeStyle = color;
       ctx.lineWidth = lineWidth;
       ctx.beginPath();
+
+      let progress = 1.0;
+      if (isStoryTransition) {
+        const elapsed = Date.now() - stepStartTimeRef.current;
+        progress = Math.min(1.0, elapsed / 400);
+      }
+
       ctx.moveTo(x1, y1);
       if (direction === 'down' || direction === 'up') {
         const yMid = y1 + (y2 - y1) * 0.45;
-        ctx.lineTo(x1, yMid);
-        ctx.lineTo(x2, yMid);
-        ctx.lineTo(x2, y2);
+        if (progress < 0.33) {
+          const segProgress = progress / 0.33;
+          ctx.lineTo(x1, y1 + (yMid - y1) * segProgress);
+        } else if (progress < 0.66) {
+          const segProgress = (progress - 0.33) / 0.33;
+          ctx.lineTo(x1, yMid);
+          ctx.lineTo(x1 + (x2 - x1) * segProgress, yMid);
+        } else {
+          const segProgress = (progress - 0.66) / 0.34;
+          ctx.lineTo(x1, yMid);
+          ctx.lineTo(x2, yMid);
+          ctx.lineTo(x2, yMid + (y2 - yMid) * segProgress);
+        }
       } else {
         const xMid = x1 + (x2 - x1) * 0.5;
-        ctx.lineTo(xMid, y1);
-        ctx.lineTo(xMid, y2);
-        ctx.lineTo(x2, y2);
+        if (progress < 0.33) {
+          const segProgress = progress / 0.33;
+          ctx.lineTo(x1 + (xMid - x1) * segProgress, y1);
+        } else if (progress < 0.66) {
+          const segProgress = (progress - 0.33) / 0.33;
+          ctx.lineTo(xMid, y1);
+          ctx.lineTo(xMid, y1 + (y2 - y1) * segProgress);
+        } else {
+          const segProgress = (progress - 0.66) / 0.34;
+          ctx.lineTo(xMid, y1);
+          ctx.lineTo(xMid, y2);
+          ctx.lineTo(xMid + (x2 - xMid) * segProgress, y2);
+        }
       }
       ctx.stroke();
 
       // Draw Arrow
-      ctx.save();
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(x2, y2);
-      if (direction === 'down') {
-        ctx.lineTo(x2 - 4, y2 - 8);
-        ctx.lineTo(x2 + 4, y2 - 8);
-      } else if (direction === 'up') {
-        ctx.lineTo(x2 - 4, y2 + 8);
-        ctx.lineTo(x2 + 4, y2 + 8);
-      } else if (direction === 'right') {
-        ctx.lineTo(x2 - 8, y2 - 4);
-        ctx.lineTo(x2 - 8, y2 + 4);
-      } else {
-        ctx.lineTo(x2 + 8, y2 - 4);
-        ctx.lineTo(x2 + 8, y2 + 4);
+      if (!isStoryTransition || progress >= 0.98) {
+        ctx.save();
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(x2, y2);
+        if (direction === 'down') {
+          ctx.lineTo(x2 - 4, y2 - 8);
+          ctx.lineTo(x2 + 4, y2 - 8);
+        } else if (direction === 'up') {
+          ctx.lineTo(x2 - 4, y2 + 8);
+          ctx.lineTo(x2 + 4, y2 + 8);
+        } else if (direction === 'right') {
+          ctx.lineTo(x2 - 8, y2 - 4);
+          ctx.lineTo(x2 - 8, y2 + 4);
+        } else {
+          ctx.lineTo(x2 + 8, y2 - 4);
+          ctx.lineTo(x2 + 8, y2 + 4);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
       }
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
 
       if (conn.label) {
         const mx = (x1 + x2) / 2;
@@ -444,8 +521,15 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight })
       let opacity = 1.0;
       let borderColor = comp.borderColor + '66';
       let lineWidth = 1;
-      const isTarget = impactHighlight && comp.id === impactHighlight.targetId;
-      const isAffected = impactHighlight && impactHighlight.affectedIds.has(comp.id);
+      
+      let isTarget = impactHighlight && comp.id === impactHighlight.targetId;
+      let isAffected = impactHighlight && impactHighlight.affectedIds.has(comp.id);
+      let isBlastTarget = false;
+      let isBlastDirect = false;
+      let isBlastIndirect = false;
+      let isCurrentStoryNode = false;
+
+      let cardScale = 1.0;
 
       if (hoveredCompIdRef.current) {
         const isHoverConnected = comp.id === hoveredCompIdRef.current || isConnectedToFocus(comp.id);
@@ -455,6 +539,45 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight })
           lineWidth = 1.5;
         } else {
           opacity = 0.15;
+        }
+      } else if (blastRadiusData) {
+        isBlastTarget = comp.id === blastRadiusData.targetPath;
+        isBlastDirect = blastRadiusData.directImpact.includes(comp.id);
+        isBlastIndirect = blastRadiusData.indirectImpact.includes(comp.id);
+
+        const zoneContainsDirect = blastRadiusData.directImpact.some(path => {
+          const fileObj = data.files.find(f => f.relativePath === path);
+          return fileObj && fileObj.layer === comp.layer;
+        });
+        const zoneContainsIndirect = blastRadiusData.indirectImpact.some(path => {
+          const fileObj = data.files.find(f => f.relativePath === path);
+          return fileObj && fileObj.layer === comp.layer;
+        });
+
+        if (isBlastTarget) {
+          opacity = 1.0;
+          borderColor = '#ffffff';
+          lineWidth = 2.5;
+        } else if (isBlastDirect || zoneContainsDirect) {
+          opacity = 1.0;
+          borderColor = '#FF4D00';
+          lineWidth = 1.5;
+        } else if (isBlastIndirect || zoneContainsIndirect) {
+          opacity = 1.0;
+          borderColor = '#EAB308';
+          lineWidth = 1.5;
+        } else {
+          opacity = 0.25;
+        }
+      } else if (storyStep) {
+        isCurrentStoryNode = comp.id === storyStep;
+        if (isCurrentStoryNode) {
+          opacity = 1.0;
+          borderColor = comp.borderColor;
+          lineWidth = 2.5;
+          cardScale = 1.2 + Math.abs(Math.sin(Date.now() / 250)) * 0.15;
+        } else {
+          opacity = 0.30;
         }
       } else if (impactHighlight) {
         if (isTarget) {
@@ -480,34 +603,49 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight })
 
       ctx.globalAlpha = opacity;
 
-      ctx.shadowColor = isTarget ? '#EF4444' : (isAffected ? impactHighlight.severityColor : comp.borderColor);
-      ctx.shadowBlur = isHovered ? 12 : 2;
+      // Scaling calculation
+      const drawW = w * cardScale;
+      const drawH = h * cardScale;
+      const drawX = x + w / 2 - drawW / 2;
+      const drawY = y + h / 2 - drawH / 2;
+
+      // Determine shadow color
+      let shadowColor = comp.borderColor;
+      if (isBlastTarget) shadowColor = '#EF4444';
+      else if (isBlastDirect) shadowColor = '#FF4D00';
+      else if (isBlastIndirect) shadowColor = '#EAB308';
+      else if (isCurrentStoryNode) shadowColor = comp.borderColor;
+      else if (isTarget) shadowColor = '#EF4444';
+      else if (isAffected) shadowColor = impactHighlight.severityColor;
+
+      ctx.shadowColor = shadowColor;
+      ctx.shadowBlur = (isHovered || isCurrentStoryNode) ? 15 : 2;
       ctx.shadowOffsetY = isHovered ? 3 : 1;
  
       ctx.fillStyle = '#ffffff';
-      roundRect(ctx, x, y, w, h, 6);
+      roundRect(ctx, drawX, drawY, drawW, drawH, 6);
       ctx.fill();
  
       ctx.shadowColor = 'transparent';
       ctx.strokeStyle = borderColor;
       ctx.lineWidth = lineWidth;
-      roundRect(ctx, x, y, w, h, 6);
+      roundRect(ctx, drawX, drawY, drawW, drawH, 6);
       ctx.stroke();
  
       // Layer Dot
       ctx.fillStyle = comp.borderColor;
       ctx.beginPath();
-      ctx.arc(x + 12, y + h / 2, 4, 0, Math.PI * 2);
+      ctx.arc(drawX + 12 * cardScale, drawY + drawH / 2, 4 * cardScale, 0, Math.PI * 2);
       ctx.fill();
  
       // File Name
-      ctx.font = '600 11px "Space Grotesk", sans-serif';
+      ctx.font = `600 ${Math.round(11 * cardScale)}px "Space Grotesk", sans-serif`;
       ctx.fillStyle = '#1E1B18';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       
       let displayName = comp.name;
-      const maxTextWidth = w - 42;
+      const maxTextWidth = drawW - 42 * cardScale;
       let textWidth = ctx.measureText(displayName).width;
       if (textWidth > maxTextWidth) {
         while (textWidth > maxTextWidth && displayName.length > 3) {
@@ -516,10 +654,10 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight })
         }
         displayName += '...';
       }
-      ctx.fillText(displayName, x + 24, y + 16);
+      ctx.fillText(displayName, drawX + 24 * cardScale, drawY + 16 * cardScale);
  
       // Subtitle
-      ctx.font = '400 8px "Space Mono", monospace';
+      ctx.font = `400 ${Math.round(8 * cardScale)}px "Space Mono", monospace`;
       ctx.fillStyle = 'rgba(30,27,24,0.5)';
       let displaySub = comp.subtitle;
       let subWidth = ctx.measureText(displaySub).width;
@@ -529,20 +667,34 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight })
           subWidth = ctx.measureText(displaySub).width;
         }
       }
-      ctx.fillText(displaySub, x + 24, y + 32);
+      ctx.fillText(displaySub, drawX + 24 * cardScale, drawY + 32 * cardScale);
+
+      // Warning exclamation mark (!) for target component of Impact Radar selection
       if (isTarget) {
         ctx.save();
         ctx.fillStyle = '#EF4444';
         ctx.beginPath();
-        ctx.arc(x + w, y, 7, 0, Math.PI * 2);
+        ctx.arc(drawX + drawW, drawY, 7 * cardScale, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 9px "Space Grotesk", sans-serif';
+        ctx.font = `bold ${Math.round(9 * cardScale)}px "Space Grotesk", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('!', x + w, y);
+        ctx.fillText('!', drawX + drawW, drawY);
         ctx.restore();
       }
+
+      // Pulsing red dot warning for Blast Radius target component
+      if (isBlastTarget) {
+        ctx.save();
+        ctx.fillStyle = '#EF4444';
+        ctx.beginPath();
+        const pulse = (4 + Math.abs(Math.sin(Date.now() / 250)) * 3) * cardScale;
+        ctx.arc(drawX + drawW, drawY, pulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
       ctx.restore();
     });
 
@@ -942,6 +1094,58 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight })
         <span id="canvas-zoom-text">{zoomText}</span>
         <button onClick={() => canvasZoom(0.1)}>+</button>
       </div>
+
+      {/* Blast Radius Legend Box */}
+      {blastRadiusData && (
+        <div style={{
+          position: 'absolute',
+          bottom: '16px',
+          left: '140px',
+          backgroundColor: 'rgba(30, 27, 24, 0.95)',
+          border: '1px solid var(--border-3)',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
+          zIndex: 100,
+          width: '180px',
+          fontFamily: '"Space Grotesk", sans-serif'
+        }}>
+          {/* Close button */}
+          <button 
+            onClick={onClearBlastRadius}
+            style={{
+              position: 'absolute',
+              top: '4px',
+              right: '8px',
+              background: 'transparent',
+              border: 'none',
+              color: '#FAF7F2',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              padding: 0
+            }}
+          >
+            ×
+          </button>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#FAF7F2' }}>
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ffffff' }} />
+            <span>Target file</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#FAF7F2' }}>
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#FF4D00' }} />
+            <span>Direct impact</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#FAF7F2' }}>
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#EAB308' }} />
+            <span>Indirect impact</span>
+          </div>
+        </div>
+      )}
 
       {/* Edit Component Modal */}
       {isModalOpen && (

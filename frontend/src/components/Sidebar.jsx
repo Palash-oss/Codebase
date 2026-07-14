@@ -61,6 +61,35 @@ function Sidebar({ currentView, onViewChange }) {
           <div className="tooltip">{item.tooltip}</div>
         </div>
       ))}
+
+      {/* Feature Divider */}
+      <div style={{ width: '28px', height: '1px', backgroundColor: 'var(--border-2)', margin: '8px 0' }} />
+
+      {/* Button 1 — Blast Radius */}
+      <div 
+        className={`sidebar-btn ${currentView === 'blast-radius' ? 'active' : ''}`}
+        onClick={() => onViewChange('blast-radius')}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="22" y1="12" x2="18" y2="12" />
+          <line x1="6" y1="12" x2="2" y2="12" />
+          <line x1="12" y1="6" x2="12" y2="2" />
+          <line x1="12" y1="22" x2="12" y2="18" />
+        </svg>
+        <div className="tooltip">Blast Radius</div>
+      </div>
+
+      {/* Button 2 — Code Story */}
+      <div 
+        className={`sidebar-btn ${currentView === 'story' ? 'active' : ''}`}
+        onClick={() => onViewChange('story')}
+      >
+        <svg viewBox="0 0 24 24">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+        <div className="tooltip">Code Story</div>
+      </div>
     </aside>
   );
 }

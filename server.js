@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import os from 'os';
 
 import { analyzeProject } from './analyzer/index.js';
-import { computeImpactRadius } from './analyzer/graphBuilder.js';
+import { computeImpactRadius, computeBlastRadius } from './analyzer/graphBuilder.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -248,6 +248,151 @@ app.post('/api/reset', (req, res) => {
   latestAnalysisResult = null;
   lastScanResult = null;
   res.json({ success: true });
+});
+
+// POST /api/blast-radius -> Compute blast radius for a selected file
+app.post('/api/blast-radius', (req, res) => {
+  if (!lastScanResult) {
+    if (latestAnalysisResult) {
+      lastScanResult = latestAnalysisResult;
+    } else {
+      return res.status(400).json({ error: 'Scan a project first' });
+    }
+  }
+  const { relativePath } = req.body;
+  if (!relativePath) {
+    return res.status(400).json({ error: 'relativePath is required' });
+  }
+  try {
+    const result = computeBlastRadius(relativePath, lastScanResult.graph.nodes, lastScanResult.graph.edges);
+    res.json(result);
+  } catch (err) {
+    console.error('[X-RAY] Error computing blast radius:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/story -> AI/Mock execution path generator
+app.post('/api/story', async (req, res) => {
+  if (!lastScanResult) {
+    if (latestAnalysisResult) {
+      lastScanResult = latestAnalysisResult;
+    } else {
+      return res.status(400).json({ error: 'Scan a project first' });
+    }
+  }
+  const { question } = req.body;
+  if (!question) {
+    return res.status(400).json({ error: 'question is required' });
+  }
+
+  const key = process.env.GEMINI_API_KEY;
+  if (key) {
+    try {
+      console.log('[X-RAY] Calling Gemini API for Code Story...');
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+      
+      const techStackStr = lastScanResult.stack?.detected ? lastScanResult.stack.detected.map(t => t.name).join(', ') : 'JavaScript';
+      const layersContextStr = lastScanResult.layers ? Object.entries(lastScanResult.layers).map(([layer, files]) => 
+        files.length > 0 ? `${layer}: ${files.slice(0, 8).join(', ')}` : ''
+      ).filter(Boolean).join('\n') : '';
+
+      const prompt = `You are analyzing a JavaScript/TypeScript codebase.
+
+Project: ${lastScanResult.project?.name || 'Codebase'}
+Tech stack: ${techStackStr}
+
+Files in this project grouped by layer:
+${layersContextStr}
+
+The user wants to understand: "${question}"
+
+Return ONLY a JSON array (no markdown, no explanation, no code blocks) with 4-8 steps showing the code execution path. Each step:
+{
+  "step": number,
+  "filePath": "exact relative path from the files list above",
+  "what": "one sentence max 12 words explaining what this file does in this flow",
+  "layer": "the layer this file belongs to"
+}
+
+Only include files that actually exist in the project. Start from the user-facing entry point and trace to the data layer.`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }]
+        })
+      });
+
+      const data = await response.json();
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (rawText) {
+        let cleanText = rawText.trim();
+        if (cleanText.startsWith('```')) {
+          cleanText = cleanText.replace(/^```json\s*/i, '').replace(/```\s*$/, '');
+        }
+        const parsed = JSON.parse(cleanText);
+        if (Array.isArray(parsed)) {
+          return res.json(parsed);
+        }
+      }
+    } catch (error) {
+      console.warn(`[X-RAY] Gemini API error for story: ${error.message}. Falling back to mock.`);
+    }
+  }
+
+  // Fallback Mock Story Generator
+  console.log('[X-RAY] Using mock story fallback.');
+  const allFiles = lastScanResult.graph.nodes;
+  const lowerQ = question.toLowerCase();
+  
+  let selectedFiles = [];
+  if (lowerQ.includes('login') || lowerQ.includes('auth') || lowerQ.includes('sign')) {
+    selectedFiles = allFiles.filter(f => 
+      f.id.includes('login') || f.id.includes('auth') || f.id.includes('session') || f.id.includes('page') || f.id.includes('route') || f.id.includes('db') || f.id.includes('prisma')
+    ).slice(0, 5);
+  } else if (lowerQ.includes('save') || lowerQ.includes('write') || lowerQ.includes('db') || lowerQ.includes('database')) {
+    selectedFiles = allFiles.filter(f => 
+      f.id.includes('db') || f.id.includes('prisma') || f.id.includes('save') || f.id.includes('write') || f.id.includes('model') || f.id.includes('route')
+    ).slice(0, 5);
+  } else if (lowerQ.includes('api') || lowerQ.includes('request') || lowerQ.includes('server')) {
+    selectedFiles = allFiles.filter(f => 
+      f.id.includes('api') || f.id.includes('route') || f.id.includes('server') || f.id.includes('controller') || f.id.includes('gateway')
+    ).slice(0, 5);
+  } else {
+    selectedFiles = allFiles.slice(0, 5);
+  }
+
+  if (selectedFiles.length === 0) {
+    selectedFiles = allFiles.slice(0, Math.min(allFiles.length, 5));
+  }
+
+  const steps = selectedFiles.map((file, index) => {
+    let explanation = `Traces request flow through ${file.label}`;
+    if (file.layer === 'Presentation') {
+      explanation = `Frontend renders user interface and triggers user action.`;
+    } else if (file.layer === 'Gateway') {
+      explanation = `API route handles the request and validates request payload.`;
+    } else if (file.layer === 'Persistence') {
+      explanation = `Database query writes or retrieves data records.`;
+    } else if (file.layer === 'Domain') {
+      explanation = `Executes core business logic rules and operations.`;
+    }
+    
+    return {
+      step: index + 1,
+      filePath: file.id,
+      what: explanation,
+      layer: file.layer
+    };
+  });
+
+  res.json(steps);
 });
 
 // Start server

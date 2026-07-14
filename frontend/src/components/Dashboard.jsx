@@ -10,16 +10,21 @@ import LayersView from './views/LayersView';
 import ExplorerView from './views/ExplorerView';
 import TechStackView from './views/TechStackView';
 import FlowView from './views/FlowView';
+import BlastRadiusView from './views/BlastRadiusView';
+import CodeStoryView from './views/CodeStoryView';
 
 function Dashboard({ data, onNewAnalysis }) {
   const [currentView, setCurrentView] = useState('architecture');
   const [selectedFile, setSelectedFile] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [impactHighlight, setImpactHighlight] = useState(null);
+  const [blastRadiusData, setBlastRadiusData] = useState(null);
+  const [currentStoryStep, setCurrentStoryStep] = useState(null);
 
-  // Clear impact highlight when selected file changes
+  // Clear highlights when selected file changes
   useEffect(() => {
     setImpactHighlight(null);
+    setBlastRadiusData(null);
   }, [selectedFile]);
 
   // Keyboard shortcut listener
@@ -48,7 +53,7 @@ function Dashboard({ data, onNewAnalysis }) {
 
   // Determine main layout shift classes
   let mainContentClass = 'main-content';
-  const isSidebarOpen = selectedFile && currentView !== 'explorer';
+  const isSidebarOpen = selectedFile && currentView !== 'explorer' && currentView !== 'blast-radius' && currentView !== 'story';
   if (isSidebarOpen && isChatOpen) {
     mainContentClass += ' both-open';
   } else if (isSidebarOpen) {
@@ -79,6 +84,9 @@ function Dashboard({ data, onNewAnalysis }) {
               onSelectFile={setSelectedFile} 
               selectedFile={selectedFile}
               impactHighlight={impactHighlight}
+              blastRadiusData={blastRadiusData}
+              onClearBlastRadius={() => setBlastRadiusData(null)}
+              storyStep={currentStoryStep}
             />
           )}
         </div>
@@ -117,6 +125,31 @@ function Dashboard({ data, onNewAnalysis }) {
             <FlowView 
               data={data} 
               onSelectFile={setSelectedFile} 
+            />
+          )}
+        </div>
+
+        <div className={`view-container ${currentView === 'blast-radius' ? 'active' : ''}`}>
+          {currentView === 'blast-radius' && (
+            <BlastRadiusView 
+              DATA={data} 
+              selectedFile={selectedFile} 
+              onFileSelect={setSelectedFile} 
+              onHighlight={(brData) => {
+                setBlastRadiusData(brData);
+                setCurrentView('architecture');
+              }}
+            />
+          )}
+        </div>
+
+        <div className={`view-container ${currentView === 'story' ? 'active' : ''}`}>
+          {currentView === 'story' && (
+            <CodeStoryView 
+              DATA={data} 
+              onFileSelect={setSelectedFile} 
+              currentStoryStep={currentStoryStep} 
+              onStoryStep={setCurrentStoryStep}
             />
           )}
         </div>

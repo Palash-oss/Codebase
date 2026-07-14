@@ -315,3 +315,41 @@ export function computeImpactRadius(targetRelativePath, nodes, edges) {
     severity
   };
 }
+
+export function computeBlastRadius(targetPath, nodes, edges) {
+  // Build reverse map: for each file, which files import it
+  const reverseMap = new Map()
+  nodes.forEach(n => reverseMap.set(n.id, []))
+  edges.forEach(e => {
+    if (reverseMap.has(e.target)) {
+      reverseMap.get(e.target).push(e.source)
+    }
+  })
+
+  // Direct impact: files that directly import targetPath
+  const directImpact = reverseMap.get(targetPath) || []
+
+  // Indirect impact: files that import the direct importers (excluding direct and target)
+  const directSet = new Set(directImpact)
+  const indirectSet = new Set()
+  directImpact.forEach(directFile => {
+    const importersOfDirect = reverseMap.get(directFile) || []
+    importersOfDirect.forEach(f => {
+      if (f !== targetPath && !directSet.has(f)) {
+        indirectSet.add(f)
+      }
+    })
+  })
+  const indirectImpact = [...indirectSet].slice(0, 30)
+
+  const totalAffected = directImpact.length + indirectImpact.length
+  const safetyScore = Math.round(Math.max(0, 100 - (totalAffected / Math.max(nodes.length, 1)) * 100))
+
+  let severity = 'safe'
+  if (safetyScore < 25) severity = 'critical'
+  else if (safetyScore < 50) severity = 'high'
+  else if (safetyScore < 70) severity = 'medium'
+  else if (safetyScore < 90) severity = 'low'
+
+  return { targetPath, directImpact, indirectImpact, totalAffected, safetyScore, severity }
+}
