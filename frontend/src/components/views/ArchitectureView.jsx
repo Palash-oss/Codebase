@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 
-function ArchitectureView({ data, onSelectFile, impactHighlight }) {
+function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   
@@ -34,6 +34,16 @@ function ArchitectureView({ data, onSelectFile, impactHighlight }) {
   useEffect(() => {
     drawDiagram();
   }, [impactHighlight]);
+
+  // Sync selectedCompIdRef.current with selectedFile prop from parent
+  useEffect(() => {
+    if (!selectedFile) {
+      selectedCompIdRef.current = null;
+    } else {
+      selectedCompIdRef.current = selectedFile.relativePath || (selectedFile.data ? selectedFile.data.id : null) || selectedFile.id || null;
+    }
+    drawDiagram();
+  }, [selectedFile]);
 
   // Devicon map & inline SVG helpers
   const DEVICON_BASE = 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons';
@@ -850,7 +860,7 @@ function ArchitectureView({ data, onSelectFile, impactHighlight }) {
       window.removeEventListener('resize', handleResize);
       resizeObserver.disconnect();
     };
-  }, [data, onSelectFile, impactHighlight]);
+  }, [data, onSelectFile, selectedFile, impactHighlight]);
 
   // Modal actions
   const saveShapeEdits = () => {

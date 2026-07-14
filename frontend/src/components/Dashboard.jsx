@@ -77,6 +77,7 @@ function Dashboard({ data, onNewAnalysis }) {
             <ArchitectureView 
               data={data} 
               onSelectFile={setSelectedFile} 
+              selectedFile={selectedFile}
               impactHighlight={impactHighlight}
             />
           )}
