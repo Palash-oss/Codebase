@@ -296,7 +296,7 @@ function ArchitectureView({ data, onSelectFile, impactHighlight }) {
     });
 
     // Connections
-    const activeFocusId = selectedCompIdRef.current || hoveredCompIdRef.current;
+    const activeFocusId = hoveredCompIdRef.current || selectedCompIdRef.current;
     const isConnectedToFocus = (compId) => {
       if (!activeFocusId) return true;
       if (compId === activeFocusId) return true;
@@ -437,7 +437,16 @@ function ArchitectureView({ data, onSelectFile, impactHighlight }) {
       const isTarget = impactHighlight && comp.id === impactHighlight.targetId;
       const isAffected = impactHighlight && impactHighlight.affectedIds.has(comp.id);
 
-      if (impactHighlight) {
+      if (hoveredCompIdRef.current) {
+        const isHoverConnected = comp.id === hoveredCompIdRef.current || isConnectedToFocus(comp.id);
+        if (isHoverConnected) {
+          opacity = 1.0;
+          borderColor = comp.borderColor;
+          lineWidth = 1.5;
+        } else {
+          opacity = 0.15;
+        }
+      } else if (impactHighlight) {
         if (isTarget) {
           opacity = 1.0;
           borderColor = '#ffffff';
@@ -446,10 +455,6 @@ function ArchitectureView({ data, onSelectFile, impactHighlight }) {
           opacity = 1.0;
           borderColor = impactHighlight.severityColor;
           lineWidth = 1.5;
-        } else if (isHovered) {
-          opacity = 1.0;
-          borderColor = comp.borderColor;
-          lineWidth = 1.2;
         } else {
           opacity = 0.3;
         }
