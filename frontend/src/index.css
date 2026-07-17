@@ -815,6 +815,20 @@ body {
   pointer-events: all;
 }
 
+#view-blast-radius, #view-story, #view-system-design {
+  background-color: #0a0a0a;
+  --black: #0a0a0a;
+  --black-2: #141414;
+  --black-3: #1a1a1b;
+  --black-4: #242426;
+  --beige: #f5f0e8;
+  --beige-2: #a8a29e;
+  --beige-3: #78716c;
+  --border: #2e2e2e;
+  --border-2: #3a3a3a;
+  --border-3: #4a4a4a;
+}
+
 /* Architecture View styles */
 #view-architecture {
   background-color: #0b0b0c;

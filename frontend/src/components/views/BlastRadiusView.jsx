@@ -296,7 +296,28 @@ function BlastRadiusView({ DATA, selectedFile, onFileSelect, onHighlight }) {
           }}
           onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
           onMouseLeave={(e) => { e.currentTarget.style.opacity = '1.0'; }}
-          onClick={() => onHighlight(blastData)}
+          onClick={() => {
+            const severityColors = {
+              safe: '#22C55E',
+              low: '#EAB308',
+              medium: '#F97316',
+              high: '#FF4D00',
+              critical: '#EF4444'
+            };
+
+            const severityColor = severityColors[blastData.severity] || '#8E8578';
+            const affected = new Set([...(blastData.directImpact || []), ...(blastData.indirectImpact || [])]);
+
+            onHighlight({
+              targetId: blastData.targetPath,
+              affectedIds: affected,
+              severityColor,
+              directImpact: blastData.directImpact,
+              indirectImpact: blastData.indirectImpact,
+              safetyScore: blastData.safetyScore,
+              severity: blastData.severity
+            });
+          }}
         >
           Highlight on graph →
         </button>

@@ -75,6 +75,20 @@ function SystemDesignView({ DATA, isActive }) {
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+    const totalH = sysDataRef.current.components.reduce((max, c) => Math.max(max, c.y + c.h), 0) + 60;
+    const totalW = sysDataRef.current.components.reduce((max, c) => Math.max(max, c.x + c.w), 0) + 40;
+    const scaleToFit = Math.min(
+      (canvas.offsetWidth - 40) / totalW,
+      (canvas.offsetHeight - 40) / totalH,
+      1
+    );
+    transformRef.current = {
+      x: (canvas.offsetWidth - totalW * scaleToFit) / 2,
+      y: 20,
+      scale: scaleToFit
+    };
+    setZoomText(Math.round(scaleToFit * 100) + '%');
+
     setIsInitialized(true);
     drawDiagram();
 
@@ -88,7 +102,8 @@ function SystemDesignView({ DATA, isActive }) {
 
   // Layout computation - positions components and zones
   const computeLayout = (zones, components) => {
-    const CANVAS_W = 1200;
+    const canvas = canvasRef.current;
+    const CANVAS_W = canvas.offsetWidth || 1200;
     const TIER_HEIGHT = 130;
     const COMP_W = 150;
     const COMP_H = 78;
@@ -163,8 +178,8 @@ function SystemDesignView({ DATA, isActive }) {
     const W = canvas.offsetWidth;
     const H = canvas.offsetHeight;
     const transform = transformRef.current;
-
-    ctx.clearRect(0, 0, W, H);
+    const dpr = window.devicePixelRatio || 1;
+    ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
     ctx.save();
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.scale, transform.scale);

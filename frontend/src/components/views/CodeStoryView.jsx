@@ -12,13 +12,6 @@ const LAYER_COLORS = {
   Unknown: '#3A3A3A'
 };
 
-const SUGGESTIONS = [
-  "How does a user log in?",
-  "How is data saved to the database?",
-  "What happens when an API request comes in?",
-  "How does the frontend fetch data?"
-];
-
 function CodeStoryView({ DATA, onFileSelect, currentStoryStep, onStoryStep }) {
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -29,6 +22,18 @@ function CodeStoryView({ DATA, onFileSelect, currentStoryStep, onStoryStep }) {
   const [error, setError] = useState(null);
 
   const timerRef = useRef(null);
+
+  const techNames = DATA?.stack?.detected?.slice(0, 2).map(t => t.name).join(' and ') || 'the stack';
+  const hasAuth = DATA?.stack?.detected?.some(t => t.category === 'auth');
+  const hasDb = DATA?.stack?.detected?.some(t => t.category === 'database');
+  const projectName = DATA?.project?.name || 'this project';
+  
+  const suggestions = [
+    hasAuth ? `How does authentication work in ${projectName}?` : `What happens when a user visits ${projectName}?`,
+    hasDb ? `How is data saved to the database?` : `How does data flow through ${projectName}?`,
+    `What happens when an API request comes in?`,
+    `How does ${techNames} handle requests end to end?`
+  ];
 
   // Clear timers on unmount
   useEffect(() => {
@@ -136,7 +141,7 @@ function CodeStoryView({ DATA, onFileSelect, currentStoryStep, onStoryStep }) {
 
           {/* Suggestion Chips */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            {SUGGESTIONS.map((s) => (
+            {suggestions.map((s) => (
               <div 
                 key={s}
                 onClick={() => setQuestion(s)}
