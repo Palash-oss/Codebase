@@ -23,17 +23,38 @@ function CodeStoryView({ DATA, onFileSelect, currentStoryStep, onStoryStep }) {
 
   const timerRef = useRef(null);
 
-  const techNames = DATA?.stack?.detected?.slice(0, 2).map(t => t.name).join(' and ') || 'the stack';
-  const hasAuth = DATA?.stack?.detected?.some(t => t.category === 'auth');
-  const hasDb = DATA?.stack?.detected?.some(t => t.category === 'database');
-  const projectName = DATA?.project?.name || 'this project';
-  
-  const suggestions = [
-    hasAuth ? `How does authentication work in ${projectName}?` : `What happens when a user visits ${projectName}?`,
-    hasDb ? `How is data saved to the database?` : `How does data flow through ${projectName}?`,
-    `What happens when an API request comes in?`,
-    `How does ${techNames} handle requests end to end?`
-  ];
+  // Build dynamic suggestions from actual detected stack
+  const suggestions = React.useMemo(() => {
+    const s = [];
+    const detected = DATA?.stack?.detected || [];
+    const hasAuth = detected.some(t => t.category === 'auth');
+    const hasDb = detected.some(t => t.category === 'database');
+    const hasApi = (DATA?.layers?.Gateway || []).length > 0;
+    const projectName = DATA?.project?.name || 'this project';
+    
+    if (hasAuth) {
+      s.push(`How does a user authenticate in ${projectName}?`);
+    }
+    if (hasApi) {
+      s.push(`What happens when an API request comes in?`);
+    }
+    if (hasDb) {
+      s.push(`How is data saved to the database?`);
+    }
+    s.push(`How does the frontend fetch and display data?`);
+    
+    // Fill to 4 suggestions if needed
+    const extras = [
+      `What is the entry point of ${projectName}?`,
+      `How does error handling work?`,
+      `How does data flow end to end?`
+    ];
+    let ei = 0;
+    while (s.length < 4 && ei < extras.length) {
+      s.push(extras[ei++]);
+    }
+    return s.slice(0, 4);
+  }, [DATA]);
 
   // Clear timers on unmount
   useEffect(() => {
@@ -95,8 +116,12 @@ function CodeStoryView({ DATA, onFileSelect, currentStoryStep, onStoryStep }) {
         throw new Error('Failed to generate story path.');
       }
 
-      const steps = await response.json();
       setStorySteps(steps);
+      // Auto-start from beginning after a short delay
+      setTimeout(() => {
+        setCurrentStepIndex(0);
+        setIsPlaying(true);
+      }, 600);
     } catch (err) {
       console.error('[X-RAY] Error generating story:', err);
       setError('Failed to generate execution flow. Please try again.');
@@ -209,7 +234,67 @@ function CodeStoryView({ DATA, onFileSelect, currentStoryStep, onStoryStep }) {
 
         {/* Story Vertical Timeline */}
         {!isLoading && storySteps.length > 0 && (
-          <div style={{ position: 'relative', paddingLeft: '16px', marginTop: '16px' }}>
+          <React.Fragment>
+            {/* Flow path summary bar */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              padding: '10px 14px',
+              background: 'var(--black-3)',
+              border: '1px solid var(--border-2)',
+              borderRadius: '8px',
+              marginBottom: '20px',
+              overflowX: 'auto',
+              flexWrap: 'nowrap'
+            }}>
+              {storySteps.map((step, idx) => {
+                const layerColor = LAYER_COLORS[step.layer] || '#8E8578';
+                const isActive = currentStepIndex === idx;
+                return (
+                  <React.Fragment key={step.step}>
+                    <div
+                      onClick={() => { setCurrentStepIndex(idx); setIsPlaying(false); }}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '3px',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        background: isActive ? layerColor + '20' : 'transparent',
+                        border: isActive ? `1px solid ${layerColor}40` : '1px solid transparent',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <div style={{
+                        width: '28px', height: '28px', borderRadius: '50%',
+                        background: layerColor + '20', border: `1.5px solid ${layerColor}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontFamily: 'Space Mono', fontSize: '10px', fontWeight: '700',
+                        color: layerColor
+                      }}>{step.step}</div>
+                      <div style={{ fontFamily: 'Space Mono', fontSize: '9px', color: isActive ? 'var(--beige)' : 'var(--beige-3)', maxWidth: '70px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {step.filePath.split('/').pop()}
+                      </div>
+                    </div>
+                    {idx < storySteps.length - 1 && (
+                      <div style={{ width: '20px', height: '1px', background: 'var(--border-2)', flexShrink: 0 }}>
+                        <div style={{ 
+                          height: '100%', 
+                          background: 'var(--orange)', 
+                          width: currentStepIndex > idx ? '100%' : '0%',
+                          transition: 'width 0.3s ease'
+                        }}/>
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+            <div style={{ position: 'relative', paddingLeft: '16px', marginTop: '16px' }}>
             {/* Timeline connectors */}
             <div style={{ 
               position: 'absolute', 
@@ -301,6 +386,7 @@ function CodeStoryView({ DATA, onFileSelect, currentStoryStep, onStoryStep }) {
               );
             })}
           </div>
+          </React.Fragment>
         )}
       </div>
 

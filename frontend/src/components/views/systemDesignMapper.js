@@ -1,4 +1,4 @@
-export function buildSystemDesign(DATA) {
+export function buildSystemDesign(DATA, fileList = []) {
   // Defensive: handle undefined/missing data
   if (!DATA) {
     return { components: [], zones: [], connections: [] };
@@ -6,7 +6,9 @@ export function buildSystemDesign(DATA) {
 
   const { stack, files, graph } = DATA;
   const detected = stack?.detected || [];
-  const fileList = files || [];
+  if (!fileList || fileList.length === 0) {
+    fileList = files || [];
+  }
 
   const detectedKeys = new Set(detected.map(t => t.key));
   const hasTech = (key) => detectedKeys.has(key);
@@ -523,6 +525,33 @@ export function buildSystemDesign(DATA) {
 
     currentY += TIER_HEIGHT;
   }
+
+  // Attach real files from DATA to each component based on tier/layer mapping
+  const tierToLayers = {
+    client: ['Presentation'],
+    gateway: ['Gateway'],
+    service: ['Domain', 'Interaction'],
+    data: ['Persistence'],
+    observability: ['Infrastructure', 'Test'],
+    network: [],
+    edge: [],
+    cache: ['Persistence'],
+    queue: [],
+    cloud: []
+  };
+
+  components.forEach(comp => {
+    const layers = tierToLayers[comp.tier] || [];
+    if (layers.length > 0) {
+      const matchedFiles = fileList
+        .filter(f => layers.includes(f.layer))
+        .slice(0, 4)
+        .map(f => f.relativePath);
+      comp.files = matchedFiles;
+    } else {
+      comp.files = [];
+    }
+  });
 
   return { components, zones, connections };
 }

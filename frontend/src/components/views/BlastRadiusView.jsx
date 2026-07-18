@@ -72,7 +72,23 @@ function BlastRadiusView({ DATA, selectedFile, onFileSelect, onHighlight }) {
           <line x1="12" y1="22" x2="12" y2="18" />
         </svg>
         <h3 style={{ fontFamily: 'Space Grotesk', fontSize: '16px', color: 'var(--beige-3)', fontWeight: '600', margin: '0 0 6px 0' }}>Select any file</h3>
-        <p style={{ fontFamily: 'Space Grotesk', fontSize: '13px', color: 'var(--beige-3)', margin: 0 }}>See what breaks if you change or delete it.</p>
+        <p style={{ fontFamily: 'Space Grotesk', fontSize: '13px', color: 'var(--beige-3)', margin: '0 0 16px 0', textAlign: 'center' }}>
+          See what breaks if you change or delete it.
+        </p>
+        <div style={{ 
+          background: 'var(--black-3)', 
+          border: '1px solid var(--border-2)', 
+          borderRadius: '8px', 
+          padding: '14px 16px',
+          maxWidth: '280px',
+          textAlign: 'left'
+        }}>
+          <div style={{ fontFamily: 'Space Grotesk', fontSize: '11px', color: 'var(--beige-3)', lineHeight: 1.6 }}>
+            <div style={{ marginBottom: '6px' }}>① Go to <span style={{ color: 'var(--orange)', fontWeight: 600 }}>Explorer</span> tab</div>
+            <div style={{ marginBottom: '6px' }}>② Click any file in the tree</div>
+            <div>③ Return here to see its blast radius</div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -158,6 +174,29 @@ function BlastRadiusView({ DATA, selectedFile, onFileSelect, onHighlight }) {
           </div>
         </div>
 
+        {/* Plain English Summary */}
+        <div style={{ 
+          background: 'var(--black-3)', 
+          border: `1px solid ${severityColor}22`,
+          borderLeft: `3px solid ${severityColor}`,
+          borderRadius: '6px', 
+          padding: '12px 16px',
+          marginBottom: '20px',
+          fontFamily: 'Space Grotesk',
+          fontSize: '12px',
+          color: 'var(--beige-2)',
+          lineHeight: 1.6
+        }}>
+          {blastData.directImpact.length === 0 
+            ? `✓ Nothing in this project imports ${selectedFile.name}. Safe to modify or delete.`
+            : blastData.severity === 'critical' || blastData.severity === 'high'
+            ? `⚠ Changing ${selectedFile.name} will break ${blastData.directImpact.length} file${blastData.directImpact.length > 1 ? 's' : ''} that directly import it, and cascade through ${blastData.indirectImpact.length} more. Refactor carefully.`
+            : blastData.severity === 'medium'
+            ? `Changing ${selectedFile.name} affects ${blastData.directImpact.length} direct import${blastData.directImpact.length > 1 ? 's' : ''}. Review those files after any change.`
+            : `Low risk. Only ${blastData.directImpact.length} file${blastData.directImpact.length > 1 ? 's' : ''} depend on ${selectedFile.name}.`
+          }
+        </div>
+
         {/* Expandable Sections */}
         {/* Direct Impact Section */}
         <div style={{ marginBottom: '16px' }}>
@@ -195,6 +234,9 @@ function BlastRadiusView({ DATA, selectedFile, onFileSelect, onHighlight }) {
                           onClick={() => onFileSelect(fileObj)}
                         >
                           {filename}
+                        </span>
+                        <span style={{ fontFamily: 'Space Grotesk', fontSize: '9px', color: 'var(--beige-3)' }}>
+                          imports {selectedFile.name} directly
                         </span>
                         <span style={{ fontFamily: 'Space Grotesk', fontSize: '9px', color: 'var(--beige-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {path}

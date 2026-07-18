@@ -62,9 +62,28 @@ function SystemDesignView({ DATA, isActive }) {
     }
 
     // Build system design data
-    const raw = buildSystemDesign(DATA);
+    const raw = buildSystemDesign(DATA, DATA.files || []);
     computeLayout(raw.zones, raw.components);
     sysDataRef.current = raw;
+
+    // Auto-fit the diagram to the canvas
+    if (raw.components.length > 0) {
+      const allX = raw.components.map(c => c.x);
+      const allY = raw.components.map(c => c.y);
+      const allX2 = raw.components.map(c => c.x + c.w);
+      const allY2 = raw.components.map(c => c.y + c.h);
+      const diagramW = Math.max(...allX2) - Math.min(...allX) + 80;
+      const diagramH = Math.max(...allY2) - Math.min(...allY) + 80;
+      const fitScale = Math.min(
+        (W - 60) / diagramW,
+        (H - 60) / diagramH,
+        1.2
+      );
+      const offsetX = (W - diagramW * fitScale) / 2;
+      const offsetY = 20;
+      transformRef.current = { x: offsetX, y: offsetY, scale: fitScale };
+      setZoomText(Math.round(fitScale * 100) + '%');
+    }
 
     // Setup canvas with device pixel ratio
     const dpr = window.devicePixelRatio || 1;
@@ -74,20 +93,6 @@ function SystemDesignView({ DATA, isActive }) {
     canvas.style.height = H + 'px';
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    const totalH = sysDataRef.current.components.reduce((max, c) => Math.max(max, c.y + c.h), 0) + 60;
-    const totalW = sysDataRef.current.components.reduce((max, c) => Math.max(max, c.x + c.w), 0) + 40;
-    const scaleToFit = Math.min(
-      (canvas.offsetWidth - 40) / totalW,
-      (canvas.offsetHeight - 40) / totalH,
-      1
-    );
-    transformRef.current = {
-      x: (canvas.offsetWidth - totalW * scaleToFit) / 2,
-      y: 20,
-      scale: scaleToFit
-    };
-    setZoomText(Math.round(scaleToFit * 100) + '%');
 
     setIsInitialized(true);
     drawDiagram();
@@ -103,10 +108,10 @@ function SystemDesignView({ DATA, isActive }) {
   // Layout computation - positions components and zones
   const computeLayout = (zones, components) => {
     const canvas = canvasRef.current;
-    const CANVAS_W = canvas.offsetWidth || 1200;
+    const CANVAS_W = (canvas ? canvas.offsetWidth : 1200) || 1200;
     const TIER_HEIGHT = 130;
     const COMP_W = 150;
-    const COMP_H = 78;
+    const COMP_H = 110;
     const COMP_GAP = 28;
     const ZONE_PADDING = 24;
 
@@ -309,6 +314,22 @@ function SystemDesignView({ DATA, isActive }) {
       ctx.fillStyle = isInferred ? '#444444' : '#888888';
       const sub = truncate(comp.sublabel, comp.w - 12, ctx);
       ctx.fillText(sub, comp.x + comp.w / 2, comp.y + comp.h - 16);
+
+      // Draw actual file names inside the box
+      if (comp.files && comp.files.length > 0) {
+        ctx.font = `400 8px "Space Mono", monospace`;
+        ctx.fillStyle = isInferred ? '#333333' : 'rgba(245,240,232,0.4)';
+        ctx.textAlign = 'center';
+        const fileStartY = comp.y + comp.h - 22 - (comp.files.length * 11);
+        comp.files.slice(0, 3).forEach((fp, fi) => {
+          const fname = fp.split('/').pop();
+          ctx.fillText(truncate(fname, comp.w - 16, ctx), comp.x + comp.w / 2, fileStartY + fi * 11);
+        });
+        if (comp.files.length > 3) {
+          ctx.fillStyle = 'rgba(245,240,232,0.25)';
+          ctx.fillText(`+${comp.files.length - 3} more`, comp.x + comp.w / 2, fileStartY + 3 * 11);
+        }
+      }
     });
 
     ctx.restore();
