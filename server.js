@@ -153,19 +153,70 @@ app.post('/github', async (req, res) => {
     return res.status(400).json({ error: 'Invalid URL. Please provide a valid GitHub repository URL.' });
   }
 
+  // Clean up url (e.g. remove trailing slash, .git extension)
+  let cleanUrl = url.trim().replace(/\/$/, '').replace(/\.git$/, '');
+  
+  // Parse owner and repo name from GitHub URL
+  const match = cleanUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+  if (!match) {
+    return res.status(400).json({ error: 'Failed to parse owner/repo from GitHub URL.' });
+  }
+  const owner = match[1];
+  const repo = match[2];
+
+  // Determine branch if tree/branch is specified in the URL
+  let branch = 'HEAD';
+  if (cleanUrl.includes('/tree/')) {
+    const parts = cleanUrl.split('/tree/');
+    if (parts.length > 1) {
+      branch = parts[1].split('/')[0];
+    }
+  }
+
+  const zipUrl = `https://github.com/${owner}/${repo}/archive/refs/heads/${branch}.zip`;
+  const finalZipUrl = branch === 'HEAD' 
+    ? `https://github.com/${owner}/${repo}/archive/HEAD.zip` 
+    : zipUrl;
+
   const uniqueName = `project-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const clonePath = path.join(tempDir, uniqueName);
 
   try {
-    console.log(`[X-RAY] Cloning repository into: ${clonePath}`);
+    console.log(`[X-RAY] Downloading repository ZIP from: ${finalZipUrl}`);
+    const fetchResponse = await fetch(finalZipUrl, {
+      headers: {
+        'User-Agent': 'CodeBase-X-Ray'
+      }
+    });
+
+    if (!fetchResponse.ok) {
+      throw new Error(`Failed to download repository zip (status: ${fetchResponse.status}). Make sure the repository is public.`);
+    }
+
+    const buffer = await fetchResponse.arrayBuffer();
+    const zip = new AdmZip(Buffer.from(buffer));
+    
+    console.log(`[X-RAY] Extracting ZIP to: ${clonePath}`);
     fs.mkdirSync(clonePath, { recursive: true });
+    zip.extractAllTo(clonePath, true);
 
-    const git = simpleGit();
-    await git.clone(url, clonePath);
-    console.log('[X-RAY] Clone successful. Starting analysis...');
+    // Detect actual project root (single top-level folder nesting check)
+    let projectRoot = clonePath;
+    const topContents = fs.readdirSync(clonePath);
+    const subdirs = topContents.filter(item => {
+      const full = path.join(clonePath, item);
+      return fs.statSync(full).isDirectory();
+    });
+    const filesInTop = topContents.filter(item => {
+      const full = path.join(clonePath, item);
+      return fs.statSync(full).isFile();
+    });
+    if (subdirs.length === 1 && filesInTop.length === 0) {
+      projectRoot = path.join(clonePath, subdirs[0]);
+      console.log(`[X-RAY] Detected single top-level directory wrapper in ZIP. Using: ${projectRoot}`);
+    }
 
-    // Use clonePath as projectRoot (Fix 2)
-    const result = await analyzeProject(clonePath);
+    const result = await analyzeProject(projectRoot);
     latestAnalysisResult = result;
     lastScanResult = result;
     saveAnalysisCache(result);
