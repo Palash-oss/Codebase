@@ -37,15 +37,6 @@ function Sidebar({ currentView, onViewChange }) {
           <path d="M12.89 3.03a1 1 0 0 0-1.78 0L3.05 17.06a1 1 0 0 0 .89 1.44h16.12a1 1 0 0 0 .89-1.44L12.89 3.03z" />
         </svg>
       )
-    },
-    {
-      id: 'flow',
-      tooltip: 'Data Flow',
-      svg: (
-        <svg viewBox="0 0 24 24">
-          <path d="M16.01 11H4v2h12.01v3L20 12l-3.99-4v3z" />
-        </svg>
-      )
     }
   ];
 

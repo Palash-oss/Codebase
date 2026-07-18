@@ -487,29 +487,112 @@ export function buildSystemDesign(DATA, fileList = []) {
   // ========================================
 
   const CANVAS_W = 1200;
-  const TIER_HEIGHT = 130;
-  const COMP_W = 150;
-  const COMP_H = 78;
-  const COMP_GAP = 28;
+  const ROW_HEIGHT = 200;
+  const COMP_W = 180;
+  const COMP_H = 110;
+  const COMP_GAP = 80;
   const ZONE_PADDING = 24;
 
-  let currentY = 60;
+  const getGridPosition = (comp) => {
+    let row = 5;
+    let col = 1;
 
+    switch (comp.id) {
+      case 'client-web':
+        row = 0; col = 1;
+        break;
+      case 'client-mobile':
+        row = 0; col = 1;
+        break;
+      case 'dns':
+        row = 1; col = 0;
+        break;
+      case 'cdn':
+        row = 1; col = 2;
+        break;
+      case 'load-balancer':
+        row = 1; col = 1;
+        break;
+      case 'api-gateway':
+        row = 2; col = 1;
+        break;
+      case 'auth':
+        row = 3; col = 0;
+        break;
+      case 'compute':
+        row = 3; col = 1;
+        break;
+      case 'worker':
+        row = 3; col = 2;
+        break;
+      case 'database':
+        row = 4; col = 1;
+        break;
+      case 'cache':
+        row = 4; col = 2;
+        break;
+      case 'storage':
+        row = 4; col = 0;
+        break;
+      case 'message-queue':
+        row = 4; col = 0;
+        break;
+      case 'supabase':
+        row = 4; col = 1;
+        break;
+      case 'firebase':
+        row = 4; col = 1;
+        break;
+      case 'monitoring':
+        row = 5; col = 0;
+        break;
+      case 'cicd':
+        row = 5; col = 1;
+        break;
+      case 'testing':
+        row = 5; col = 2;
+        break;
+      default:
+        const tierToRow = {
+          client: 0,
+          network: 1,
+          edge: 1,
+          gateway: 2,
+          service: 3,
+          data: 4,
+          cache: 4,
+          queue: 4,
+          cloud: 4,
+          observability: 5
+        };
+        row = tierToRow[comp.tier] ?? 5;
+        col = 1;
+        break;
+    }
+    return { row, col };
+  };
+
+  // Position each component
+  const occupied = new Set();
+  components.forEach(comp => {
+    let { row, col } = getGridPosition(comp);
+    // Resolve collisions
+    while (occupied.has(`${row},${col}`)) {
+      col = (col + 1) % 3;
+    }
+    occupied.add(`${row},${col}`);
+    
+    // Calculate coordinates with center alignment
+    comp.x = CANVAS_W / 2 - COMP_W / 2 + (col - 1) * (COMP_W + COMP_GAP);
+    comp.y = 60 + row * ROW_HEIGHT;
+    comp.w = COMP_W;
+    comp.h = COMP_H;
+  });
+
+  // Compute zone bounds based on positioned components
   for (const tier of tierOrder) {
     if (!tierZones[tier]) continue;
-
     const comps = tierZones[tier];
-    const rowWidth = comps.length * COMP_W + (comps.length - 1) * COMP_GAP;
-    const startX = (CANVAS_W - rowWidth) / 2;
-
-    comps.forEach((comp, i) => {
-      comp.x = startX + i * (COMP_W + COMP_GAP);
-      comp.y = currentY;
-      comp.w = COMP_W;
-      comp.h = COMP_H;
-    });
-
-    // Zone bounds
     const zone = zones.find(z => z.id === `${tier}-zone`);
     if (zone && comps.length > 0) {
       const minX = Math.min(...comps.map(c => c.x));
@@ -522,8 +605,6 @@ export function buildSystemDesign(DATA, fileList = []) {
       zone.w = maxX - minX + ZONE_PADDING * 2;
       zone.h = maxY - minY + ZONE_PADDING * 2 + 18;
     }
-
-    currentY += TIER_HEIGHT;
   }
 
   // Attach real files from DATA to each component based on tier/layer mapping

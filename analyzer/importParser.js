@@ -25,18 +25,19 @@ function resolveAlias(specifier, tsconfigPaths, baseUrl, projectRoot) {
 }
 
 function findFileByPath(resolvedPath, files) {
-  const absolutePath = path.resolve(resolvedPath);
-  let found = files.find(f => f.path === absolutePath);
+  const absolutePath = path.resolve(resolvedPath).toLowerCase().replace(/\\/g, '/');
+  let found = files.find(f => f.path.toLowerCase().replace(/\\/g, '/') === absolutePath);
   if (found) return found;
 
   const exts = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
   for (const ext of exts) {
-    found = files.find(f => f.path === absolutePath + ext);
+    found = files.find(f => f.path.toLowerCase().replace(/\\/g, '/') === absolutePath + ext);
     if (found) return found;
   }
 
   for (const ext of exts) {
-    found = files.find(f => f.path === path.join(absolutePath, 'index' + ext));
+    const target = path.join(absolutePath, 'index' + ext).toLowerCase().replace(/\\/g, '/');
+    found = files.find(f => f.path.toLowerCase().replace(/\\/g, '/') === target);
     if (found) return found;
   }
 

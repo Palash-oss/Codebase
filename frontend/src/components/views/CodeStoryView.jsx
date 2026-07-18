@@ -116,6 +116,7 @@ function CodeStoryView({ DATA, onFileSelect, currentStoryStep, onStoryStep }) {
         throw new Error('Failed to generate story path.');
       }
 
+      const steps = await response.json();
       setStorySteps(steps);
       // Auto-start from beginning after a short delay
       setTimeout(() => {

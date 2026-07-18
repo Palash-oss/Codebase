@@ -10,7 +10,6 @@ import LayersView from './views/LayersView';
 import SystemDesignView from './views/SystemDesignView';
 import ExplorerView from './views/ExplorerView';
 import TechStackView from './views/TechStackView';
-import FlowView from './views/FlowView';
 import BlastRadiusView from './views/BlastRadiusView';
 import CodeStoryView from './views/CodeStoryView';
 
@@ -127,14 +126,6 @@ function Dashboard({ data, onNewAnalysis }) {
           )}
         </div>
 
-        <div className={`view-container ${currentView === 'flow' ? 'active' : ''}`}>
-          {currentView === 'flow' && (
-            <FlowView 
-              data={data} 
-              onSelectFile={setSelectedFile} 
-            />
-          )}
-        </div>
 
         <div id="view-blast-radius" className={`view-container ${currentView === 'blast-radius' ? 'active' : ''}`}>
           {currentView === 'blast-radius' && (

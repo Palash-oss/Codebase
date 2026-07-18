@@ -39,8 +39,27 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+const CACHE_FILE = path.join(os.tmpdir(), 'codebase-xray-latest-cache.json');
 let latestAnalysisResult = null;
-let lastScanResult = null;
+try {
+  if (fs.existsSync(CACHE_FILE)) {
+    const rawCache = fs.readFileSync(CACHE_FILE, 'utf8');
+    latestAnalysisResult = JSON.parse(rawCache);
+    console.log('[X-RAY] Loaded latest analysis result from disk cache.');
+  }
+} catch (cacheErr) {
+  console.warn('[X-RAY] Failed to load latest result cache:', cacheErr.message);
+}
+let lastScanResult = latestAnalysisResult;
+
+function saveAnalysisCache(result) {
+  try {
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(result), 'utf8');
+    console.log('[X-RAY] Saved analysis result to disk cache.');
+  } catch (err) {
+    console.warn('[X-RAY] Failed to write analysis cache:', err.message);
+  }
+}
 
 // Routes
 app.get('/', (req, res) => {
@@ -74,7 +93,7 @@ app.post('/upload', upload.single('project'), async (req, res) => {
   try {
     console.log(`[X-RAY] Extracting ZIP to temporary folder: ${extractPath}`);
     fs.mkdirSync(extractPath, { recursive: true });
-    
+
     const zip = new AdmZip(zipPath);
     zip.extractAllTo(extractPath, true);
 
@@ -98,6 +117,7 @@ app.post('/upload', upload.single('project'), async (req, res) => {
 
     latestAnalysisResult = result;
     lastScanResult = result;
+    saveAnalysisCache(result);
     // Send result as JSON
     res.json({ success: true });
   } catch (error) {
@@ -128,7 +148,7 @@ app.post('/upload', upload.single('project'), async (req, res) => {
 app.post('/github', async (req, res) => {
   const { url } = req.body;
   console.log(`[X-RAY] Received GitHub clone request for: ${url}`);
-  
+
   if (!url || !url.includes('github.com')) {
     return res.status(400).json({ error: 'Invalid URL. Please provide a valid GitHub repository URL.' });
   }
@@ -139,7 +159,7 @@ app.post('/github', async (req, res) => {
   try {
     console.log(`[X-RAY] Cloning repository into: ${clonePath}`);
     fs.mkdirSync(clonePath, { recursive: true });
-    
+
     const git = simpleGit();
     await git.clone(url, clonePath);
     console.log('[X-RAY] Clone successful. Starting analysis...');
@@ -148,6 +168,7 @@ app.post('/github', async (req, res) => {
     const result = await analyzeProject(clonePath);
     latestAnalysisResult = result;
     lastScanResult = result;
+    saveAnalysisCache(result);
     res.json({ success: true });
   } catch (error) {
     console.error('[X-RAY] Error during GitHub analysis:', error);
@@ -173,7 +194,7 @@ app.post('/chat', async (req, res) => {
     try {
       console.log('[X-RAY] Calling Gemini API for chatbot...');
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
-      
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -201,7 +222,7 @@ app.post('/chat', async (req, res) => {
   console.log('[X-RAY] Using mock responder for chat.');
   let answer = '';
   const lowerQ = question.toLowerCase();
-  
+
   if (lowerQ.includes('circular') || lowerQ.includes('cycle') || lowerQ.includes('loop')) {
     answer = `Based on the codebase analysis, circular dependencies are found in the project's dependency graph. Circular imports complicate codebase refactoring and can lead to runtime issues. Review files with dependency warnings to locate the cycles and break them by moving shared code to a utility module.`;
   } else if (lowerQ.includes('dead') || lowerQ.includes('unused') || lowerQ.includes('exports')) {
@@ -228,7 +249,7 @@ app.post('/api/impact', (req, res) => {
       return res.status(400).json({ error: 'No scan available. Please scan a project first.' });
     }
   }
-  
+
   if (!relativePath) {
     return res.status(400).json({ error: 'Missing relativePath parameter.' });
   }
@@ -247,6 +268,13 @@ app.post('/api/reset', (req, res) => {
   console.log('[X-RAY] Resetting analysis cache.');
   latestAnalysisResult = null;
   lastScanResult = null;
+  if (fs.existsSync(CACHE_FILE)) {
+    try {
+      fs.unlinkSync(CACHE_FILE);
+    } catch (e) {
+      console.warn('[X-RAY] Failed to delete cache file:', e.message);
+    }
+  }
   res.json({ success: true });
 });
 
@@ -291,7 +319,7 @@ app.post('/api/story', async (req, res) => {
     try {
       console.log('[X-RAY] Calling Gemini API for Code Story...');
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
-      
+
       const techStackStr = lastScanResult.stack?.detected ? lastScanResult.stack.detected.map(t => t.name).join(', ') : 'JavaScript';
       const allFilesListStr = lastScanResult.graph?.nodes ? lastScanResult.graph.nodes.map(n => `- ${n.id} (${n.layer})`).join('\n') : '';
 
@@ -344,116 +372,132 @@ Only include files that actually exist in the project file list. Start from the 
     }
   }
 
-  // Fallback Mock Story Generator using Graph Traversal
-  console.log('[X-RAY] Using mock story fallback with graph traversal.');
-  const nodes = lastScanResult.graph.nodes;
-  const edges = lastScanResult.graph.edges;
-  const lowerQ = question.toLowerCase();
+  try {
+    // Fallback Mock Story Generator using Graph Traversal
+    console.log('[X-RAY] Using mock story fallback with graph traversal.');
+    const nodes = lastScanResult?.graph?.nodes || [];
+    const edges = lastScanResult?.graph?.edges || [];
+    const lowerQ = question.toLowerCase();
 
-  // Find starting keywords
-  let keywords = [];
-  if (lowerQ.includes('login') || lowerQ.includes('auth') || lowerQ.includes('sign')) {
-    keywords = ['login', 'auth', 'sign', 'session'];
-  } else if (lowerQ.includes('save') || lowerQ.includes('db') || lowerQ.includes('database') || lowerQ.includes('write') || lowerQ.includes('create')) {
-    keywords = ['db', 'prisma', 'model', 'save', 'write', 'create', 'schema'];
-  } else if (lowerQ.includes('api') || lowerQ.includes('request') || lowerQ.includes('server') || lowerQ.includes('fetch')) {
-    keywords = ['api', 'route', 'server', 'controller', 'handler', 'fetch'];
-  } else {
-    keywords = ['app', 'main', 'index', 'home', 'view'];
-  }
-  
-  // Find a starting node that matches key words, prioritizing Presentation or Gateway layers
-  let startNode = null;
-  for (const layer of ['Presentation', 'Gateway', 'Interaction', 'Domain', 'Persistence']) {
-    startNode = nodes.find(n => n.layer === layer && keywords.some(k => n.id.toLowerCase().includes(k)));
-    if (startNode) break;
-  }
-  if (!startNode) {
-    startNode = nodes.find(n => keywords.some(k => n.id.toLowerCase().includes(k)));
-  }
-  if (!startNode) {
-    startNode = nodes[0];
-  }
-
-  // Trace path using BFS/DFS connections in the project graph
-  const pathNodes = [startNode];
-  const visited = new Set([startNode.id]);
-  let currentId = startNode.id;
-
-  for (let step = 0; step < 5; step++) {
-    // Find outbound edges from currentId
-    const nextEdges = edges.filter(e => e.source === currentId);
-    let nextNode = null;
-    for (const edge of nextEdges) {
-      if (!visited.has(edge.target)) {
-        const targetNode = nodes.find(n => n.id === edge.target);
-        if (targetNode) {
-          nextNode = targetNode;
-          break;
-        }
-      }
+    if (nodes.length === 0) {
+      return res.json([]);
     }
-    if (!nextNode) {
-      // Try inbound edges in reverse (sometimes flow is conceptualized in reverse)
-      const prevEdges = edges.filter(e => e.target === currentId);
-      for (const edge of prevEdges) {
-        if (!visited.has(edge.source)) {
-          const sourceNode = nodes.find(n => n.id === edge.source);
-          if (sourceNode) {
-            nextNode = sourceNode;
+
+    // Find starting keywords
+    let keywords = [];
+    if (lowerQ.includes('login') || lowerQ.includes('auth') || lowerQ.includes('sign')) {
+      keywords = ['login', 'auth', 'sign', 'session'];
+    } else if (lowerQ.includes('save') || lowerQ.includes('db') || lowerQ.includes('database') || lowerQ.includes('write') || lowerQ.includes('create')) {
+      keywords = ['db', 'prisma', 'model', 'save', 'write', 'create', 'schema'];
+    } else if (lowerQ.includes('api') || lowerQ.includes('request') || lowerQ.includes('server') || lowerQ.includes('fetch')) {
+      keywords = ['api', 'route', 'server', 'controller', 'handler', 'fetch'];
+    } else {
+      keywords = ['app', 'main', 'index', 'home', 'view'];
+    }
+
+    // Find a starting node that matches key words, prioritizing Presentation or Gateway layers
+    let startNode = null;
+    for (const layer of ['Presentation', 'Gateway', 'Interaction', 'Domain', 'Persistence']) {
+      startNode = nodes.find(n => n.layer === layer && keywords.some(k => n.id?.toLowerCase().includes(k)));
+      if (startNode) break;
+    }
+    if (!startNode) {
+      startNode = nodes.find(n => keywords.some(k => n.id?.toLowerCase().includes(k)));
+    }
+    if (!startNode) {
+      startNode = nodes[0];
+    }
+
+    if (!startNode) {
+      return res.json([]);
+    }
+
+    // Trace path using BFS/DFS connections in the project graph
+    const pathNodes = [startNode];
+    const visited = new Set([startNode.id]);
+    let currentId = startNode.id;
+
+    for (let step = 0; step < 5; step++) {
+      if (!currentId) break;
+      // Find outbound edges from currentId
+      const nextEdges = edges.filter(e => e.source === currentId);
+      let nextNode = null;
+      for (const edge of nextEdges) {
+        if (!visited.has(edge.target)) {
+          const targetNode = nodes.find(n => n.id === edge.target);
+          if (targetNode) {
+            nextNode = targetNode;
             break;
           }
         }
       }
+      if (!nextNode) {
+        // Try inbound edges in reverse (sometimes flow is conceptualized in reverse)
+        const prevEdges = edges.filter(e => e.target === currentId);
+        for (const edge of prevEdges) {
+          if (!visited.has(edge.source)) {
+            const sourceNode = nodes.find(n => n.id === edge.source);
+            if (sourceNode) {
+              nextNode = sourceNode;
+              break;
+            }
+          }
+        }
+      }
+      if (nextNode) {
+        pathNodes.push(nextNode);
+        visited.add(nextNode.id);
+        currentId = nextNode.id;
+      } else {
+        break;
+      }
     }
-    if (nextNode) {
-      pathNodes.push(nextNode);
-      visited.add(nextNode.id);
-      currentId = nextNode.id;
-    } else {
-      break;
-    }
-  }
 
-  // If path is too short, pad with matching keyword files
-  if (pathNodes.length < 4) {
-    const matchingFiles = nodes.filter(n => !visited.has(n.id) && keywords.some(k => n.id.toLowerCase().includes(k))).slice(0, 5 - pathNodes.length);
-    matchingFiles.forEach(f => {
-      pathNodes.push(f);
-      visited.add(f.id);
+    // If path is too short, pad with matching keyword files
+    if (pathNodes.length < 4) {
+      const matchingFiles = nodes.filter(n => n && !visited.has(n.id) && keywords.some(k => n.id?.toLowerCase().includes(k))).slice(0, 5 - pathNodes.length);
+      matchingFiles.forEach(f => {
+        pathNodes.push(f);
+        visited.add(f.id);
+      });
+    }
+
+    // If still too short, pad with first few nodes
+    if (pathNodes.length < 4) {
+      const remaining = nodes.filter(n => n && !visited.has(n.id)).slice(0, 5 - pathNodes.length);
+      remaining.forEach(f => {
+        pathNodes.push(f);
+        visited.add(f.id);
+      });
+    }
+
+    const validPathNodes = pathNodes.filter(Boolean);
+
+    const steps = validPathNodes.map((file, index) => {
+      let explanation = `Traces request flow through ${file.label || 'file'}`;
+      if (file.layer === 'Presentation') {
+        explanation = `Frontend renders user interface and triggers user action.`;
+      } else if (file.layer === 'Gateway') {
+        explanation = `API route handles the request and validates request payload.`;
+      } else if (file.layer === 'Persistence') {
+        explanation = `Database query writes or retrieves data records.`;
+      } else if (file.layer === 'Domain') {
+        explanation = `Executes core business logic rules and operations.`;
+      }
+
+      return {
+        step: index + 1,
+        filePath: file.id || '',
+        what: explanation,
+        layer: file.layer || 'Unknown'
+      };
     });
+
+    res.json(steps);
+  } catch (err) {
+    console.error('[X-RAY] Error generating fallback story:', err);
+    res.status(500).json({ error: 'Failed to generate flow path' });
   }
-
-  // If still too short, pad with first few nodes
-  if (pathNodes.length < 4) {
-    const remaining = nodes.filter(n => !visited.has(n.id)).slice(0, 5 - pathNodes.length);
-    remaining.forEach(f => {
-      pathNodes.push(f);
-      visited.add(f.id);
-    });
-  }
-
-  const steps = pathNodes.map((file, index) => {
-    let explanation = `Traces request flow through ${file.label}`;
-    if (file.layer === 'Presentation') {
-      explanation = `Frontend renders user interface and triggers user action.`;
-    } else if (file.layer === 'Gateway') {
-      explanation = `API route handles the request and validates request payload.`;
-    } else if (file.layer === 'Persistence') {
-      explanation = `Database query writes or retrieves data records.`;
-    } else if (file.layer === 'Domain') {
-      explanation = `Executes core business logic rules and operations.`;
-    }
-    
-    return {
-      step: index + 1,
-      filePath: file.id,
-      what: explanation,
-      layer: file.layer
-    };
-  });
-
-  res.json(steps);
 });
 
 // Start server

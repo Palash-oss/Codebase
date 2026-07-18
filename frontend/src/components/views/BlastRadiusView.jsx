@@ -62,6 +62,13 @@ function BlastRadiusView({ DATA, selectedFile, onFileSelect, onHighlight }) {
 
   // State A: No file selected
   if (!selectedFile) {
+    const highImpactFiles = DATA?.files
+      ? [...DATA.files]
+          .filter(f => f.incomingCount > 0)
+          .sort((a, b) => b.incomingCount - a.incomingCount)
+          .slice(0, 5)
+      : [];
+
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--black)', padding: '24px' }}>
         <svg viewBox="0 0 24 24" style={{ width: '40px', height: '40px', stroke: 'var(--beige-3)', fill: 'none', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round', marginBottom: '16px' }}>
@@ -81,7 +88,8 @@ function BlastRadiusView({ DATA, selectedFile, onFileSelect, onHighlight }) {
           borderRadius: '8px', 
           padding: '14px 16px',
           maxWidth: '280px',
-          textAlign: 'left'
+          textAlign: 'left',
+          marginBottom: '24px'
         }}>
           <div style={{ fontFamily: 'Space Grotesk', fontSize: '11px', color: 'var(--beige-3)', lineHeight: 1.6 }}>
             <div style={{ marginBottom: '6px' }}>① Go to <span style={{ color: 'var(--orange)', fontWeight: 600 }}>Explorer</span> tab</div>
@@ -89,6 +97,48 @@ function BlastRadiusView({ DATA, selectedFile, onFileSelect, onHighlight }) {
             <div>③ Return here to see its blast radius</div>
           </div>
         </div>
+
+        {highImpactFiles.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '320px' }}>
+            <div style={{ fontFamily: 'Space Grotesk', fontSize: '12px', fontWeight: 600, color: 'var(--beige-2)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Suggested High-Impact Files:
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+              {highImpactFiles.map(f => (
+                <div
+                  key={f.relativePath}
+                  onClick={() => onFileSelect(f)}
+                  style={{
+                    backgroundColor: 'var(--black-2)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    transition: 'border-color 0.2s, background-color 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--orange)';
+                    e.currentTarget.style.backgroundColor = 'var(--black-3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border)';
+                    e.currentTarget.style.backgroundColor = 'var(--black-2)';
+                  }}
+                >
+                  <span style={{ fontFamily: 'Space Mono', fontSize: '11px', color: 'var(--orange)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>
+                    {f.name}
+                  </span>
+                  <span style={{ fontFamily: 'Space Mono', fontSize: '10px', color: 'var(--beige-3)' }}>
+                    {f.incomingCount} imports
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }

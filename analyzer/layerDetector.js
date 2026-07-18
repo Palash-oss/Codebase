@@ -33,7 +33,23 @@ export function detectLayers(files) {
     ) {
       layer = 'Infrastructure';
     }
-    // 3. Persistence
+    // 3. Gateway
+    else if (
+      file.apiRoute === true ||
+      rel.includes('/api/') || rel.includes('/controllers/') || rel.includes('/handlers/') ||
+      rel.includes('/routes/') || rel.includes('/resolvers/') || rel.includes('/graphql/')
+    ) {
+      layer = 'Gateway';
+    }
+    // 4. Presentation
+    else if (
+      file.extension === '.tsx' || file.extension === '.jsx' ||
+      rel.includes('/pages/') || rel.includes('/app/') || rel.includes('/views/') ||
+      rel.includes('/screens/') || rel.includes('/components/') || rel.includes('/ui/')
+    ) {
+      layer = 'Presentation';
+    }
+    // 5. Persistence
     else if (
       file.imports.some(imp => persistenceImports.has(imp.specifier) || Array.from(persistenceImports).some(p => imp.specifier.startsWith(p))) ||
       rel.includes('/models/') || rel.includes('/repositories/') || rel.includes('/migrations/') ||
@@ -42,35 +58,19 @@ export function detectLayers(files) {
     ) {
       layer = 'Persistence';
     }
-    // 4. Gateway
-    else if (
-      file.apiRoute === true ||
-      rel.includes('/api/') || rel.includes('/controllers/') || rel.includes('/handlers/') ||
-      rel.includes('/routes/') || rel.includes('/resolvers/') || rel.includes('/graphql/')
-    ) {
-      layer = 'Gateway';
-    }
-    // 5. Domain
+    // 6. Domain
     else if (
       rel.includes('/services/') || rel.includes('/domain/') || rel.includes('/usecases/') ||
       rel.includes('/use-cases/') || rel.includes('/business/') || rel.includes('/core/')
     ) {
       layer = 'Domain';
     }
-    // 6. Interaction
+    // 7. Interaction
     else if (
       file.exports.some(exp => exp.kind === 'function' && /^use[A-Z]/.test(exp.name)) ||
       file.imports.some(imp => interactionImports.has(imp.specifier) || Array.from(interactionImports).some(i => imp.specifier.startsWith(i)))
     ) {
       layer = 'Interaction';
-    }
-    // 7. Presentation
-    else if (
-      file.extension === '.tsx' || file.extension === '.jsx' ||
-      rel.includes('/pages/') || rel.includes('/app/') || rel.includes('/views/') ||
-      rel.includes('/screens/') || rel.includes('/components/') || rel.includes('/ui/')
-    ) {
-      layer = 'Presentation';
     }
     // 8. Foundation
     else if (

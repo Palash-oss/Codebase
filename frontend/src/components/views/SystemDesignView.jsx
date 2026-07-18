@@ -109,10 +109,10 @@ function SystemDesignView({ DATA, isActive }) {
   const computeLayout = (zones, components) => {
     const canvas = canvasRef.current;
     const CANVAS_W = (canvas ? canvas.offsetWidth : 1200) || 1200;
-    const TIER_HEIGHT = 130;
-    const COMP_W = 150;
+    const ROW_HEIGHT = 200;
+    const COMP_W = 180;
     const COMP_H = 110;
-    const COMP_GAP = 28;
+    const COMP_GAP = 80;
     const ZONE_PADDING = 24;
 
     const tierOrder = [
@@ -128,23 +128,106 @@ function SystemDesignView({ DATA, isActive }) {
       }
     }
 
-    let currentY = 60;
+    const getGridPosition = (comp) => {
+      let row = 5;
+      let col = 1;
 
+      switch (comp.id) {
+        case 'client-web':
+          row = 0; col = 1;
+          break;
+        case 'client-mobile':
+          row = 0; col = 1;
+          break;
+        case 'dns':
+          row = 1; col = 0;
+          break;
+        case 'cdn':
+          row = 1; col = 2;
+          break;
+        case 'load-balancer':
+          row = 1; col = 1;
+          break;
+        case 'api-gateway':
+          row = 2; col = 1;
+          break;
+        case 'auth':
+          row = 3; col = 0;
+          break;
+        case 'compute':
+          row = 3; col = 1;
+          break;
+        case 'worker':
+          row = 3; col = 2;
+          break;
+        case 'database':
+          row = 4; col = 1;
+          break;
+        case 'cache':
+          row = 4; col = 2;
+          break;
+        case 'storage':
+          row = 4; col = 0;
+          break;
+        case 'message-queue':
+          row = 4; col = 0;
+          break;
+        case 'supabase':
+          row = 4; col = 1;
+          break;
+        case 'firebase':
+          row = 4; col = 1;
+          break;
+        case 'monitoring':
+          row = 5; col = 0;
+          break;
+        case 'cicd':
+          row = 5; col = 1;
+          break;
+        case 'testing':
+          row = 5; col = 2;
+          break;
+        default:
+          const tierToRow = {
+            client: 0,
+            network: 1,
+            edge: 1,
+            gateway: 2,
+            service: 3,
+            data: 4,
+            cache: 4,
+            queue: 4,
+            cloud: 4,
+            observability: 5
+          };
+          row = tierToRow[comp.tier] ?? 5;
+          col = 1;
+          break;
+      }
+      return { row, col };
+    };
+
+    // Position each component
+    const occupied = new Set();
+    components.forEach(comp => {
+      let { row, col } = getGridPosition(comp);
+      // Resolve collisions
+      while (occupied.has(`${row},${col}`)) {
+        col = (col + 1) % 3;
+      }
+      occupied.add(`${row},${col}`);
+      
+      // Calculate coordinates with center alignment
+      comp.x = CANVAS_W / 2 - COMP_W / 2 + (col - 1) * (COMP_W + COMP_GAP);
+      comp.y = 60 + row * ROW_HEIGHT;
+      comp.w = COMP_W;
+      comp.h = COMP_H;
+    });
+
+    // Compute zone bounds based on positioned components
     for (const tier of tierOrder) {
       if (!tierZones[tier]) continue;
-
       const comps = tierZones[tier];
-      const rowWidth = comps.length * COMP_W + (comps.length - 1) * COMP_GAP;
-      const startX = (CANVAS_W - rowWidth) / 2;
-
-      comps.forEach((comp, i) => {
-        comp.x = startX + i * (COMP_W + COMP_GAP);
-        comp.y = currentY;
-        comp.w = COMP_W;
-        comp.h = COMP_H;
-      });
-
-      // Zone bounds
       const zone = zones.find(z => z.id === `${tier}-zone`);
       if (zone && comps.length > 0) {
         const minX = Math.min(...comps.map(c => c.x));
@@ -157,8 +240,6 @@ function SystemDesignView({ DATA, isActive }) {
         zone.w = maxX - minX + ZONE_PADDING * 2;
         zone.h = maxY - minY + ZONE_PADDING * 2 + 18;
       }
-
-      currentY += TIER_HEIGHT;
     }
   };
 
@@ -307,20 +388,20 @@ function SystemDesignView({ DATA, isActive }) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       const label = truncate(comp.label, comp.w - 16, ctx);
-      ctx.fillText(label, comp.x + comp.w / 2, comp.y + comp.h - 30);
+      ctx.fillText(label, comp.x + comp.w / 2, comp.y + 42);
 
       // Sub-label
       ctx.font = '400 9px "Space Mono", monospace';
       ctx.fillStyle = isInferred ? '#444444' : '#888888';
       const sub = truncate(comp.sublabel, comp.w - 12, ctx);
-      ctx.fillText(sub, comp.x + comp.w / 2, comp.y + comp.h - 16);
+      ctx.fillText(sub, comp.x + comp.w / 2, comp.y + 56);
 
       // Draw actual file names inside the box
       if (comp.files && comp.files.length > 0) {
         ctx.font = `400 8px "Space Mono", monospace`;
         ctx.fillStyle = isInferred ? '#333333' : 'rgba(245,240,232,0.4)';
         ctx.textAlign = 'center';
-        const fileStartY = comp.y + comp.h - 22 - (comp.files.length * 11);
+        const fileStartY = comp.y + 70;
         comp.files.slice(0, 3).forEach((fp, fi) => {
           const fname = fp.split('/').pop();
           ctx.fillText(truncate(fname, comp.w - 16, ctx), comp.x + comp.w / 2, fileStartY + fi * 11);
