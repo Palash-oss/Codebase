@@ -241,15 +241,40 @@ export function parseImports(files, tsconfigPaths, projectRoot) {
           });
         }
 
-        // 3. fetch() calls
-        if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 'fetch') {
-          const firstArg = node.arguments[0];
-          if (firstArg && (firstArg.type === 'Literal' || firstArg.type === 'StringLiteral')) {
-            fetchUrls.push(firstArg.value);
-          } else if (firstArg && firstArg.type === 'TemplateLiteral') {
-            // Basic raw string from template literal if it's static
-            if (firstArg.quasis.length === 1) {
-              fetchUrls.push(firstArg.quasis[0].value.raw);
+        // 3. Call Expressions (fetch, require, dynamic import)
+        if (node.type === 'CallExpression') {
+          if (node.callee.type === 'Identifier' && node.callee.name === 'fetch') {
+            const firstArg = node.arguments[0];
+            if (firstArg && (firstArg.type === 'Literal' || firstArg.type === 'StringLiteral')) {
+              fetchUrls.push(firstArg.value);
+            } else if (firstArg && firstArg.type === 'TemplateLiteral') {
+              if (firstArg.quasis.length === 1) {
+                fetchUrls.push(firstArg.quasis[0].value.raw);
+              }
+            }
+          } else if (node.callee.type === 'Identifier' && node.callee.name === 'require') {
+            const firstArg = node.arguments[0];
+            if (firstArg && (firstArg.type === 'Literal' || firstArg.type === 'StringLiteral')) {
+              const specifier = firstArg.value;
+              imports.push({
+                specifier,
+                type: 'require',
+                names: [],
+                status: 'external',
+                resolvedPath: null
+              });
+            }
+          } else if (node.callee.type === 'Import') { // dynamic import()
+            const firstArg = node.arguments[0];
+            if (firstArg && (firstArg.type === 'Literal' || firstArg.type === 'StringLiteral')) {
+              const specifier = firstArg.value;
+              imports.push({
+                specifier,
+                type: 'dynamic',
+                names: [],
+                status: 'external',
+                resolvedPath: null
+              });
             }
           }
         }

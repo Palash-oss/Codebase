@@ -607,30 +607,95 @@ export function buildSystemDesign(DATA, fileList = []) {
     }
   }
 
-  // Attach real files from DATA to each component based on tier/layer mapping
-  const tierToLayers = {
-    client: ['Presentation'],
-    gateway: ['Gateway'],
-    service: ['Domain', 'Interaction'],
-    data: ['Persistence'],
-    observability: ['Infrastructure', 'Test'],
-    network: [],
-    edge: [],
-    cache: ['Persistence'],
-    queue: [],
-    cloud: []
+  // Initialize file arrays for all components
+  components.forEach(comp => {
+    comp.files = [];
+  });
+
+  const getComponentForFile = (file) => {
+    const rel = file.relativePath.toLowerCase().replace(/\\/g, '/');
+    
+    // 1. Auth Service
+    if (rel.includes('/auth') || rel.includes('auth.ts') || rel.includes('auth.js')) {
+      if (components.some(c => c.id === 'auth')) return 'auth';
+    }
+    
+    // 2. Database / Supabase / Firebase / Data
+    if (
+      rel.includes('/models/') || rel.includes('/repositories/') || rel.includes('/migrations/') ||
+      rel.includes('/db/') || rel.includes('/database/') || rel.includes('/prisma/') || rel.includes('/schemas/') ||
+      ['.prisma', '.sql'].includes(file.extension) ||
+      file.relativePath.toLowerCase().includes('prisma')
+    ) {
+      if (components.some(c => c.id === 'supabase')) return 'supabase';
+      if (components.some(c => c.id === 'firebase')) return 'firebase';
+      if (components.some(c => c.id === 'database')) return 'database';
+    }
+
+    // 3. Cache
+    if (rel.includes('/cache/') || rel.includes('redis')) {
+      if (components.some(c => c.id === 'cache')) return 'cache';
+    }
+
+    // 4. Object Storage
+    if (rel.includes('/storage/') || rel.includes('/s3/') || rel.includes('/uploads/')) {
+      if (components.some(c => c.id === 'storage')) return 'storage';
+    }
+
+    // 5. Message Queue
+    if (rel.includes('/queue/') || rel.includes('/sqs/') || rel.includes('/sns/')) {
+      if (components.some(c => c.id === 'message-queue')) return 'message-queue';
+    }
+
+    // 6. Worker Service / Lambda
+    if (rel.includes('/worker/') || rel.includes('/lambda/') || rel.includes('/jobs/')) {
+      if (components.some(c => c.id === 'worker')) return 'worker';
+    }
+
+    // 7. Monitoring / Observability / Testing
+    if (
+      rel.includes('.test.') || rel.includes('.spec.') || rel.includes('__tests__') ||
+      rel.includes('/test/') || rel.includes('/tests/') || rel.includes('/monitoring/') ||
+      rel.includes('/logs/') || rel.includes('/metrics/')
+    ) {
+      if (components.some(c => c.id === 'monitoring')) return 'monitoring';
+      if (components.some(c => c.id === 'testing')) return 'testing';
+    }
+
+    // 8. API Gateway / API Server / Server root
+    if (
+      file.apiRoute === true || rel.includes('/api/') || rel.includes('/controllers/') || 
+      rel.includes('/handlers/') || rel.includes('/routes/') || rel.includes('/resolvers/') || 
+      rel.includes('/graphql/') || rel === 'server.js' || rel === 'server.ts' || rel.startsWith('src/server.ts')
+    ) {
+      if (components.some(c => c.id === 'api-gateway')) return 'api-gateway';
+    }
+
+    // 9. Client Web / Frontend
+    if (
+      file.extension === '.tsx' || file.extension === '.jsx' ||
+      rel.includes('/frontend/') || rel.includes('/pages/') || rel.includes('/app/') || 
+      rel.includes('/views/') || rel.includes('/screens/') || rel.includes('/components/') || 
+      rel.includes('/ui/')
+    ) {
+      if (components.some(c => c.id === 'client-web')) return 'client-web';
+    }
+
+    // 10. Default Fallback
+    if (rel.includes('/frontend/') || rel.includes('/src/app/') || rel.includes('/src/components/')) {
+      if (components.some(c => c.id === 'client-web')) return 'client-web';
+    }
+    
+    if (components.some(c => c.id === 'api-gateway')) return 'api-gateway';
+    return components[0]?.id || '';
   };
 
-  components.forEach(comp => {
-    const layers = tierToLayers[comp.tier] || [];
-    if (layers.length > 0) {
-      const matchedFiles = fileList
-        .filter(f => layers.includes(f.layer))
-        .slice(0, 4)
-        .map(f => f.relativePath);
-      comp.files = matchedFiles;
-    } else {
-      comp.files = [];
+  // Map each file in fileList to its best matching component
+  fileList.forEach(file => {
+    const compId = getComponentForFile(file);
+    const comp = components.find(c => c.id === compId);
+    if (comp) {
+      comp.files.push(file.relativePath);
     }
   });
 

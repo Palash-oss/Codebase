@@ -13,90 +13,132 @@ function getFileComponentId(file) {
 
 export function mapArchitecture(stack, files, graph) {
   const components = [];
-  const detectedKeys = new Set(stack.detected.map(t => t.key));
+  // Evidence-first naming: component structure should be driven by scanned/graph evidence.
+  // Keep `stack` only as a best-effort label provider.
+  const detectedKeys = new Set((stack?.detected || []).map(t => t.key));
   const hasTech = (key) => detectedKeys.has(key);
 
-  // 1. Stack Components
-  // Client component
-  let clientComp = null;
-  if (hasTech('nextjs')) {
-    clientComp = { id: 'client', name: 'Next.js App', description: 'Unified React frontend and API router.', type: 'client', techKey: 'nextjs', brandColor: '#1a1a2e', zoneId: 'frontend-zone' };
-  } else if (hasTech('react')) {
-    clientComp = { id: 'client', name: 'React App', description: 'Single-page React web application.', type: 'client', techKey: 'react', brandColor: '#1a2a3a', zoneId: 'frontend-zone' };
-  } else if (hasTech('vuejs')) {
-    clientComp = { id: 'client', name: 'Vue App', description: 'Single-page Vue web application.', type: 'client', techKey: 'vuejs', brandColor: '#1a2a1a', zoneId: 'frontend-zone' };
-  } else {
-    clientComp = { id: 'client', name: 'Web Client', description: 'Web browser user interface.', type: 'client', techKey: 'react', brandColor: '#2a2a2a', zoneId: 'frontend-zone' };
-  }
-  components.push(clientComp);
-
-  // API Server component
-  let apiComp = null;
   const hasApiRoutes = files.some(f => f.apiRoute);
-  if (hasTech('express')) {
-    apiComp = { id: 'api-server', name: 'Express Server', description: 'REST API backend service.', type: 'api-gateway', techKey: 'express', brandColor: '#1a1a1a', zoneId: 'api-zone' };
-  } else if (hasTech('nestjs')) {
-    apiComp = { id: 'api-server', name: 'NestJS Server', description: 'Modular enterprise API backend.', type: 'api-gateway', techKey: 'nestjs', brandColor: '#2a0a0a', zoneId: 'api-zone' };
-  } else if (hasTech('fastify')) {
-    apiComp = { id: 'api-server', name: 'Fastify Server', description: 'High-performance HTTP server.', type: 'api-gateway', techKey: 'fastify', brandColor: '#1a1a1a', zoneId: 'api-zone' };
-  } else if (hasTech('nextjs') && hasApiRoutes) {
-    apiComp = { id: 'api-server', name: 'Next.js API Routes', description: 'Serverless backend endpoints.', type: 'api-gateway', techKey: 'nextjs', brandColor: '#1a1a2e', zoneId: 'api-zone' };
-  } else if (hasApiRoutes) {
-    apiComp = { id: 'api-server', name: 'API Server', description: 'Backend API service endpoints.', type: 'api-gateway', techKey: 'express', brandColor: '#1a1a1a', zoneId: 'api-zone' };
-  }
-  if (apiComp) {
-    components.push(apiComp);
+  const hasPresentation = files.some(f => f.layer === 'Presentation');
+  const hasGateway = files.some(f => f.layer === 'Gateway');
+  const hasDomain = files.some(f => f.layer === 'Domain');
+  const hasPersistence = files.some(f => f.layer === 'Persistence');
+
+  // 1) Client component (UI always exists when Presentation files exist)
+  components.push({
+    id: 'client',
+    name: hasTech('nextjs') ? 'Next.js App' : (hasTech('react') ? 'React App' : (hasTech('vuejs') ? 'Vue App' : 'Web Client')),
+    description: 'Web UI that triggers requests into the backend.',
+    type: 'client',
+    techKey: hasTech('nextjs') ? 'nextjs' : (hasTech('react') ? 'react' : (hasTech('vuejs') ? 'vuejs' : 'web')),
+    brandColor: '#1a2a3a',
+    zoneId: 'frontend-zone'
+  });
+
+  // 2) API Server component (only when we have gateway/api evidence)
+  if (hasApiRoutes || hasGateway) {
+    components.push({
+      id: 'api-server',
+      name: hasTech('express') ? 'Express Server' : (hasTech('nestjs') ? 'NestJS Server' : (hasTech('fastify') ? 'Fastify Server' : 'API Server')),
+      description: 'Backend entry point for request routing.',
+      type: 'api-gateway',
+      techKey: hasTech('express') ? 'express' : (hasTech('nestjs') ? 'nestjs' : (hasTech('fastify') ? 'fastify' : 'api')),
+      brandColor: '#1a1a1a',
+      zoneId: 'api-zone'
+    });
   }
 
-  // Auth Component
-  let authComp = null;
-  if (hasTech('nextauth')) {
-    authComp = { id: 'auth-service', name: 'NextAuth.js', description: 'Self-hosted authentication service.', type: 'auth', techKey: 'nextauth', brandColor: '#1a0a2a', zoneId: 'api-zone' };
-  } else if (hasTech('auth0')) {
-    authComp = { id: 'auth-service', name: 'Auth0', description: 'External identity provider manager.', type: 'auth', techKey: 'auth0', brandColor: '#2a1a0a', zoneId: 'api-zone' };
-  } else if (hasTech('clerk')) {
-    authComp = { id: 'auth-service', name: 'Clerk Auth', description: 'User management identity platform.', type: 'auth', techKey: 'clerk', brandColor: '#1a0a2a', zoneId: 'api-zone' };
-  } else if (hasTech('jwt')) {
-    authComp = { id: 'auth-service', name: 'JWT Auth', description: 'Token-based auth system.', type: 'auth', techKey: 'jwt', brandColor: '#1a0a2a', zoneId: 'api-zone' };
-  }
-  if (authComp) {
-    components.push(authComp);
+  // 3) Auth component (evidence-based: auth-related dependencies or env usage)
+  const authEvidence = files.some(f =>
+    (f.imports || []).some(imp => {
+      const s = (imp?.specifier || '').toLowerCase();
+      return (
+        s.includes('next-auth') ||
+        s.includes('@auth0/nextjs-auth0') ||
+        s.includes('@auth0/auth0-react') ||
+        s.includes('@clerk/nextjs') ||
+        s.includes('jsonwebtoken')
+      );
+    })
+  );
+
+  if (authEvidence || hasTech('nextauth') || hasTech('auth0') || hasTech('clerk') || hasTech('jwt')) {
+    components.push({
+      id: 'auth-service',
+      name: hasTech('nextauth') ? 'NextAuth.js' : (hasTech('auth0') ? 'Auth0' : (hasTech('clerk') ? 'Clerk Auth' : 'Auth Service')),
+      description: 'Authenticates users and protects routes.',
+      type: 'auth',
+      techKey: hasTech('nextauth') ? 'nextauth' : (hasTech('auth0') ? 'auth0' : (hasTech('clerk') ? 'clerk' : 'auth')),
+      brandColor: '#1a0a2a',
+      zoneId: 'api-zone'
+    });
   }
 
-  // Database Component
-  let dbComp = null;
-  if (hasTech('prisma') && hasTech('postgresql')) {
-    dbComp = { id: 'database', name: 'PostgreSQL via Prisma', description: 'Relational database mapping.', type: 'database', techKey: 'postgresql', brandColor: '#0a1a2a', zoneId: 'data-zone' };
-  } else if (hasTech('prisma') && hasTech('mysql')) {
-    dbComp = { id: 'database', name: 'MySQL via Prisma', description: 'Relational MySQL database mapping.', type: 'database', techKey: 'mysql', brandColor: '#0a1a2a', zoneId: 'data-zone' };
-  } else if (hasTech('mongoose')) {
-    dbComp = { id: 'database', name: 'MongoDB', description: 'Document database storage.', type: 'database', techKey: 'mongoose', brandColor: '#0a2a0a', zoneId: 'data-zone' };
-  } else if (hasTech('postgresql')) {
-    dbComp = { id: 'database', name: 'PostgreSQL', description: 'Relational database storage.', type: 'database', techKey: 'postgresql', brandColor: '#0a1a2a', zoneId: 'data-zone' };
-  } else if (hasTech('mysql')) {
-    dbComp = { id: 'database', name: 'MySQL', description: 'Relational SQL database storage.', type: 'database', techKey: 'mysql', brandColor: '#0a1a2a', zoneId: 'data-zone' };
-  } else if (hasTech('sqlite')) {
-    dbComp = { id: 'database', name: 'SQLite Database', description: 'In-process database file.', type: 'database', techKey: 'sqlite', brandColor: '#003b57', zoneId: 'data-zone' };
-  }
-  if (dbComp) {
-    components.push(dbComp);
+  // 4) Database component (evidence-based from Persistence layer)
+  if (hasPersistence) {
+    const dbName = hasTech('mongoose') ? 'MongoDB'
+      : (hasTech('postgresql') ? 'PostgreSQL'
+        : (hasTech('mysql') ? 'MySQL'
+          : (hasTech('sqlite') ? 'SQLite' : 'Database')));
+
+    components.push({
+      id: 'database',
+      name: dbName,
+      description: 'Persists domain data.',
+      type: 'database',
+      techKey: hasTech('mongoose') ? 'mongoose'
+        : (hasTech('postgresql') ? 'postgresql'
+          : (hasTech('mysql') ? 'mysql'
+            : (hasTech('sqlite') ? 'sqlite' : 'db'))),
+      brandColor: '#0a1a2a',
+      zoneId: 'data-zone'
+    });
   }
 
-  // Redis Cache Component
-  if (hasTech('redis')) {
-    components.push({ id: 'cache-server', name: 'Redis Cache', description: 'Key-value cache database.', type: 'cache', techKey: 'redis', brandColor: '#2a0a0a', zoneId: 'data-zone' });
+  // 5) Cache component (evidence-based from Redis usage)
+  const cacheEvidence = files.some(f =>
+    (f.imports || []).some(imp => String(imp?.specifier || '').toLowerCase().includes('redis'))
+    || (f.envVars || []).some(v => String(v).toLowerCase().includes('redis'))
+  );
+  if (cacheEvidence || hasTech('redis')) {
+    components.push({
+      id: 'cache-server',
+      name: 'Redis Cache',
+      description: 'Caches computed results.',
+      type: 'cache',
+      techKey: 'redis',
+      brandColor: '#2a0a0a',
+      zoneId: 'data-zone'
+    });
   }
 
-  // Cloud components
-  const awsServices = stack.detected.filter(t => t.category === 'cloud' && t.key.startsWith('aws-'));
+  // 6) Optional Cloud/DevOps: only add when graph shows any import usage.
+  const fileByRel = new Map(files.map(f => [f.relativePath, f]));
+  const usesDependency = (depNeedle) => {
+    const needle = String(depNeedle || '').toLowerCase();
+    return (graph?.edges || []).some(e => {
+      const src = fileByRel.get(e.source);
+      const tgt = fileByRel.get(e.target);
+      const hit = [src, tgt].some(x =>
+        x && (x.imports || []).some(i => String(i?.specifier || '').toLowerCase().includes(needle))
+      );
+      return hit;
+    });
+  };
+
+  const awsServices = (stack?.detected || []).filter(t => t.category === 'cloud' && t.key.startsWith('aws-'));
   for (const aws of awsServices) {
+    const awsNeedle = (aws.service || aws.key || '').toLowerCase();
+    if (!usesDependency(awsNeedle)) continue;
+
     let serviceType = 'cloud';
     if (aws.service === 'SQS') serviceType = 'queue';
     if (aws.service === 'DynamoDB') serviceType = 'database';
+
     components.push({
-      id: `aws-${aws.service.toLowerCase()}`,
+      id: `aws-${(aws.service || aws.key).toLowerCase()}`,
       name: aws.name,
-      description: `AWS hosted cloud ${aws.service} service.`,
+      description: `AWS hosted cloud ${aws.service || ''} service.`,
       type: serviceType,
       techKey: aws.key,
       brandColor: '#FF9900',
@@ -104,20 +146,54 @@ export function mapArchitecture(stack, files, graph) {
     });
   }
 
-  if (hasTech('supabase')) {
-    components.push({ id: 'supabase', name: 'Supabase Platform', description: 'Backend-as-a-Service integration.', type: 'cloud', techKey: 'supabase', brandColor: '#3FCF8E', zoneId: 'cloud-zone' });
-  }
-  if (hasTech('firebase')) {
-    components.push({ id: 'firebase', name: 'Firebase Platform', description: 'Backend-as-a-Service platform.', type: 'cloud', techKey: 'firebase', brandColor: '#FFCA28', zoneId: 'cloud-zone' });
+  if (hasTech('supabase') && usesDependency('supabase')) {
+    components.push({
+      id: 'supabase',
+      name: 'Supabase Platform',
+      description: 'Backend-as-a-Service integration.',
+      type: 'cloud',
+      techKey: 'supabase',
+      brandColor: '#3FCF8E',
+      zoneId: 'cloud-zone'
+    });
   }
 
-  // DevOps
-  if (hasTech('docker')) {
-    components.push({ id: 'docker', name: 'Docker Container', description: 'Containerized environment.', type: 'infra', techKey: 'docker', brandColor: '#2496ED', zoneId: 'infra-zone' });
+  if (hasTech('firebase') && usesDependency('firebase')) {
+    components.push({
+      id: 'firebase',
+      name: 'Firebase Platform',
+      description: 'Backend-as-a-Service platform.',
+      type: 'cloud',
+      techKey: 'firebase',
+      brandColor: '#FFCA28',
+      zoneId: 'cloud-zone'
+    });
   }
-  if (hasTech('gha')) {
-    components.push({ id: 'github-actions', name: 'CI/CD Pipeline', description: 'GitHub workflow automation.', type: 'infra', techKey: 'gha', brandColor: '#2088FF', zoneId: 'infra-zone' });
+
+  if (hasTech('docker') && usesDependency('docker')) {
+    components.push({
+      id: 'docker',
+      name: 'Docker Container',
+      description: 'Containerized environment.',
+      type: 'infra',
+      techKey: 'docker',
+      brandColor: '#2496ED',
+      zoneId: 'infra-zone'
+    });
   }
+
+  if (hasTech('gha') && usesDependency('.github/workflows')) {
+    components.push({
+      id: 'github-actions',
+      name: 'CI/CD Pipeline',
+      description: 'GitHub workflow automation.',
+      type: 'infra',
+      techKey: 'gha',
+      brandColor: '#2088FF',
+      zoneId: 'infra-zone'
+    });
+  }
+
 
   // 2. Folder-Based Dynamic Components
   const counts = {

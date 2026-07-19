@@ -18,7 +18,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Setup directories outside the project folder (OS Temp)
 const uploadsDir = path.join(os.tmpdir(), 'codebase-xray-uploads');
@@ -155,7 +155,7 @@ app.post('/github', async (req, res) => {
 
   // Clean up url (e.g. remove trailing slash, .git extension)
   let cleanUrl = url.trim().replace(/\/$/, '').replace(/\.git$/, '');
-  
+
   // Parse owner and repo name from GitHub URL
   const match = cleanUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
   if (!match) {
@@ -174,8 +174,8 @@ app.post('/github', async (req, res) => {
   }
 
   const zipUrl = `https://github.com/${owner}/${repo}/archive/refs/heads/${branch}.zip`;
-  const finalZipUrl = branch === 'HEAD' 
-    ? `https://github.com/${owner}/${repo}/archive/HEAD.zip` 
+  const finalZipUrl = branch === 'HEAD'
+    ? `https://github.com/${owner}/${repo}/archive/HEAD.zip`
     : zipUrl;
 
   const uniqueName = `project-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -195,7 +195,7 @@ app.post('/github', async (req, res) => {
 
     const buffer = await fetchResponse.arrayBuffer();
     const zip = new AdmZip(Buffer.from(buffer));
-    
+
     console.log(`[X-RAY] Extracting ZIP to: ${clonePath}`);
     fs.mkdirSync(clonePath, { recursive: true });
     zip.extractAllTo(clonePath, true);

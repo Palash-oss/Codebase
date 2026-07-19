@@ -21,10 +21,61 @@ export function buildGraph(files) {
     const lowerName = file.name.toLowerCase();
     let isEntryPoint = false;
     
-    if (lowerName === 'index.js' || lowerName === 'index.ts' ||
-        lowerName === 'main.js' || lowerName === 'main.ts' ||
-        lowerName === 'app.js' || lowerName === 'app.tsx' ||
-        lowerName === 'server.js' || lowerName === 'server.ts') {
+    // Structure-based entry point detection.
+    // Goal: mark files that represent “starting boundaries” a developer can reason about:
+    // - user-facing entry (presentation)
+    // - request boundary (gateway: routes/controllers/handlers)
+    // - auth boundary (interaction/auth-adjacent)
+    // Do NOT rely on a single filename because full-stack projects differ.
+
+    const id = file.relativePath;
+    const layer = file.layer || 'Unknown';
+
+    const isApiBoundary =
+      layer === 'Gateway' ||
+      id.includes('/api/') ||
+      id.startsWith('src/api/') ||
+      id.includes('/routes/') ||
+      id.includes('/controllers/') ||
+      id.includes('/handlers/') ||
+      id.includes('/resolvers/') ||
+      id.includes('/graphql/') ||
+      file.apiRoute === true ||
+      lowerName.startsWith('route.') ||
+      lowerName.startsWith('routes.');
+
+    const isUiBoundary =
+      layer === 'Presentation' ||
+      id.includes('/frontend/') ||
+      id.includes('/client/') ||
+      id.includes('/pages/') ||
+      id.includes('/app/') ||
+      id.includes('/views/') ||
+      id.includes('/components/') ||
+      id.includes('/screens/') ||
+      id.includes('/ui/');
+
+    // Auth boundary: interaction layer or anything with auth/session keywords.
+    const isAuthBoundary =
+      layer === 'Interaction' ||
+      id.toLowerCase().includes('/auth/') ||
+      id.toLowerCase().includes('/session/') ||
+      id.toLowerCase().includes('/passport/') ||
+      id.toLowerCase().includes('/jwt/') ||
+      id.toLowerCase().includes('/middleware/');
+
+    // Conventional “root” filenames are still allowed, but only as extra hints.
+    const isConventionalRootFilename =
+      lowerName === 'index.js' ||
+      lowerName === 'index.ts' ||
+      lowerName === 'main.js' ||
+      lowerName === 'main.ts' ||
+      lowerName === 'app.js' ||
+      lowerName === 'app.tsx' ||
+      lowerName === 'server.js' ||
+      lowerName === 'server.ts';
+
+    if (isApiBoundary || isUiBoundary || isAuthBoundary || isConventionalRootFilename) {
       isEntryPoint = true;
     }
     
@@ -143,44 +194,62 @@ export function buildGraph(files) {
     }
   }
 
-  // 3. Find dead exports
+  // 3. Find dead exports (optimized)
+  // Old approach was O(N^2) over files+imports.
+  // New approach builds a lookup of what each file's exports are imported as.
   const deadExports = [];
+
+  // importsByTarget: targetRelativePath -> { hasWildcard: boolean, usedNames: Set<string> }
+  const importsByTarget = new Map();
+
+  function getImportAgg(target) {
+    if (!importsByTarget.has(target)) {
+      importsByTarget.set(target, { hasWildcard: false, usedNames: new Set() });
+    }
+    return importsByTarget.get(target);
+  }
+
+  for (const otherFile of files) {
+    for (const imp of otherFile.imports || []) {
+      if (!imp || imp.status !== 'resolved' || !imp.resolvedPath) continue;
+
+      // Only consider local resolved edges.
+      const target = imp.resolvedPath;
+      const agg = getImportAgg(target);
+
+      // Namespace imports mean “all exports might be used”.
+      if (imp.type === 'namespace' || (imp.names || []).includes('*')) {
+        agg.hasWildcard = true;
+        continue;
+      }
+
+      // default import corresponds to 'default' export.
+      if (imp.type === 'default' || (imp.names || []).includes('default')) {
+        agg.usedNames.add('default');
+      }
+
+      for (const n of imp.names || []) {
+        if (n && n !== '*') agg.usedNames.add(n);
+      }
+    }
+  }
+
   for (const file of files) {
-    for (const exp of file.exports) {
+    for (const exp of file.exports || []) {
       // Skip wildcard/reexports from dead exports check
       if (exp.name === '*' || exp.kind === 'reexport') continue;
 
-      let isUsed = false;
-      // Search all other files
-      for (const otherFile of files) {
-        if (otherFile.relativePath === file.relativePath) continue;
-        for (const imp of otherFile.imports) {
-          if (imp.resolvedPath === file.relativePath) {
-            // If it's a namespace import '*', all exports might be used
-            if (imp.type === 'namespace' || imp.names.includes('*')) {
-              isUsed = true;
-              break;
-            }
-            if (imp.names.includes(exp.name)) {
-              isUsed = true;
-              break;
-            }
-            // If it's default import and we are checking default export
-            if (exp.name === 'default' && imp.type === 'default') {
-              isUsed = true;
-              break;
-            }
-          }
-        }
-        if (isUsed) break;
+      const agg = importsByTarget.get(file.relativePath);
+      if (!agg) {
+        deadExports.push({ file: file.relativePath, export: exp.name, kind: exp.kind });
+        continue;
       }
 
-      if (!isUsed) {
-        deadExports.push({
-          file: file.relativePath,
-          export: exp.name,
-          kind: exp.kind
-        });
+      // If anything imports it via wildcard/namespace, it can't be “dead”.
+      if (agg.hasWildcard) continue;
+
+      if (!agg.usedNames.has(exp.name)) {
+        deadExports.push({ file: file.relativePath, export: exp.name, kind: exp.kind });
       }
     }
   }
