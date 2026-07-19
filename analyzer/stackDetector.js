@@ -11,10 +11,25 @@ function matchAny(str, needles) {
 }
 
 export function detectStack(packageJson, files) {
-  const deps = {
-    ...(packageJson.dependencies || {}),
-    ...(packageJson.devDependencies || {})
-  };
+  const deps = {};
+  if (files) {
+    for (const f of files) {
+      if (f.name === 'package.json' && typeof f.content === 'string') {
+        try {
+          const pkg = JSON.parse(f.content);
+          Object.assign(deps, pkg.dependencies || {});
+          Object.assign(deps, pkg.devDependencies || {});
+        } catch (e) {
+          console.warn('[X-RAY] Failed to parse package.json content:', e.message);
+        }
+      }
+    }
+  }
+
+  if (Object.keys(deps).length === 0) {
+    Object.assign(deps, packageJson.dependencies || {});
+    Object.assign(deps, packageJson.devDependencies || {});
+  }
 
   const allImports = new Set();
   const fileNames = new Set();

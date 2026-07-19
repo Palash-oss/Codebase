@@ -100,7 +100,8 @@ export function parseImports(files, tsconfigPaths, projectRoot) {
         range: false,
         tokens: false,
         comment: false,
-        errorOnUnknownASTType: false
+        errorOnUnknownASTType: false,
+        sourceType: 'module'
       });
 
       traverse(ast, node => {
