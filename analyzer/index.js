@@ -18,13 +18,13 @@ export async function analyzeProject(projectRoot) {
   }
   console.log(`[X-RAY] Found ${files.length} source files.`);
 
-  // Phase 2: Detect stack
-  console.log('[X-RAY] Phase 3: Detecting stack...');
-  const stack = detectStack(packageJson || {}, files);
-
   // Phase 3: Parse imports
   console.log('[X-RAY] Phase 4: Parsing imports & AST structure...');
   const parsedFiles = parseImports(files, tsconfigPaths || {}, projectRoot);
+
+  // Phase 2: Detect stack
+  console.log('[X-RAY] Phase 3: Detecting stack...');
+  const stack = detectStack(packageJson || {}, parsedFiles);
 
   // Phase 4: Detect layers
   console.log('[X-RAY] Phase 6: Detecting layers...');
