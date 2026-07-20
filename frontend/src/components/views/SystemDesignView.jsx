@@ -344,6 +344,7 @@ function SystemDesignView({ DATA, isActive }) {
 
     // Draw components
     sysDataRef.current.components.forEach(comp => {
+      ctx.save();
       const isHovered = hoveredId === comp.id;
       const isSelected = selectedId === comp.id;
       const isInferred = !comp.isDetected;
@@ -351,7 +352,12 @@ function SystemDesignView({ DATA, isActive }) {
       // Selected glow
       if (isSelected) {
         ctx.shadowColor = '#FF4D00';
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 14;
+      } else if (isHovered) {
+        ctx.shadowColor = 'rgba(255, 77, 0, 0.4)';
+        ctx.shadowBlur = 8;
+      } else {
+        ctx.shadowBlur = 0;
       }
 
       // Box background
@@ -359,9 +365,11 @@ function SystemDesignView({ DATA, isActive }) {
       roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 8);
       ctx.fill();
 
-      // Box border
+      // Reset shadow for border, text, and icons
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = isSelected ? '#FF4D00' : isHovered ? '#555555' : isInferred ? '#2a2a2a' : '#333333';
+
+      // Box border
+      ctx.strokeStyle = isSelected ? '#FF4D00' : isHovered ? '#FF4D00' : isInferred ? '#2a2a2a' : '#333333';
       ctx.lineWidth = isSelected ? 1.5 : 1;
       if (isInferred) ctx.setLineDash([4, 3]);
       roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 8);
@@ -411,6 +419,7 @@ function SystemDesignView({ DATA, isActive }) {
           ctx.fillText(`+${comp.files.length - 3} more`, comp.x + comp.w / 2, fileStartY + 3 * 11);
         }
       }
+      ctx.restore();
     });
 
     ctx.restore();

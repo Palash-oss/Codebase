@@ -144,13 +144,18 @@ function TechStackView({ data, onSelectFile }) {
 
   data.stack.detected.forEach(tech => {
     if (!activeTechList.some(t => t.key === tech.key)) {
-      const known = knownTech.find(kt => kt.key === tech.key);
+      const known = knownTech.find(kt => kt.key === tech.key || (tech.key.includes(kt.key) && kt.key.length > 3));
+      let cat = known ? known.category : classifyTech(tech.key);
+      if (tech.category === 'testing' || tech.category === 'devops') cat = 'tooling';
+      if (tech.category === 'framework' && (tech.key === 'express' || tech.key === 'fastify' || tech.key === 'koa' || tech.key === 'nestjs')) cat = 'backend';
+      if (tech.category === 'database' || tech.category === 'auth') cat = 'backend';
+
       activeTechList.push({
         key: tech.key,
-        name: tech.name,
-        version: tech.version,
-        category: known ? known.category : (tech.category === 'testing' || tech.category === 'devops' ? 'tooling' : 'backend'),
-        brandColor: tech.brandColor
+        name: known ? known.name : (tech.name || tech.key),
+        version: tech.version || 'unknown',
+        category: cat,
+        brandColor: tech.brandColor || (known ? known.brandColor : '#ff5722')
       });
     }
   });

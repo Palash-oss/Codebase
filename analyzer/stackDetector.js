@@ -177,22 +177,55 @@ export function detectStack(packageJson, files) {
     } catch {
       // ignore detection errors
     }
+    // Dynamic catch-all for any other imported package.json dependencies
+    for (const [depName, ver] of Object.entries(deps)) {
+      if (!detected.some(d => d.key === depName || depName.includes(d.key))) {
+        // Check if imported
+        const isImported = allImports.has(depName) || Array.from(allImports).some(imp => imp.startsWith(depName + '/'));
+        if (isImported) {
+          let cat = 'framework';
+          const lower = depName.toLowerCase();
+          if (lower.includes('test') || lower.includes('jest') || lower.includes('mocha') || lower.includes('eslint') || lower.includes('lint') || lower.includes('estree') || lower.includes('typescript')) {
+            cat = 'testing';
+          } else if (lower.includes('docker') || lower.includes('deploy') || lower.includes('ci')) {
+            cat = 'devops';
+          } else if (lower.includes('ui') || lower.includes('css') || lower.includes('style') || lower.includes('gsap') || lower.includes('scroll')) {
+            cat = 'ui';
+          } else if (lower.includes('auth') || lower.includes('jwt') || lower.includes('token')) {
+            cat = 'auth';
+          } else if (lower.includes('db') || lower.includes('sql') || lower.includes('mongo') || lower.includes('prisma')) {
+            cat = 'database';
+          }
+
+          const item = {
+            key: depName,
+            name: depName.startsWith('@') ? depName : depName.charAt(0).toUpperCase() + depName.slice(1),
+            version: ver,
+            category: cat,
+            logoKey: depName,
+            brandColor: '#ff5722',
+            detected: true
+          };
+          detected.push(item);
+          if (categories[cat]) categories[cat].push(item);
+        }
+      }
+    }
+
+    // Ensure stable order: frameworks/ui/auth show first.
+    const catPriority = {
+      framework: 1,
+      database: 2,
+      auth: 3,
+      cloud: 4,
+      ui: 5,
+      state: 6,
+      testing: 7,
+      devops: 8
+    };
+
+    detected.sort((a, b) => (catPriority[a.category] || 99) - (catPriority[b.category] || 99));
+
+    return { detected, categories };
   }
-
-  // Ensure stable order: frameworks/ui/auth show first.
-  const catPriority = {
-    framework: 1,
-    database: 2,
-    auth: 3,
-    cloud: 4,
-    ui: 5,
-    state: 6,
-    testing: 7,
-    devops: 8
-  };
-
-  detected.sort((a, b) => (catPriority[a.category] || 99) - (catPriority[b.category] || 99));
-
-  return { detected, categories };
 }
-

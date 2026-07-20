@@ -612,6 +612,16 @@ export function buildSystemDesign(DATA, fileList = []) {
     comp.files = [];
   });
 
+  const isSourceOrSchemaFile = (f) => {
+    const name = f.name.toLowerCase();
+    const ext = (f.extension || '').toLowerCase();
+    if (name.startsWith('.env') || name === '.gitignore' || name.endsWith('.md') || name.endsWith('.txt') || name.endsWith('.lock')) {
+      return false;
+    }
+    if (ext === '.json' && name !== 'package.json') return false;
+    return true;
+  };
+
   const getComponentForFile = (file) => {
     const rel = file.relativePath.toLowerCase().replace(/\\/g, '/');
     
@@ -690,8 +700,8 @@ export function buildSystemDesign(DATA, fileList = []) {
     return components[0]?.id || '';
   };
 
-  // Map each file in fileList to its best matching component
-  fileList.forEach(file => {
+  // Map each source/schema file in fileList to its best matching component
+  fileList.filter(isSourceOrSchemaFile).forEach(file => {
     const compId = getComponentForFile(file);
     const comp = components.find(c => c.id === compId);
     if (comp) {
