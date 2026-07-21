@@ -31,7 +31,7 @@ function Toast({ message, onClose }) {
       fontFamily: '"Space Grotesk", sans-serif',
       letterSpacing: '0.01em'
     }}>
-      <span style={{ color: '#FF4D00', fontSize: '18px', fontWeight: 'bold' }}>✓</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF4D00" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       <span>{message}</span>
     </div>
   );

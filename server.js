@@ -652,10 +652,14 @@ app.post('/api/export-mermaid', (req, res) => {
   }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`[X-RAY] Server started at http://localhost:${PORT}`);
-  open(`http://localhost:${PORT}`).catch(err => {
-    console.warn(`[X-RAY] Could not open browser automatically: ${err.message}`);
+// Start server (only in local standalone mode)
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`[X-RAY] Server started at http://localhost:${PORT}`);
+    open(`http://localhost:${PORT}`).catch(err => {
+      console.warn(`[X-RAY] Could not open browser automatically: ${err.message}`);
+    });
   });
-});
+}
+
+export default app;

@@ -1,57 +1,68 @@
-# CodeBaseX-Ray
+# ⚡ CodeBase X-Ray — Static Analysis & Architecture Platform
 
-**CodeBaseX-Ray** is an advanced, fully dynamic source code analysis and visualization platform. It parses any local directory or GitHub repository to instantly generate beautiful, interactive System Architecture Diagrams, layer mappings, code metrics, and dependency insights.
+**CodeBase X-Ray** is an advanced, 100% private, AST-driven source code analysis and architecture refactoring platform. It parses any local repository or public GitHub URL to generate evidence-based **System Design Topologies**, **Layer Mappings**, **Blast Radius Radar**, **Interactive Refactoring Simulations**, and **Mermaid.js Architecture Documentation**.
 
-![System Architecture Canvas](https://raw.githubusercontent.com/Palash-oss/Codebase/main/public/demo.png)
+---
 
-## 🚀 Features
+## 🚀 Key Features
 
-- **Dynamic System Architecture Canvas:** Automatically groups files into logical layers (`Gateway`, `Presentation`, `Persistence`, `Domain`, `Infrastructure`, `Foundation`) and builds a 1-to-1 interactive dependency map.
-- **Deep AST Parsing:** Statically analyzes TypeScript, JavaScript, HTML, CSS, and configuration files to accurately resolve relative imports, absolute aliases (via `tsconfig.json`), and track component dependencies.
-- **Integrated Whiteboard Tools:** Sketch directly on top of your system architecture! Includes tools for drawing bounding boxes, freehand lines (Pencil), and an Eraser. Toggle tools instantly using the `Spacebar`.
-- **Intelligent Tech Stack Detection:** Identifies your framework (Next.js, Express, React, etc.), database (Prisma, Postgres, MongoDB), UI libraries (Tailwind, Framer), and more, generating detailed tech-stack cards.
-- **File Explorer & Issue Tracking:** In-depth file explorer showing code insights, lines of code, imports, exports, and automatically detected warnings (e.g., circular dependencies, large files).
-- **Dark Mode UI:** A gorgeous, hardware-accelerated dark theme built with GSAP and D3/Canvas graphics, designed specifically for a premium developer experience.
+### 1. 🏗️ Dynamic Evidence-Driven System Design Topology
+* **Repo-Tailored Mapping:** Automatically detects and builds tailored architecture views for **Frontend SPAs** (`Web Browser` $\rightarrow$ `CDN`), **Backend REST APIs** (`API Gateway` $\rightarrow$ `Auth` $\rightarrow$ `Database`), **Fullstack Apps**, or **CLI Tools / Libraries**.
+* **Zero-Noise Pruning:** Automatically hides unmapped components with 0 source files.
 
-## 🛠️ Installation & Setup
+### 2. 🎮 Interactive "What-If" Refactoring Simulator
+* Click **`Refactoring Simulator`** to interactively disable components and calculate predicted broken imports and ripple effects across the codebase in real-time before writing code.
 
-1. **Clone the repository**
+### 3. ⚡ 1-Click Codebase Auto-Fixer Engine
+* Automatically detects missing `process.env` references and appends missing keys into `.env.example` with a single click in the File Detail panel.
+
+### 4. 📄 Exportable Architecture Documentation (`Mermaid.js`)
+* One-click export of connected `Mermaid.js` diagram syntax wrapped in Markdown fences (` ```mermaid ... ``` `) for instant rendering in GitHub `README.md` pages, Notion, and Confluence.
+
+### 5. 🤖 GitHub PR Architecture Guard
+* Generates `.github/workflows/codebase-xray-guard.yml` to automatically run static AST checks in GitHub Actions CI/CD and block Pull Requests that introduce circular dependencies or missing environment variables.
+
+### 6. 🛡️ 100% Private Local AST Analysis
+* Operates completely offline without requesting live cloud credentials (AWS IAM keys or Kubeconfig certificates).
+
+### 7. 🌊 Smooth Liquid Wave Animations & Vector SVG UI
+* High-contrast design system featuring fluid liquid wave hover fills, click pop expansion ripples, and crisp SVG vector icons.
+
+### 8. 📱 Full-Site Responsiveness
+* Mobile, tablet, and desktop adaptive layouts for seamless architecture exploration on any screen size.
+
+---
+
+## 🛠️ Local Setup & Installation
+
+1. **Clone the repository:**
    ```bash
    git clone https://github.com/Palash-oss/Codebase.git
    cd Codebase
    ```
 
-2. **Install Dependencies**
+2. **Install dependencies & build frontend:**
    ```bash
-   npm install
+   npm run build
    ```
 
-3. **Start the Analyzer Server**
+3. **Start the application server:**
    ```bash
    npm run dev
    ```
-   > By default, the server will start on `http://localhost:3000`.
+   * Open `http://localhost:3001` in your browser.
 
-## 🖥️ Usage
+---
 
-1. Open `http://localhost:3000` in your browser.
-2. Enter the absolute path to a local directory or paste a **GitHub Repository URL** (e.g., `https://github.com/user/repo`).
-3. Click **Analyze**.
-4. The backend will parse the AST, resolve all dependencies, and launch the dynamic visualization report!
+## ☁️ Deploying to Vercel
 
-### Diagram Drawing Tools (Shortcuts)
-When in the Architecture Canvas view, you can draw directly on the screen to annotate data flows or boundary contexts:
-- **`Spacebar`**: Cycle through the active tools (Cursor, Pencil, Box, Erase).
-- **`Click` a block**: View detailed mappings, imports, exports, and line-counts directly in the right sidebar.
+The repository includes a pre-configured `vercel.json` for seamless Vercel deployment:
 
-## 📁 Architecture Overview
+1. Push the repository to GitHub.
+2. Import the repository into **Vercel**.
+3. Vercel automatically runs `cd frontend && npm install && npm run build` and routes API requests to `server.js` and frontend routes to `/index.html`.
 
-- `/analyzer`: The backend AST parsing engine. Handles file scanning, dependency resolution (supporting path aliases), tech stack detection, and layer assignment.
-- `/public`: The frontend UI application. Contains `report.html`, the GSAP/Canvas rendering engine, and the whiteboard logic.
-- `server.js`: The Express server that coordinates the analysis phase and serves the frontend.
+---
 
-## 🤝 Contributing
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-
-## 📝 License
+## 📄 License
 [MIT](https://choosealicense.com/licenses/mit/)

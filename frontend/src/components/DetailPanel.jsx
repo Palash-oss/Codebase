@@ -248,8 +248,8 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
                   {/* Impact content */}
                   {impactData.totalAffected === 0 ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--beige-3)', fontFamily: 'Space Grotesk', fontSize: '12px', padding: '8px 0' }}>
-                      <span style={{ color: '#22C55E', fontWeight: 'bold' }}>✓</span>
-                      Nothing imports this file. Safe to modify or delete.
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      <span>Nothing imports this file. Safe to modify or delete.</span>
                     </div>
                   ) : (
                     <>
@@ -363,6 +363,7 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
                               setToastMsg(data.message || 'Auto-fixed environment variable!');
                             }
                           }}
+                          className="btn-liquid"
                           style={{
                             marginTop: '8px',
                             background: 'var(--orange)',
@@ -372,10 +373,14 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
                             padding: '4px 10px',
                             fontSize: '10px',
                             fontWeight: '600',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
                           }}
                         >
-                          ⚡ 1-Click Auto-Fix (.env.example)
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                          <span>1-Click Auto-Fix (.env.example)</span>
                         </button>
                       )}
                     </div>

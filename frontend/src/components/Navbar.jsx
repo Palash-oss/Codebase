@@ -109,7 +109,10 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
 
       <div className="nav-right" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         {errorCount === 0 && warningCount === 0 ? (
-          <div className="findings-badge clean">✓ clean</div>
+          <div className="findings-badge clean" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>clean</span>
+          </div>
         ) : (
           <>
             {errorCount > 0 && (
@@ -122,20 +125,24 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
         )}
 
         <button 
-          style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--beige)', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}
+          className="btn-liquid"
+          style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--beige)', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           onClick={handleExportMermaid}
         >
-          📄 Export Docs
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>Export Docs</span>
         </button>
 
         <button 
-          style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--beige)', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}
+          className="btn-liquid"
+          style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--beige)', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           onClick={handleFetchGhAction}
         >
-          🤖 PR Guard
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>PR Guard</span>
         </button>
 
-        <button className="btn-action" onClick={handleReset}>New analysis</button>
+        <button className="btn-action btn-liquid" onClick={handleReset}>New analysis</button>
       </div>
 
       {/* GitHub PR Guard Modal */}
@@ -149,10 +156,12 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
             </pre>
             <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
               <button 
+                className="btn-liquid"
                 onClick={() => { navigator.clipboard.writeText(ghActionYaml); setToastMsg('Copied GitHub Workflow YAML to clipboard!'); }}
-                style={{ flex: 1, background: 'var(--orange)', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
+                style={{ flex: 1, background: 'var(--orange)', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
               >
-                📋 Copy Workflow YAML
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span>Copy Workflow YAML</span>
               </button>
               <button 
                 onClick={() => setShowPrGuardModal(false)}
@@ -176,10 +185,12 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
             </pre>
             <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
               <button 
+                className="btn-liquid"
                 onClick={() => { navigator.clipboard.writeText(mermaidCode); setToastMsg('Copied Mermaid syntax to clipboard!'); }}
-                style={{ flex: 1, background: 'var(--orange)', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
+                style={{ flex: 1, background: 'var(--orange)', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
               >
-                📋 Copy Mermaid Syntax
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span>Copy Mermaid Syntax</span>
               </button>
               <button 
                 onClick={() => setShowExportModal(false)}

@@ -238,7 +238,7 @@ function BlastRadiusView({ DATA, selectedFile, onFileSelect, onHighlight }) {
           lineHeight: 1.6
         }}>
           {blastData.directImpact.length === 0 
-            ? `✓ Nothing in this project imports ${selectedFile.name}. Safe to modify or delete.`
+            ? `Nothing in this project imports ${selectedFile.name}. Safe to modify or delete.`
             : blastData.severity === 'critical' || blastData.severity === 'high'
             ? `⚠ Changing ${selectedFile.name} will break ${blastData.directImpact.length} file${blastData.directImpact.length > 1 ? 's' : ''} that directly import it, and cascade through ${blastData.indirectImpact.length} more. Refactor carefully.`
             : blastData.severity === 'medium'
@@ -262,8 +262,8 @@ function BlastRadiusView({ DATA, selectedFile, onFileSelect, onHighlight }) {
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {blastData.directImpact.length === 0 ? (
                 <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--beige-3)', fontFamily: 'Space Grotesk', fontSize: '12px' }}>
-                  <span style={{ color: '#22C55E', fontWeight: 'bold' }}>✓</span>
-                  Nothing imports this file.
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Nothing imports this file.</span>
                 </div>
               ) : (
                 blastData.directImpact.map((path) => {

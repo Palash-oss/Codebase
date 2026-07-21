@@ -878,6 +878,7 @@ function SystemDesignView({ DATA, isActive }) {
         zIndex: 20
       }}>
         <button
+          className="btn-liquid"
           onClick={() => {
             setIsSimulatorMode(!isSimulatorMode);
             if (isSimulatorMode) setDisabledCompIds(new Set());
@@ -897,10 +898,21 @@ function SystemDesignView({ DATA, isActive }) {
             gap: '6px'
           }}
         >
-          {isSimulatorMode ? '⚡ Active Simulator Mode' : '🎮 Refactoring Simulator'}
+          {isSimulatorMode ? (
+            <>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <span>Active Simulator Mode</span>
+            </>
+          ) : (
+            <>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4M8 10v4M15 11h.01M18 13h.01"/></svg>
+              <span>Refactoring Simulator</span>
+            </>
+          )}
         </button>
 
         <button
+          className="btn-liquid"
           onClick={() => setShowSecurityModal(true)}
           style={{
             background: 'rgba(26, 26, 26, 0.95)',
@@ -911,10 +923,14 @@ function SystemDesignView({ DATA, isActive }) {
             fontSize: '12px',
             fontWeight: '500',
             cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
           }}
         >
-          🛡️ Security & Scope
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>Security & Scope</span>
         </button>
       </div>
 
