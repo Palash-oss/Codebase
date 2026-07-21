@@ -1,6 +1,7 @@
 import React from 'react';
+import Toast from './Toast';
 
-function Navbar({ project, detectedStack, files, onNewAnalysis }) {
+function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
   // Count error/warning findings
   let errorCount = 0;
   let warningCount = 0;
@@ -34,8 +35,45 @@ function Navbar({ project, detectedStack, files, onNewAnalysis }) {
     }
   };
 
+  const [showPrGuardModal, setShowPrGuardModal] = React.useState(false);
+  const [showExportModal, setShowExportModal] = React.useState(false);
+  const [mermaidCode, setMermaidCode] = React.useState('');
+  const [ghActionYaml, setGhActionYaml] = React.useState('');
+  const [toastMsg, setToastMsg] = React.useState('');
+
+  const handleFetchGhAction = async () => {
+    try {
+      const res = await fetch('/api/generate-gh-action');
+      const resData = await res.json();
+      setGhActionYaml(resData.content || '');
+      setShowPrGuardModal(true);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleExportMermaid = async () => {
+    try {
+      const res = await fetch('/api/export-mermaid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nodes: data?.graph?.nodes || [],
+          edges: data?.graph?.edges || [],
+          files: files
+        })
+      });
+      const resData = await res.json();
+      setMermaidCode(resData.mermaid || '');
+      setShowExportModal(true);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   return (
     <header className="dashboard-navbar">
+      <Toast message={toastMsg} onClose={() => setToastMsg('')} />
       <div className="nav-left">
         <div className="wordmark" style={{ fontSize: '11px', letterSpacing: '0.2em' }}>
           <span className="first">CODEBASE</span> <span className="second">X-RAY</span>
@@ -69,7 +107,7 @@ function Navbar({ project, detectedStack, files, onNewAnalysis }) {
         )}
       </div>
 
-      <div className="nav-right" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+      <div className="nav-right" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         {errorCount === 0 && warningCount === 0 ? (
           <div className="findings-badge clean">✓ clean</div>
         ) : (
@@ -82,8 +120,77 @@ function Navbar({ project, detectedStack, files, onNewAnalysis }) {
             )}
           </>
         )}
+
+        <button 
+          style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--beige)', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}
+          onClick={handleExportMermaid}
+        >
+          📄 Export Docs
+        </button>
+
+        <button 
+          style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--beige)', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}
+          onClick={handleFetchGhAction}
+        >
+          🤖 PR Guard
+        </button>
+
         <button className="btn-action" onClick={handleReset}>New analysis</button>
       </div>
+
+      {/* GitHub PR Guard Modal */}
+      {showPrGuardModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--black-2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px', maxWidth: '600px', width: '90%', color: 'var(--beige)' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--orange)', marginBottom: '8px' }}>GitHub PR Architecture Guard Workflow</h3>
+            <p style={{ fontSize: '12px', color: 'var(--beige-2)', marginBottom: '16px' }}>Copy this YAML workflow file to <code>.github/workflows/codebase-xray-guard.yml</code> in your repository to automatically block PRs that introduce circular dependencies or missing environment variables.</p>
+            <pre style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', padding: '16px', borderRadius: '8px', fontSize: '11px', overflowX: 'auto', maxHeight: '250px', fontFamily: '"Space Mono", monospace' }}>
+              {ghActionYaml}
+            </pre>
+            <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+              <button 
+                onClick={() => { navigator.clipboard.writeText(ghActionYaml); setToastMsg('Copied GitHub Workflow YAML to clipboard!'); }}
+                style={{ flex: 1, background: 'var(--orange)', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
+              >
+                📋 Copy Workflow YAML
+              </button>
+              <button 
+                onClick={() => setShowPrGuardModal(false)}
+                style={{ background: 'var(--black-3)', color: 'var(--beige)', border: '1px solid var(--border)', padding: '10px 16px', borderRadius: '6px', cursor: 'pointer' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Mermaid / Docs Modal */}
+      {showExportModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--black-2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px', maxWidth: '600px', width: '90%', color: 'var(--beige)' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--orange)', marginBottom: '8px' }}>Export Architecture Documentation</h3>
+            <p style={{ fontSize: '12px', color: 'var(--beige-2)', marginBottom: '16px' }}>Copy the generated <code>Mermaid.js</code> diagram syntax below to paste directly into GitHub READMEs, Notion, or Confluence pages.</p>
+            <pre style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', padding: '16px', borderRadius: '8px', fontSize: '11px', overflowX: 'auto', maxHeight: '250px', fontFamily: '"Space Mono", monospace' }}>
+              {mermaidCode}
+            </pre>
+            <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+              <button 
+                onClick={() => { navigator.clipboard.writeText(mermaidCode); setToastMsg('Copied Mermaid syntax to clipboard!'); }}
+                style={{ flex: 1, background: 'var(--orange)', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
+              >
+                📋 Copy Mermaid Syntax
+              </button>
+              <button 
+                onClick={() => setShowExportModal(false)}
+                style={{ background: 'var(--black-3)', color: 'var(--beige)', border: '1px solid var(--border)', padding: '10px 16px', borderRadius: '6px', cursor: 'pointer' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Toast from './Toast';
 
 function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', setImpactHighlight }) {
   if (!file) return null;
@@ -9,6 +10,7 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
   const [impactLoading, setImpactLoading] = useState(false);
   const [directExpanded, setDirectExpanded] = useState(true);
   const [indirectExpanded, setIndirectExpanded] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
 
   useEffect(() => {
     if (!file || isComponentZone || !file.relativePath) {
@@ -104,6 +106,7 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
 
   return (
     <div className={isInline ? "explorer-detail" : "detail-panel"} style={isInline ? {} : { transform: 'translateX(0)' }}>
+      <Toast message={toastMsg} onClose={() => setToastMsg('')} />
       <div className={isInline ? "detail-header" : "panel-header"}>
         <h3 className="panel-title">{isComponentZone ? 'Component Zone' : 'File Detail'}</h3>
         <button className="btn-close" onClick={onClose}>×</button>
@@ -346,6 +349,35 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
                       </div>
                       <div className="issue-msg">{fin.message}</div>
                       {fin.suggestion && <div className="issue-sugg">{fin.suggestion}</div>}
+                      {fin.rule === 'Missing Env Var' && (
+                        <button
+                          onClick={async () => {
+                            const envVarName = fin.message.match(/process\.env\.([A-Z0-9_]+)/)?.[1];
+                            if (envVarName) {
+                              const res = await fetch('/api/autofix', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: 'env', missingEnvVars: [envVarName] })
+                              });
+                              const data = await res.json();
+                              setToastMsg(data.message || 'Auto-fixed environment variable!');
+                            }
+                          }}
+                          style={{
+                            marginTop: '8px',
+                            background: 'var(--orange)',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '4px',
+                            padding: '4px 10px',
+                            fontSize: '10px',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ⚡ 1-Click Auto-Fix (.env.example)
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

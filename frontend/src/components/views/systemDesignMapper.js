@@ -53,54 +53,106 @@ export function buildSystemDesign(DATA, fileList = []) {
   const nextNumber = () => ++compCounter;
 
   // ========================================
-  // ALWAYS CREATE THESE
+  // DYNAMIC COMPONENT CREATION
   // ========================================
 
-  // DNS
-  components.push({
-    id: 'dns',
-    number: nextNumber(),
-    label: 'DNS',
-    sublabel: 'Domain resolution',
-    tier: 'network',
-    icon: 'network',
-    techKey: '',
-    isDetected: true,
-    zoneId: 'network-zone'
-  });
+  const hasUiFiles = fileList.some(f => 
+    ['.tsx', '.jsx', '.html', '.vue', '.svelte'].includes((f.extension || '').toLowerCase()) ||
+    f.relativePath.toLowerCase().includes('/pages/') ||
+    f.relativePath.toLowerCase().includes('/components/') ||
+    f.relativePath.toLowerCase().includes('/views/') ||
+    f.relativePath.toLowerCase().includes('/ui/')
+  ) || hasTech('react') || hasTech('vuejs') || hasTech('svelte') || hasTech('nextjs');
 
-  // API Gateway - always exists
-  let apiGatewaySublabel = 'API Server';
-  if (hasTech('nextjs')) apiGatewaySublabel = 'Next.js';
-  else if (hasTech('express')) apiGatewaySublabel = 'Express.js';
-  else if (hasTech('nestjs')) apiGatewaySublabel = 'NestJS';
-  else if (hasTech('fastify')) apiGatewaySublabel = 'Fastify';
+  const hasServerFiles = fileList.some(f =>
+    f.apiRoute === true ||
+    f.relativePath.toLowerCase().includes('server.') ||
+    f.relativePath.toLowerCase().includes('/api/') ||
+    f.relativePath.toLowerCase().includes('/routes/') ||
+    f.relativePath.toLowerCase().includes('/controllers/') ||
+    f.relativePath.toLowerCase().includes('/handlers/')
+  ) || hasTech('express') || hasTech('nestjs') || hasTech('fastify') || hasTech('nextjs');
 
-  components.push({
-    id: 'api-gateway',
-    number: nextNumber(),
-    label: 'API Gateway',
-    sublabel: apiGatewaySublabel,
-    tier: 'gateway',
-    icon: 'service',
-    techKey: hasTech('nextjs') ? 'nextjs' : hasTech('express') ? 'express' : hasTech('nestjs') ? 'nestjs' : hasTech('fastify') ? 'fastify' : '',
-    isDetected: true,
-    zoneId: 'gateway-zone'
-  });
+  // Client Web
+  if (hasUiFiles) {
+    const clientWebSublabel = hasTech('nextjs') ? 'Next.js SSR' : 'SPA';
+    components.push({
+      id: 'client-web',
+      number: nextNumber(),
+      label: 'Web Browser',
+      sublabel: clientWebSublabel,
+      tier: 'client',
+      icon: 'browser',
+      techKey: hasTech('nextjs') ? 'nextjs' : hasTech('react') ? 'react' : hasTech('vuejs') ? 'vuejs' : '',
+      isDetected: true,
+      zoneId: 'client-zone'
+    });
+  }
 
-  // Client components - always create
-  const clientWebSublabel = hasTech('nextjs') ? 'Next.js SSR' : 'SPA';
-  components.push({
-    id: 'client-web',
-    number: nextNumber(),
-    label: 'Web Browser',
-    sublabel: clientWebSublabel,
-    tier: 'client',
-    icon: 'browser',
-    techKey: hasTech('nextjs') ? 'nextjs' : hasTech('react') ? 'react' : hasTech('vuejs') ? 'vuejs' : '',
-    isDetected: true,
-    zoneId: 'client-zone'
-  });
+  // API Gateway
+  if (hasServerFiles) {
+    let apiGatewaySublabel = 'API Server';
+    if (hasTech('nextjs')) apiGatewaySublabel = 'Next.js';
+    else if (hasTech('express')) apiGatewaySublabel = 'Express.js';
+    else if (hasTech('nestjs')) apiGatewaySublabel = 'NestJS';
+    else if (hasTech('fastify')) apiGatewaySublabel = 'Fastify';
+
+    components.push({
+      id: 'api-gateway',
+      number: nextNumber(),
+      label: 'API Gateway',
+      sublabel: apiGatewaySublabel,
+      tier: 'gateway',
+      icon: 'service',
+      techKey: hasTech('nextjs') ? 'nextjs' : hasTech('express') ? 'express' : hasTech('nestjs') ? 'nestjs' : hasTech('fastify') ? 'fastify' : '',
+      isDetected: true,
+      zoneId: 'gateway-zone'
+    });
+  }
+
+  // CLI Application (if no web UI and no server API)
+  if (!hasUiFiles && !hasServerFiles) {
+    components.push({
+      id: 'cli-app',
+      number: nextNumber(),
+      label: 'CLI Application',
+      sublabel: 'Node.js Script / Module',
+      tier: 'service',
+      icon: 'service',
+      techKey: '',
+      isDetected: true,
+      zoneId: 'service-zone'
+    });
+  }
+
+  // DNS & Load Balancer (only when web & server boundaries exist)
+  if (hasUiFiles && hasServerFiles) {
+    components.push({
+      id: 'dns',
+      number: nextNumber(),
+      label: 'DNS',
+      sublabel: 'Domain resolution',
+      tier: 'network',
+      icon: 'network',
+      techKey: '',
+      isDetected: true,
+      zoneId: 'network-zone'
+    });
+
+    if (fileList.length > 25 && !hasTech('vercel')) {
+      components.push({
+        id: 'load-balancer',
+        number: nextNumber(),
+        label: 'Load Balancer',
+        sublabel: 'Inferred',
+        tier: 'network',
+        icon: 'network',
+        techKey: '',
+        isDetected: false,
+        zoneId: 'network-zone'
+      });
+    }
+  }
 
   // Check for mobile
   const hasMobile = hasTech('react-native') || hasTech('expo') ||
@@ -119,10 +171,6 @@ export function buildSystemDesign(DATA, fileList = []) {
     });
   }
 
-  // ========================================
-  // CREATE ONLY IF DETECTED IN STACK
-  // ========================================
-
   // CDN / Edge (Vercel)
   if (hasTech('vercel')) {
     components.push({
@@ -135,22 +183,6 @@ export function buildSystemDesign(DATA, fileList = []) {
       techKey: 'vercel',
       isDetected: true,
       zoneId: 'edge-zone'
-    });
-  }
-
-  // Load Balancer (inferred if project is large)
-  const isLargeProject = fileList.length > 20;
-  if (isLargeProject && !hasTech('vercel')) {
-    components.push({
-      id: 'load-balancer',
-      number: nextNumber(),
-      label: 'Load Balancer',
-      sublabel: 'Inferred',
-      tier: 'network',
-      icon: 'network',
-      techKey: '',
-      isDetected: false,
-      zoneId: 'network-zone'
     });
   }
 
@@ -355,25 +387,31 @@ export function buildSystemDesign(DATA, fileList = []) {
     }
   };
 
-  // Client -> DNS
-  addConn('client-web', 'dns', 'DNS lookup');
-  if (components.find(c => c.id === 'client-mobile')) {
-    addConn('client-mobile', 'dns', 'DNS lookup');
+  // Connection mapping based on present components
+  if (components.find(c => c.id === 'dns')) {
+    addConn('client-web', 'dns', 'DNS lookup');
+    if (components.find(c => c.id === 'client-mobile')) {
+      addConn('client-mobile', 'dns', 'DNS lookup');
+    }
+    if (components.find(c => c.id === 'cdn')) {
+      addConn('dns', 'cdn', 'resolves to');
+      addConn('cdn', 'api-gateway', 'cache miss / origin');
+    } else {
+      addConn('dns', 'api-gateway', 'resolves to');
+    }
+  } else if (components.find(c => c.id === 'client-web') && components.find(c => c.id === 'api-gateway')) {
+    addConn('client-web', 'api-gateway', 'HTTP / REST API');
   }
 
-  // DNS -> CDN or API Gateway
-  if (components.find(c => c.id === 'cdn')) {
-    addConn('dns', 'cdn', 'resolves to');
-    addConn('cdn', 'api-gateway', 'cache miss / origin');
-  } else {
-    addConn('dns', 'api-gateway', 'resolves to');
+  // CLI App connections
+  if (components.find(c => c.id === 'cli-app')) {
+    if (components.find(c => c.id === 'database')) addConn('cli-app', 'database', 'queries');
+    if (components.find(c => c.id === 'storage')) addConn('cli-app', 'storage', 'reads/writes');
   }
 
   // Load Balancer -> API Gateway
   if (components.find(c => c.id === 'load-balancer')) {
     addConn('load-balancer', 'api-gateway', 'routes traffic');
-    // DNS -> Load Balancer instead of direct to API Gateway
-    // Find and update the connection
     const dnsToApi = connections.find(c => c.from === 'dns' && c.to === 'api-gateway');
     if (dnsToApi) {
       dnsToApi.to = 'load-balancer';
@@ -697,6 +735,8 @@ export function buildSystemDesign(DATA, fileList = []) {
     }
     
     if (components.some(c => c.id === 'api-gateway')) return 'api-gateway';
+    if (components.some(c => c.id === 'client-web')) return 'client-web';
+    if (components.some(c => c.id === 'cli-app')) return 'cli-app';
     return components[0]?.id || '';
   };
 
@@ -709,5 +749,8 @@ export function buildSystemDesign(DATA, fileList = []) {
     }
   });
 
-  return { components, zones, connections };
+  // Prune components that have 0 files and are not explicitly detected
+  const activeComponents = components.filter(c => c.files.length > 0 || c.isDetected);
+
+  return { components: activeComponents, zones, connections };
 }

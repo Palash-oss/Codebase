@@ -11,6 +11,11 @@ function SystemDesignView({ DATA, isActive }) {
   const [selectedId, setSelectedId] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
+  // Refactoring Simulator & Security Scope state
+  const [isSimulatorMode, setIsSimulatorMode] = useState(false);
+  const [disabledCompIds, setDisabledCompIds] = useState(new Set());
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
+
   // Refs for tracking canvas transforms and diagram state
   const transformRef = useRef({ x: 0, y: 0, scale: 1 });
   const sysDataRef = useRef(null);
@@ -348,12 +353,17 @@ function SystemDesignView({ DATA, isActive }) {
       const isHovered = hoveredId === comp.id;
       const isSelected = selectedId === comp.id;
       const isInferred = !comp.isDetected;
+      const isDisabled = disabledCompIds.has(comp.id);
+
+      if (isDisabled) {
+        ctx.globalAlpha = 0.4;
+      }
 
       // Selected glow
-      if (isSelected) {
+      if (isSelected && !isDisabled) {
         ctx.shadowColor = '#FF4D00';
         ctx.shadowBlur = 14;
-      } else if (isHovered) {
+      } else if (isHovered && !isDisabled) {
         ctx.shadowColor = 'rgba(255, 77, 0, 0.4)';
         ctx.shadowBlur = 8;
       } else {
@@ -361,7 +371,7 @@ function SystemDesignView({ DATA, isActive }) {
       }
 
       // Box background
-      ctx.fillStyle = isInferred ? '#111111' : '#1a1a1a';
+      ctx.fillStyle = isDisabled ? '#220000' : isInferred ? '#111111' : '#1a1a1a';
       roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 8);
       ctx.fill();
 
@@ -369,7 +379,7 @@ function SystemDesignView({ DATA, isActive }) {
       ctx.shadowBlur = 0;
 
       // Box border
-      ctx.strokeStyle = isSelected ? '#FF4D00' : isHovered ? '#FF4D00' : isInferred ? '#2a2a2a' : '#333333';
+      ctx.strokeStyle = isDisabled ? '#FF0000' : isSelected ? '#FF4D00' : isHovered ? '#FF4D00' : isInferred ? '#2a2a2a' : '#333333';
       ctx.lineWidth = isSelected ? 1.5 : 1;
       if (isInferred) ctx.setLineDash([4, 3]);
       roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 8);
@@ -714,11 +724,22 @@ function SystemDesignView({ DATA, isActive }) {
     );
 
     if (clicked) {
-      setSelectedId(clicked.id);
-      selectedCompIdRef.current = clicked.id;
+      if (isSimulatorMode) {
+        setDisabledCompIds(prev => {
+          const next = new Set(prev);
+          if (next.has(clicked.id)) next.delete(clicked.id);
+          else next.add(clicked.id);
+          return next;
+        });
+      } else {
+        setSelectedId(clicked.id);
+        selectedCompIdRef.current = clicked.id;
+      }
     } else {
-      setSelectedId(null);
-      selectedCompIdRef.current = null;
+      if (!isSimulatorMode) {
+        setSelectedId(null);
+        selectedCompIdRef.current = null;
+      }
     }
     drawDiagram();
   };
@@ -821,13 +842,170 @@ function SystemDesignView({ DATA, isActive }) {
     drawDiagram();
   };
 
-  if (!isActive) {
-    return <div style={{ width: '100%', height: '100%', background: '#0a0a0a' }} />;
-  }
+  const getSimulatedImpact = () => {
+    if (!sysDataRef.current || disabledCompIds.size === 0) return { count: 0, disabledCount: 0 };
+
+    const disabledFiles = new Set();
+    sysDataRef.current.components.forEach(c => {
+      if (disabledCompIds.has(c.id) && c.files) {
+        c.files.forEach(f => disabledFiles.add(f));
+      }
+    });
+
+    let brokenCount = 0;
+    (DATA.files || []).forEach(file => {
+      if (disabledFiles.has(file.relativePath)) return;
+      const reliesOnDisabled = file.imports?.some(imp => imp.resolvedPath && disabledFiles.has(imp.resolvedPath));
+      if (reliesOnDisabled) brokenCount++;
+    });
+
+    return { count: brokenCount, disabledCount: disabledFiles.size };
+  };
+
+  const simImpact = getSimulatedImpact();
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }} ref={containerRef}>
       <canvas ref={canvasRef} id="system-design-canvas" style={{ width: '100%', height: '100%', display: 'block' }} />
+
+      {/* Top Action Bar */}
+      <div style={{
+        position: 'absolute',
+        top: '16px',
+        right: '16px',
+        display: 'flex',
+        gap: '12px',
+        zIndex: 20
+      }}>
+        <button
+          onClick={() => {
+            setIsSimulatorMode(!isSimulatorMode);
+            if (isSimulatorMode) setDisabledCompIds(new Set());
+          }}
+          style={{
+            background: isSimulatorMode ? 'var(--orange)' : 'rgba(26, 26, 26, 0.95)',
+            color: '#fff',
+            border: isSimulatorMode ? 'none' : '1px solid var(--border)',
+            padding: '8px 14px',
+            borderRadius: '8px',
+            fontSize: '12px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+        >
+          {isSimulatorMode ? '⚡ Active Simulator Mode' : '🎮 Refactoring Simulator'}
+        </button>
+
+        <button
+          onClick={() => setShowSecurityModal(true)}
+          style={{
+            background: 'rgba(26, 26, 26, 0.95)',
+            color: 'var(--beige-2)',
+            border: '1px solid var(--border)',
+            padding: '8px 14px',
+            borderRadius: '8px',
+            fontSize: '12px',
+            fontWeight: '500',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+          }}
+        >
+          🛡️ Security & Scope
+        </button>
+      </div>
+
+      {/* Simulator Mode Impact Banner */}
+      {isSimulatorMode && (
+        <div style={{
+          position: 'absolute',
+          top: '64px',
+          right: '16px',
+          background: 'rgba(20, 20, 22, 0.95)',
+          border: '1px solid var(--orange)',
+          borderRadius: '10px',
+          padding: '12px 16px',
+          maxWidth: '320px',
+          zIndex: 20,
+          color: 'var(--beige)',
+          fontSize: '12px'
+        }}>
+          <div style={{ fontWeight: '700', color: 'var(--orange)', marginBottom: '4px' }}>
+            Refactoring Impact Simulation
+          </div>
+          <div style={{ color: 'var(--beige-2)', marginBottom: '6px', fontSize: '11px' }}>
+            Click any component box to simulate removing it from the architecture.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid var(--border-2)', paddingTop: '6px' }}>
+            <div>Simulated Disabled Files: <strong>{simImpact.disabledCount}</strong></div>
+            <div>Predicted Broken Dependent Files: <strong style={{ color: simImpact.count > 0 ? '#ff4d00' : '#22c55e' }}>{simImpact.count}</strong></div>
+          </div>
+        </div>
+      )}
+
+      {/* Security & Scope Disclosure Modal */}
+      {showSecurityModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, width: '100vw', height: '100vh',
+          background: 'rgba(0,0,0,0.8)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'var(--black-2)',
+            border: '1px solid var(--border)',
+            borderRadius: '16px',
+            padding: '32px',
+            maxWidth: '560px',
+            width: '90%',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+            color: 'var(--beige)'
+          }}>
+            <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--orange)', marginBottom: '12px' }}>
+              Security & Infrastructure Scope Disclosure
+            </h3>
+            <p style={{ fontSize: '13px', lineHeight: '1.6', color: 'var(--beige-2)', marginBottom: '16px' }}>
+              Why Live Cloud Infrastructure Monitoring (querying AWS, GCP, Azure APIs, or Kubernetes clusters for live IP addresses, VPC subnets, or active pod counts) is <strong>NOT</strong> in this codebase:
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+              <div style={{ background: 'var(--black-3)', borderLeft: '3px solid var(--orange)', padding: '12px', borderRadius: '6px' }}>
+                <strong style={{ fontSize: '13px', color: 'var(--beige)' }}>1. Requires Live Production Credentials:</strong>
+                <p style={{ fontSize: '12px', color: 'var(--beige-2)', margin: '4px 0 0 0', lineHeight: '1.5' }}>
+                  Querying live AWS/GCP infrastructure requires users to input sensitive AWS IAM Access Keys, Secret Keys, or Kubeconfig certificates into the application.
+                </p>
+              </div>
+              <div style={{ background: 'var(--black-3)', borderLeft: '3px solid var(--orange)', padding: '12px', borderRadius: '6px' }}>
+                <strong style={{ fontSize: '13px', color: 'var(--beige)' }}>2. Primary Focus of CodeBase X-Ray:</strong>
+                <p style={{ fontSize: '12px', color: 'var(--beige-2)', margin: '4px 0 0 0', lineHeight: '1.5' }}>
+                  CodeBase X-Ray is designed as a <strong>Static AST Code & Architecture Analyzer</strong>. It operates 100% locally and privately by scanning source code files, imports, and package configurations without needing access to live cloud production environments.
+                </p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setShowSecurityModal(false)}
+              style={{
+                background: 'var(--orange)',
+                color: '#fff',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '8px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                width: '100%'
+              }}
+            >
+              Close Disclosure
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Zoom Controls - bottom left */}
       <div className="canvas-controls" style={{

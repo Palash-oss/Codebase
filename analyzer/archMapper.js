@@ -24,16 +24,31 @@ export function mapArchitecture(stack, files, graph) {
   const hasDomain = files.some(f => f.layer === 'Domain');
   const hasPersistence = files.some(f => f.layer === 'Persistence');
 
-  // 1) Client component (UI always exists when Presentation files exist)
-  components.push({
-    id: 'client',
-    name: hasTech('nextjs') ? 'Next.js App' : (hasTech('react') ? 'React App' : (hasTech('vuejs') ? 'Vue App' : 'Web Client')),
-    description: 'Web UI that triggers requests into the backend.',
-    type: 'client',
-    techKey: hasTech('nextjs') ? 'nextjs' : (hasTech('react') ? 'react' : (hasTech('vuejs') ? 'vuejs' : 'web')),
-    brandColor: '#1a2a3a',
-    zoneId: 'frontend-zone'
-  });
+  // 1) Client component (UI created only when Presentation files or UI tech exists)
+  if (hasPresentation || hasTech('nextjs') || hasTech('react') || hasTech('vuejs')) {
+    components.push({
+      id: 'client',
+      name: hasTech('nextjs') ? 'Next.js App' : (hasTech('react') ? 'React App' : (hasTech('vuejs') ? 'Vue App' : 'Web Client')),
+      description: 'Web UI that triggers requests into the backend.',
+      type: 'client',
+      techKey: hasTech('nextjs') ? 'nextjs' : (hasTech('react') ? 'react' : (hasTech('vuejs') ? 'vuejs' : 'web')),
+      brandColor: '#1a2a3a',
+      zoneId: 'frontend-zone'
+    });
+  }
+
+  // 2) CLI Component if no Web Client and no API Server
+  if (!hasPresentation && !hasGateway && !hasApiRoutes && !hasTech('nextjs') && !hasTech('react') && !hasTech('express')) {
+    components.push({
+      id: 'cli-module',
+      name: 'CLI Application',
+      description: 'Node.js standalone script / library module.',
+      type: 'service',
+      techKey: 'node',
+      brandColor: '#1a1a1a',
+      zoneId: 'api-zone'
+    });
+  }
 
   // 2) API Server component (only when we have gateway/api evidence)
   if (hasApiRoutes || hasGateway) {

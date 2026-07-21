@@ -73,6 +73,7 @@ function Dashboard({ data, onNewAnalysis }) {
         project={data.project} 
         detectedStack={data.stack.detected} 
         files={data.files}
+        data={data}
         onNewAnalysis={onNewAnalysis} 
       />
 

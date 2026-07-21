@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import LocomotiveScroll from 'locomotive-scroll';
+import Toast from './Toast';
 
 function LandingPage({ onAnalysisSuccess }) {
   const [dragOver, setDragOver] = useState(false);
@@ -9,6 +10,7 @@ function LandingPage({ onAnalysisSuccess }) {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [progressWidth, setProgressWidth] = useState('0%');
+  const [toastMsg, setToastMsg] = useState('');
 
   // Interactive Canvas Background
   const canvasRef = useRef(null);
@@ -255,7 +257,7 @@ function LandingPage({ onAnalysisSuccess }) {
       if (file.name.endsWith('.zip')) {
         setSelectedFile(file);
       } else {
-        alert('Only .zip files are supported.');
+        setToastMsg('Only .zip files are supported.');
       }
     }
   };
@@ -266,7 +268,7 @@ function LandingPage({ onAnalysisSuccess }) {
       if (file.name.endsWith('.zip')) {
         setSelectedFile(file);
       } else {
-        alert('Only .zip files are supported.');
+        setToastMsg('Only .zip files are supported.');
       }
     }
   };
@@ -416,6 +418,7 @@ function LandingPage({ onAnalysisSuccess }) {
 
   return (
     <div className="landing-container">
+      <Toast message={toastMsg} onClose={() => setToastMsg('')} />
       <canvas ref={canvasRef} className="landing-canvas-bg" />
       {/* Background Glowing Blobs (3 pairs) */}
       <div className="glow-blobs-container">
