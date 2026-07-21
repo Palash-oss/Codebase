@@ -652,8 +652,9 @@ app.post('/api/export-mermaid', (req, res) => {
   }
 });
 
-// Start server (only in local standalone mode)
-if (!process.env.VERCEL) {
+// Start server (only in local standalone mode when executed directly)
+const isMainScript = process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('server.js');
+if (isMainScript && !process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`[X-RAY] Server started at http://localhost:${PORT}`);
     open(`http://localhost:${PORT}`).catch(err => {
