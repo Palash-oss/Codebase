@@ -70,7 +70,7 @@ app.get('/report', (req, res) => {
   res.redirect('/');
 });
 
-app.get('/api/latest-result', (req, res) => {
+app.get(['/api/latest-result', '/latest-result'], (req, res) => {
   if (latestAnalysisResult) {
     lastScanResult = latestAnalysisResult;
     res.json(latestAnalysisResult);
@@ -80,7 +80,7 @@ app.get('/api/latest-result', (req, res) => {
 });
 
 // POST /upload -> single file ZIP analysis
-app.post('/upload', upload.single('project'), async (req, res) => {
+app.post(['/upload', '/api/upload'], upload.single('project'), async (req, res) => {
   console.log('[X-RAY] Received ZIP file upload.');
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded. Please upload a ZIP project file.' });
@@ -145,7 +145,7 @@ app.post('/upload', upload.single('project'), async (req, res) => {
 });
 
 // POST /github -> Clone and analyze repository
-app.post('/github', async (req, res) => {
+app.post(['/github', '/api/github'], async (req, res) => {
   const { url } = req.body;
   console.log(`[X-RAY] Received GitHub clone request for: ${url}`);
 
@@ -237,7 +237,7 @@ app.post('/github', async (req, res) => {
 });
 
 // POST /chat -> AI Q&A Chat route
-app.post('/chat', async (req, res) => {
+app.post(['/chat', '/api/chat'], async (req, res) => {
   const { question, context } = req.body;
   const key = process.env.GEMINI_API_KEY;
 
