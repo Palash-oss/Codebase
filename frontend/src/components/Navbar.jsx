@@ -142,7 +142,7 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
           <span>PR Guard</span>
         </button>
 
-        <button className="btn-action btn-liquid" onClick={handleReset}>New analysis</button>
+        <button className="btn-action btn-liquid" onClick={handleReset}><span>New analysis</span></button>
       </div>
 
       {/* GitHub PR Guard Modal */}

@@ -311,39 +311,74 @@ function SystemDesignView({ DATA, isActive }) {
       const tgt = sysDataRef.current.components.find(c => c.id === conn.to);
       if (!src || !tgt) return;
 
-      const x1 = src.x + src.w / 2;
-      const y1 = src.y + src.h;
-      const x2 = tgt.x + tgt.w / 2;
-      const y2 = tgt.y;
+      const sameRow = Math.abs(src.y - tgt.y) < 40;
+      let x1, y1, x2, y2, cy1, cy2;
 
-      ctx.strokeStyle = conn.style === 'dashed' ? '#555555' : '#888888';
-      ctx.lineWidth = 1;
-      if (conn.style === 'dashed') ctx.setLineDash([4, 3]);
+      if (sameRow) {
+        // Horizontal connection between components in the same row
+        if (src.x < tgt.x) {
+          x1 = src.x + src.w;
+          y1 = src.y + src.h / 2;
+          x2 = tgt.x;
+          y2 = tgt.y + tgt.h / 2;
+        } else {
+          x1 = src.x;
+          y1 = src.y + src.h / 2;
+          x2 = tgt.x + tgt.w;
+          y2 = tgt.y + tgt.h / 2;
+        }
+        cy1 = y1;
+        cy2 = y2;
+      } else {
+        // Vertical connection between different rows
+        x1 = src.x + src.w / 2;
+        y1 = src.y + src.h;
+        x2 = tgt.x + tgt.w / 2;
+        y2 = tgt.y;
+        cy1 = y1 + (y2 - y1) * 0.45;
+        cy2 = y2 - (y2 - y1) * 0.45;
+      }
 
-      // Bezier curve
+      const lineColor = conn.style === 'dashed' ? '#FF7700' : '#FF4D00';
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 2.5;
+      if (conn.style === 'dashed') ctx.setLineDash([6, 4]);
+
+      // Glow effect for connection lines
+      ctx.save();
+      ctx.shadowColor = 'rgba(255, 77, 0, 0.4)';
+      ctx.shadowBlur = 6;
       ctx.beginPath();
       ctx.moveTo(x1, y1);
-      const cy1 = y1 + (y2 - y1) * 0.4;
-      const cy2 = y2 - (y2 - y1) * 0.4;
       ctx.bezierCurveTo(x1, cy1, x2, cy2, x2, y2);
       ctx.stroke();
+      ctx.restore();
       ctx.setLineDash([]);
 
-      // Arrowhead
-      drawArrowhead(ctx, x2, y2, conn.style === 'dashed' ? '#555555' : '#888888');
+      // Calculate arrowhead angle entering target
+      const angle = Math.atan2(y2 - cy2, x2 - (sameRow ? (src.x < tgt.x ? x1 : x1) : x2));
+      drawArrowhead(ctx, x2, y2, angle, lineColor);
 
-      // Connection label
+      // Connection label pill badge
       if (conn.label) {
+        ctx.font = '600 10px "Space Grotesk", sans-serif';
+        const tw = ctx.measureText(conn.label).width;
         const mx = (x1 + x2) / 2;
         const my = (y1 + y2) / 2;
-        const tw = ctx.measureText(conn.label).width;
-        ctx.fillStyle = '#0a0a0a';
-        ctx.fillRect(mx - tw / 2 - 3, my - 8, tw + 6, 13);
-        ctx.font = '400 9px "Space Mono", monospace';
-        ctx.fillStyle = '#777777';
+        
+        ctx.save();
+        ctx.fillStyle = '#1A1A1E';
+        ctx.strokeStyle = '#FF5500';
+        ctx.lineWidth = 1;
+        roundRect(ctx, mx - tw / 2 - 6, my - 9, tw + 12, 18, 5);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#FFFFFF';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(conn.label, mx, my + 1);
+        ctx.restore();
       }
     });
 
@@ -464,15 +499,15 @@ function SystemDesignView({ DATA, isActive }) {
   };
 
   // Arrowhead at end of connection
-  const drawArrowhead = (ctx, x, y, color) => {
+  const drawArrowhead = (ctx, x, y, angle, color) => {
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(-Math.PI / 2);
+    ctx.rotate(angle);
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.lineTo(-4, -8);
-    ctx.lineTo(4, -8);
+    ctx.lineTo(-7, -4);
+    ctx.lineTo(-7, 4);
     ctx.closePath();
     ctx.fill();
     ctx.restore();

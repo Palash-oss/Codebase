@@ -1702,57 +1702,56 @@ body {
 }
 
 /* ========================================================
-   NEON ORANGE LIQUID BUTTON HOVER & CLICK POP ANIMATION
+   ULTRA-PREMIUM SLOW LIQUID FILL & CLICK POP RIPPLE
    ======================================================== */
 
 .btn-liquid {
   position: relative !important;
   overflow: hidden !important;
   isolation: isolate;
-  transition: color 0.3s ease, border-color 0.3s ease, transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease !important;
+  transition: color 0.75s cubic-bezier(0.19, 1, 0.22, 1), border-color 0.75s cubic-bezier(0.19, 1, 0.22, 1), transform 0.4s cubic-bezier(0.19, 1, 0.22, 1), box-shadow 0.75s cubic-bezier(0.19, 1, 0.22, 1) !important;
 }
 
 .btn-liquid * {
   position: relative;
   z-index: 2;
-  transition: color 0.3s ease, stroke 0.3s ease;
+  transition: color 0.75s cubic-bezier(0.19, 1, 0.22, 1), stroke 0.75s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
-/* Fluid liquid rising wave background */
+/* Luxury ultra-smooth fluid liquid background fill */
 .btn-liquid::before {
   content: '';
   position: absolute;
-  top: 120%;
-  left: 50%;
-  width: 320%;
-  height: 320%;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: 100%;
   background: linear-gradient(135deg, #FF3300 0%, #FF6600 50%, #FF1100 100%);
-  border-radius: 42%;
-  transform: translate(-50%, 0) rotate(0deg);
-  transition: top 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: inherit;
+  transition: top 0.95s cubic-bezier(0.19, 1, 0.22, 1);
   z-index: 1;
   pointer-events: none;
 }
 
-/* Full 100% liquid fill with slosh motion on hover */
+/* Ultra-smooth slow 100% vertical slide-up liquid fill on hover */
 .btn-liquid:hover::before {
-  top: -110% !important;
-  transform: translate(-50%, 0) rotate(180deg);
-  animation: liquidSlosh 3.5s infinite linear;
+  top: 0% !important;
 }
 
 .btn-liquid:hover,
 .btn-liquid:hover *,
 .btn-liquid:hover span,
-.btn-action.btn-liquid:hover {
+.btn-action:hover,
+.btn-action.btn-liquid:hover,
+.btn-action.btn-liquid:hover span {
   color: #FFFFFF !important;
   border-color: #FF5500 !important;
   font-weight: 700 !important;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7) !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8) !important;
 }
 
 .btn-liquid:hover {
-  box-shadow: 0 0 18px rgba(255, 77, 0, 0.7), inset 0 0 8px rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 0 25px rgba(255, 77, 0, 0.8), inset 0 0 12px rgba(255, 255, 255, 0.4) !important;
   transform: translateY(-1.5px);
 }
 
@@ -1761,15 +1760,15 @@ body {
   fill: none;
 }
 
-/* Click/Pop liquid expansion ripple */
+/* Click/Pop liquid expansion ripple bubble */
 .btn-liquid::after {
   content: '';
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 10px;
-  height: 10px;
-  background: rgba(255, 255, 255, 0.85);
+  width: 14px;
+  height: 14px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(255, 120, 0, 0.75) 45%, rgba(255, 77, 0, 0) 100%);
   border-radius: 50%;
   transform: translate(-50%, -50%) scale(0);
   opacity: 0;
@@ -1778,35 +1777,23 @@ body {
 }
 
 .btn-liquid:active::after {
-  animation: liquidPop 0.4s ease-out;
+  animation: liquidPop 1.1s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
 .btn-liquid:active {
-  transform: scale(0.95);
-}
-
-@keyframes liquidSlosh {
-  0% {
-    transform: translate(-50%, 0) rotate(0deg);
-  }
-  50% {
-    transform: translate(-50%, -4%) rotate(180deg);
-  }
-  100% {
-    transform: translate(-50%, 0) rotate(360deg);
-  }
+  transform: scale(0.96);
 }
 
 @keyframes liquidPop {
   0% {
     transform: translate(-50%, -50%) scale(0);
-    opacity: 0.9;
+    opacity: 0.95;
   }
-  50% {
-    opacity: 0.5;
+  30% {
+    opacity: 0.7;
   }
   100% {
-    transform: translate(-50%, -50%) scale(28);
+    transform: translate(-50%, -50%) scale(36);
     opacity: 0;
   }
 }

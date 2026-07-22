@@ -39,7 +39,10 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const CACHE_FILE = path.join(os.tmpdir(), 'codebase-xray-latest-cache.json');
+const CACHE_DIR = path.join(__dirname, '.cache');
+if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
+const CACHE_FILE = path.join(CACHE_DIR, 'latest-analysis.json');
+
 let latestAnalysisResult = null;
 try {
   if (fs.existsSync(CACHE_FILE)) {
@@ -51,6 +54,28 @@ try {
   console.warn('[X-RAY] Failed to load latest result cache:', cacheErr.message);
 }
 let lastScanResult = latestAnalysisResult;
+
+// Helper: always get the freshest scan result — re-reads disk cache if memory is empty
+function getLastScanResult() {
+  if (lastScanResult) return lastScanResult;
+  if (latestAnalysisResult) {
+    lastScanResult = latestAnalysisResult;
+    return lastScanResult;
+  }
+  // Last resort: try re-reading cache file from disk
+  try {
+    if (fs.existsSync(CACHE_FILE)) {
+      const rawCache = fs.readFileSync(CACHE_FILE, 'utf8');
+      latestAnalysisResult = JSON.parse(rawCache);
+      lastScanResult = latestAnalysisResult;
+      console.log('[X-RAY] Re-loaded analysis cache from disk on demand.');
+      return lastScanResult;
+    }
+  } catch (e) {
+    console.warn('[X-RAY] Failed to re-read cache on demand:', e.message);
+  }
+  return null;
+}
 
 function saveAnalysisCache(result) {
   try {
@@ -292,21 +317,15 @@ app.post(['/chat', '/api/chat'], async (req, res) => {
 // POST /api/impact -> Compute impact radius for a selected file
 app.post('/api/impact', (req, res) => {
   const { relativePath } = req.body;
-  if (!lastScanResult) {
-    // Try to fallback to latestAnalysisResult if it exists
-    if (latestAnalysisResult) {
-      lastScanResult = latestAnalysisResult;
-    } else {
-      return res.status(400).json({ error: 'No scan available. Please scan a project first.' });
-    }
+  const scan = getLastScanResult();
+  if (!scan) {
+    return res.status(400).json({ error: 'No scan available. Please scan a project first.' });
   }
-
   if (!relativePath) {
     return res.status(400).json({ error: 'Missing relativePath parameter.' });
   }
-
   try {
-    const impact = computeImpactRadius(relativePath, lastScanResult.graph.nodes, lastScanResult.graph.edges);
+    const impact = computeImpactRadius(relativePath, scan.graph.nodes, scan.graph.edges);
     res.json(impact);
   } catch (error) {
     console.error('[X-RAY] Error computing impact radius:', error);
@@ -331,19 +350,16 @@ app.post('/api/reset', (req, res) => {
 
 // POST /api/blast-radius -> Compute blast radius for a selected file
 app.post('/api/blast-radius', (req, res) => {
-  if (!lastScanResult) {
-    if (latestAnalysisResult) {
-      lastScanResult = latestAnalysisResult;
-    } else {
-      return res.status(400).json({ error: 'Scan a project first' });
-    }
+  const scan = getLastScanResult();
+  if (!scan) {
+    return res.status(400).json({ error: 'Scan a project first' });
   }
   const { relativePath } = req.body;
   if (!relativePath) {
     return res.status(400).json({ error: 'relativePath is required' });
   }
   try {
-    const result = computeBlastRadius(relativePath, lastScanResult.graph.nodes, lastScanResult.graph.edges);
+    const result = computeBlastRadius(relativePath, scan.graph.nodes, scan.graph.edges);
     res.json(result);
   } catch (err) {
     console.error('[X-RAY] Error computing blast radius:', err);

@@ -388,82 +388,90 @@ export function buildSystemDesign(DATA, fileList = []) {
   };
 
   // Connection mapping based on present components
-  if (components.find(c => c.id === 'dns')) {
-    addConn('client-web', 'dns', 'DNS lookup');
-    if (components.find(c => c.id === 'client-mobile')) {
-      addConn('client-mobile', 'dns', 'DNS lookup');
-    }
-    if (components.find(c => c.id === 'cdn')) {
+  const hasClientWeb = components.some(c => c.id === 'client-web');
+  const hasClientMobile = components.some(c => c.id === 'client-mobile');
+  const hasCliApp = components.some(c => c.id === 'cli-app');
+  const hasApiGateway = components.some(c => c.id === 'api-gateway');
+  const hasDns = components.some(c => c.id === 'dns');
+  const hasCdn = components.some(c => c.id === 'cdn');
+  const hasLoadBalancer = components.some(c => c.id === 'load-balancer');
+  const hasDatabase = components.some(c => c.id === 'database');
+  const hasAuth = components.some(c => c.id === 'auth');
+  const hasCache = components.some(c => c.id === 'cache');
+  const hasStorage = components.some(c => c.id === 'storage');
+  const hasQueue = components.some(c => c.id === 'message-queue');
+  const hasWorker = components.some(c => c.id === 'worker');
+  const hasMonitoring = components.some(c => c.id === 'monitoring');
+
+  // Client / Network level connections
+  if (hasDns) {
+    if (hasClientWeb) addConn('client-web', 'dns', 'DNS lookup');
+    if (hasClientMobile) addConn('client-mobile', 'dns', 'DNS lookup');
+    if (hasCdn) {
       addConn('dns', 'cdn', 'resolves to');
-      addConn('cdn', 'api-gateway', 'cache miss / origin');
-    } else {
+      if (hasApiGateway) addConn('cdn', 'api-gateway', 'origin fetch');
+      else if (hasDatabase) addConn('cdn', 'database', 'fetch static/data');
+    } else if (hasLoadBalancer) {
+      addConn('dns', 'load-balancer', 'resolves to');
+    } else if (hasApiGateway) {
       addConn('dns', 'api-gateway', 'resolves to');
     }
-  } else if (components.find(c => c.id === 'client-web') && components.find(c => c.id === 'api-gateway')) {
-    addConn('client-web', 'api-gateway', 'HTTP / REST API');
+  }
+
+  if (hasLoadBalancer && hasApiGateway) {
+    addConn('load-balancer', 'api-gateway', 'routes traffic');
+  }
+
+  // Client -> Gateway / Service / Database direct fallbacks
+  if (hasClientWeb) {
+    if (hasApiGateway) addConn('client-web', 'api-gateway', 'HTTP / REST API');
+    else if (hasAuth) addConn('client-web', 'auth', 'auth login');
+    else if (hasDatabase) addConn('client-web', 'database', 'direct query');
+  }
+  if (hasClientMobile) {
+    if (hasApiGateway) addConn('client-mobile', 'api-gateway', 'Mobile API');
+    else if (hasDatabase) addConn('client-mobile', 'database', 'sync');
   }
 
   // CLI App connections
-  if (components.find(c => c.id === 'cli-app')) {
-    if (components.find(c => c.id === 'database')) addConn('cli-app', 'database', 'queries');
-    if (components.find(c => c.id === 'storage')) addConn('cli-app', 'storage', 'reads/writes');
+  if (hasCliApp) {
+    if (hasApiGateway) addConn('cli-app', 'api-gateway', 'CLI API invocation');
+    if (hasDatabase) addConn('cli-app', 'database', 'direct queries');
+    if (hasStorage) addConn('cli-app', 'storage', 'reads/writes');
   }
 
-  // Load Balancer -> API Gateway
-  if (components.find(c => c.id === 'load-balancer')) {
-    addConn('load-balancer', 'api-gateway', 'routes traffic');
-    const dnsToApi = connections.find(c => c.from === 'dns' && c.to === 'api-gateway');
-    if (dnsToApi) {
-      dnsToApi.to = 'load-balancer';
-      dnsToApi.label = 'resolves to';
+  // Backend Gateway / Service level connections
+  if (hasApiGateway) {
+    if (hasAuth) addConn('api-gateway', 'auth', 'validates token');
+    if (hasDatabase) addConn('api-gateway', 'database', 'ORM / SQL query');
+    if (hasCache) addConn('api-gateway', 'cache', 'cache lookup');
+    if (hasQueue) addConn('api-gateway', 'message-queue', 'publish event');
+    if (hasStorage) addConn('api-gateway', 'storage', 'file upload');
+    if (hasMonitoring) addConn('api-gateway', 'monitoring', 'logs / metrics', 'dashed');
+  } else {
+    // If no API Gateway, connect Auth directly to Database / Cache
+    if (hasAuth && hasDatabase) addConn('auth', 'database', 'user query');
+    if (hasCache && hasDatabase) addConn('cache', 'database', 'cache miss → DB');
+  }
+
+  if (hasQueue && hasWorker) {
+    addConn('message-queue', 'worker', 'subscribe / consume');
+  }
+  if (hasWorker && hasDatabase) {
+    addConn('worker', 'database', 'async write');
+  }
+
+  // Fallback check: Guarantee EVERY component has at least 1 connection
+  components.forEach((comp, idx) => {
+    const isConnected = connections.some(c => c.from === comp.id || c.to === comp.id);
+    if (!isConnected) {
+      // Find nearest non-self component
+      const target = components.find(c => c.id !== comp.id);
+      if (target) {
+        connections.push({ from: comp.id, to: target.id, label: 'depends on', style: 'dashed' });
+      }
     }
-    addConn('dns', 'load-balancer', 'resolves to');
-  }
-
-  // API Gateway -> Auth
-  if (components.find(c => c.id === 'auth')) {
-    addConn('api-gateway', 'auth', 'validates token');
-  }
-
-  // API Gateway -> Database
-  if (components.find(c => c.id === 'database')) {
-    addConn('api-gateway', 'database', 'ORM query');
-  }
-
-  // API Gateway -> Cache
-  if (components.find(c => c.id === 'cache')) {
-    addConn('api-gateway', 'cache', 'cache lookup');
-  }
-
-  // Cache -> Database
-  if (components.find(c => c.id === 'cache') && components.find(c => c.id === 'database')) {
-    addConn('cache', 'database', 'cache miss → DB');
-  }
-
-  // API Gateway -> Message Queue
-  if (components.find(c => c.id === 'message-queue')) {
-    addConn('api-gateway', 'message-queue', 'pub');
-  }
-
-  // Message Queue -> Worker
-  if (components.find(c => c.id === 'message-queue') && components.find(c => c.id === 'worker')) {
-    addConn('message-queue', 'worker', 'sub');
-  }
-
-  // Worker -> Database
-  if (components.find(c => c.id === 'worker') && components.find(c => c.id === 'database')) {
-    addConn('worker', 'database', 'write');
-  }
-
-  // API Gateway -> Storage
-  if (components.find(c => c.id === 'storage')) {
-    addConn('api-gateway', 'storage', 'upload');
-  }
-
-  // API Gateway -> Monitoring (dashed for observability)
-  if (components.find(c => c.id === 'monitoring')) {
-    addConn('api-gateway', 'monitoring', 'logs / traces', 'dashed');
-  }
+  });
 
   // ========================================
   // BUILD ZONES (wrap components by tier)
@@ -591,40 +599,40 @@ export function buildSystemDesign(DATA, fileList = []) {
         row = 5; col = 2;
         break;
       default:
-        const tierToRow = {
-          client: 0,
-          network: 1,
-          edge: 1,
-          gateway: 2,
-          service: 3,
-          data: 4,
-          cache: 4,
-          queue: 4,
-          cloud: 4,
-          observability: 5
-        };
-        row = tierToRow[comp.tier] ?? 5;
         col = 1;
         break;
     }
     return { row, col };
   };
 
-  // Position each component
-  const occupied = new Set();
+  // Determine active visual rows for tiers to avoid empty gaps
+  const activeTiers = tierOrder.filter(tier => components.some(c => c.tier === tier));
+  const tierToVisualRow = {};
+  activeTiers.forEach((tier, index) => {
+    tierToVisualRow[tier] = index;
+  });
+
+  // Group components by visual row and calculate centered X/Y
+  const rows = {};
   components.forEach(comp => {
-    let { row, col } = getGridPosition(comp);
-    // Resolve collisions
-    while (occupied.has(`${row},${col}`)) {
-      col = (col + 1) % 3;
-    }
-    occupied.add(`${row},${col}`);
-    
-    // Calculate coordinates with center alignment
-    comp.x = CANVAS_W / 2 - COMP_W / 2 + (col - 1) * (COMP_W + COMP_GAP);
-    comp.y = 60 + row * ROW_HEIGHT;
-    comp.w = COMP_W;
-    comp.h = COMP_H;
+    const visualRow = tierToVisualRow[comp.tier] ?? 0;
+    comp.visualRow = visualRow;
+    if (!rows[visualRow]) rows[visualRow] = [];
+    rows[visualRow].push(comp);
+  });
+
+  Object.entries(rows).forEach(([rStr, compsInRow]) => {
+    const r = parseInt(rStr, 10);
+    const count = compsInRow.length;
+    const totalW = count * COMP_W + (count - 1) * COMP_GAP;
+    const startX = CANVAS_W / 2 - totalW / 2;
+
+    compsInRow.forEach((comp, idx) => {
+      comp.x = startX + idx * (COMP_W + COMP_GAP);
+      comp.y = 60 + r * ROW_HEIGHT;
+      comp.w = COMP_W;
+      comp.h = COMP_H;
+    });
   });
 
   // Compute zone bounds based on positioned components
