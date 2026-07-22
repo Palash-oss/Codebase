@@ -1,10 +1,8 @@
 import express from 'express';
 import multer from 'multer';
 import AdmZip from 'adm-zip';
-import simpleGit from 'simple-git';
 import cors from 'cors';
 import open from 'open';
-import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -39,8 +37,23 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const CACHE_DIR = path.join(__dirname, '.cache');
-if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
+// Setup cache directory with read-only filesystem fallbacks
+let CACHE_DIR = path.join(__dirname, '.cache');
+try {
+  if (!fs.existsSync(CACHE_DIR)) {
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
+  }
+} catch (err) {
+  console.warn('[X-RAY] Cache directory in __dirname not writable. Falling back to system temp:', err.message);
+  CACHE_DIR = path.join(os.tmpdir(), 'codebase-xray-cache');
+  if (!fs.existsSync(CACHE_DIR)) {
+    try {
+      fs.mkdirSync(CACHE_DIR, { recursive: true });
+    } catch (tempErr) {
+      console.error('[X-RAY] Critical: Failed to create cache directory in temp:', tempErr.message);
+    }
+  }
+}
 const CACHE_FILE = path.join(CACHE_DIR, 'latest-analysis.json');
 
 let latestAnalysisResult = null;

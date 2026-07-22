@@ -354,13 +354,19 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
                           onClick={async () => {
                             const envVarName = fin.message.match(/process\.env\.([A-Z0-9_]+)/)?.[1];
                             if (envVarName) {
-                              const res = await fetch('/api/autofix', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ action: 'env', missingEnvVars: [envVarName] })
-                              });
-                              const data = await res.json();
-                              setToastMsg(data.message || 'Auto-fixed environment variable!');
+                              try {
+                                const res = await fetch('/api/autofix', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ action: 'env', missingEnvVars: [envVarName] })
+                                });
+                                if (!res.ok) throw new Error(`Server returned status: ${res.status}`);
+                                const data = await res.json();
+                                setToastMsg(data.message || 'Auto-fixed environment variable!');
+                              } catch (err) {
+                                console.error('[X-RAY] Error running autofix:', err);
+                                setToastMsg('Failed to run environment auto-fix.');
+                              }
                             }
                           }}
                           className="btn-liquid"

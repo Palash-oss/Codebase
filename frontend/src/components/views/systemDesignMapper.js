@@ -759,6 +759,18 @@ export function buildSystemDesign(DATA, fileList = []) {
 
   // Prune components that have 0 files and are not explicitly detected
   const activeComponents = components.filter(c => c.files.length > 0 || c.isDetected);
+  const activeComponentIds = new Set(activeComponents.map(c => c.id));
 
-  return { components: activeComponents, zones, connections };
+  // Prune zones that have no active components
+  const activeZones = zones.filter(z => {
+    const tier = z.id.replace('-zone', '');
+    return activeComponents.some(c => c.tier === tier);
+  });
+
+  // Prune connections that reference pruned components
+  const activeConnections = connections.filter(conn =>
+    activeComponentIds.has(conn.from) && activeComponentIds.has(conn.to)
+  );
+
+  return { components: activeComponents, zones: activeZones, connections: activeConnections };
 }

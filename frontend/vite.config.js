@@ -10,10 +10,10 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/upload': 'http://localhost:3000',
-      '/github': 'http://localhost:3000',
-      '/chat': 'http://localhost:3000',
-      '/api': 'http://localhost:3000',
+      '/upload': 'http://localhost:3001',
+      '/github': 'http://localhost:3001',
+      '/chat': 'http://localhost:3001',
+      '/api': 'http://localhost:3001',
     }
   }
 })

@@ -44,11 +44,12 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
   const handleFetchGhAction = async () => {
     try {
       const res = await fetch('/api/generate-gh-action');
+      if (!res.ok) throw new Error(`Server returned status: ${res.status}`);
       const resData = await res.json();
       setGhActionYaml(resData.content || '');
       setShowPrGuardModal(true);
     } catch (e) {
-      console.error(e);
+      console.error('[X-RAY] Error fetching GitHub action config:', e);
     }
   };
 
@@ -63,11 +64,12 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
           files: files
         })
       });
+      if (!res.ok) throw new Error(`Server returned status: ${res.status}`);
       const resData = await res.json();
       setMermaidCode(resData.mermaid || '');
       setShowExportModal(true);
     } catch (e) {
-      console.error(e);
+      console.error('[X-RAY] Error exporting Mermaid topology:', e);
     }
   };
 

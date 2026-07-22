@@ -374,13 +374,20 @@ function LandingPage({ onAnalysisSuccess }) {
         method: 'POST',
         body: formData
       });
-      const data = await response.json();
+      
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (jsonErr) {
+        // Response was not JSON (e.g. server returned an HTML error page)
+      }
+
       if (response.ok) {
         handleSuccess();
       } else {
         stopLoading();
         setLoading(false);
-        setErrorMessage(data.error || 'Failed to analyze project.');
+        setErrorMessage(data.error || `Server error (status: ${response.status}).`);
       }
     } catch (err) {
       stopLoading();
@@ -399,13 +406,20 @@ function LandingPage({ onAnalysisSuccess }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: githubUrl })
       });
-      const data = await response.json();
+      
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (jsonErr) {
+        // Response was not JSON (e.g. server returned an HTML error page)
+      }
+
       if (response.ok) {
         handleSuccess();
       } else {
         stopLoading();
         setLoading(false);
-        setErrorMessage(data.error || 'Failed to clone and analyze repo.');
+        setErrorMessage(data.error || `Server error (status: ${response.status}).`);
       }
     } catch (err) {
       stopLoading();
