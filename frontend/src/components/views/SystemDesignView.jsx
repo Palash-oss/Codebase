@@ -5,16 +5,24 @@ function SystemDesignView({ DATA, isActive }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
 
-  // State for canvas controls
+  // State for canvas controls & Architecture Perspectives
   const [zoomText, setZoomText] = useState('100%');
   const [hoveredId, setHoveredId] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
+  // 4 Role Perspectives (Cloud Architect, DevOps Engineer, System Architect, Software Engineer)
+  const [perspective, setPerspective] = useState('cloud');
+
   // Refactoring Simulator & Security Scope state
   const [isSimulatorMode, setIsSimulatorMode] = useState(false);
   const [disabledCompIds, setDisabledCompIds] = useState(new Set());
   const [showSecurityModal, setShowSecurityModal] = useState(false);
+
+  // Export Modal State (Selective or All 4 Views in PNG, JPEG, PDF)
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportTarget, setExportTarget] = useState('current'); // 'current' | 'all'
+  const [exportFormat, setExportFormat] = useState('png'); // 'png' | 'jpeg' | 'pdf'
 
   // Refs for tracking canvas transforms and diagram state
   const transformRef = useRef({ x: 0, y: 0, scale: 1 });
@@ -24,7 +32,7 @@ function SystemDesignView({ DATA, isActive }) {
   // Sync selectedId with hover for click handling
   const selectedCompIdRef = useRef(null);
 
-  // Only initialize and draw when view becomes active
+  // Only initialize and draw when view becomes active or perspective changes
   useEffect(() => {
     if (!isActive) {
       setIsInitialized(false);
@@ -41,7 +49,7 @@ function SystemDesignView({ DATA, isActive }) {
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [isActive, DATA]);
+  }, [isActive, DATA, perspective]);
 
   const initializeCanvas = () => {
     const canvas = canvasRef.current;
@@ -66,12 +74,12 @@ function SystemDesignView({ DATA, isActive }) {
       return;
     }
 
-    // Build system design data
-    const raw = buildSystemDesign(DATA, DATA.files || []);
-    computeLayout(raw.zones, raw.components);
+    // Build system design data for selected perspective
+    const raw = buildSystemDesign(DATA, DATA?.files || [], perspective);
     sysDataRef.current = raw;
+    computeLayout(raw.zones, raw.components);
 
-    // Auto-fit the diagram to the canvas
+    // Auto-fit the diagram to the canvas with non-negative scale bounds
     if (raw.components.length > 0) {
       const allX = raw.components.map(c => c.x);
       const allY = raw.components.map(c => c.y);
@@ -79,13 +87,18 @@ function SystemDesignView({ DATA, isActive }) {
       const allY2 = raw.components.map(c => c.y + c.h);
       const diagramW = Math.max(...allX2) - Math.min(...allX) + 80;
       const diagramH = Math.max(...allY2) - Math.min(...allY) + 80;
-      const fitScale = Math.min(
-        (W - 60) / diagramW,
-        (H - 60) / diagramH,
-        1.2
-      );
-      const offsetX = (W - diagramW * fitScale) / 2;
-      const offsetY = 20;
+
+      const availW = Math.max(W - 60, 400);
+      const availH = Math.max(H - 60, 400);
+
+      const fitScale = Math.max(0.45, Math.min(
+        availW / (diagramW || 800),
+        availH / (diagramH || 600),
+        1.1
+      ));
+
+      const offsetX = Math.max(20, (W - diagramW * fitScale) / 2);
+      const offsetY = 30;
       transformRef.current = { x: offsetX, y: offsetY, scale: fitScale };
       setZoomText(Math.round(fitScale * 100) + '%');
     }
@@ -110,141 +123,88 @@ function SystemDesignView({ DATA, isActive }) {
     drawAnimationRef.current = requestAnimationFrame(tick);
   };
 
-  // Layout computation - positions components and zones
-  const computeLayout = (zones, components) => {
-    const canvas = canvasRef.current;
-    const CANVAS_W = (canvas ? canvas.offsetWidth : 1200) || 1200;
-    const ROW_HEIGHT = 200;
-    const COMP_W = 180;
-    const COMP_H = 110;
-    const COMP_GAP = 80;
-    const ZONE_PADDING = 24;
-
-    const tierOrder = [
-      'client', 'network', 'edge', 'gateway', 'service',
-      'data', 'cache', 'queue', 'cloud', 'observability'
-    ];
-
-    const tierZones = {};
-    for (const tier of tierOrder) {
-      const comps = components.filter(c => c.tier === tier);
-      if (comps.length > 0) {
-        tierZones[tier] = comps;
-      }
-    }
-
-    const getGridPosition = (comp) => {
-      let row = 5;
-      let col = 1;
-
-      switch (comp.id) {
-        case 'client-web':
-          row = 0; col = 1;
-          break;
-        case 'client-mobile':
-          row = 0; col = 1;
-          break;
-        case 'dns':
-          row = 1; col = 0;
-          break;
-        case 'cdn':
-          row = 1; col = 2;
-          break;
-        case 'load-balancer':
-          row = 1; col = 1;
-          break;
-        case 'api-gateway':
-          row = 2; col = 1;
-          break;
-        case 'auth':
-          row = 3; col = 0;
-          break;
-        case 'compute':
-          row = 3; col = 1;
-          break;
-        case 'worker':
-          row = 3; col = 2;
-          break;
-        case 'database':
-          row = 4; col = 1;
-          break;
-        case 'cache':
-          row = 4; col = 2;
-          break;
-        case 'storage':
-          row = 4; col = 0;
-          break;
-        case 'message-queue':
-          row = 4; col = 0;
-          break;
-        case 'supabase':
-          row = 4; col = 1;
-          break;
-        case 'firebase':
-          row = 4; col = 1;
-          break;
-        case 'monitoring':
-          row = 5; col = 0;
-          break;
-        case 'cicd':
-          row = 5; col = 1;
-          break;
-        case 'testing':
-          row = 5; col = 2;
-          break;
-        default:
-          const tierToRow = {
-            client: 0,
-            network: 1,
-            edge: 1,
-            gateway: 2,
-            service: 3,
-            data: 4,
-            cache: 4,
-            queue: 4,
-            cloud: 4,
-            observability: 5
-          };
-          row = tierToRow[comp.tier] ?? 5;
-          col = 1;
-          break;
-      }
-      return { row, col };
-    };
-
-    // Position each component
-    const occupied = new Set();
-    components.forEach(comp => {
-      let { row, col } = getGridPosition(comp);
-      // Resolve collisions
-      while (occupied.has(`${row},${col}`)) {
-        col = (col + 1) % 3;
-      }
-      occupied.add(`${row},${col}`);
-      
-      // Calculate coordinates with center alignment
-      comp.x = CANVAS_W / 2 - COMP_W / 2 + (col - 1) * (COMP_W + COMP_GAP);
-      comp.y = 60 + row * ROW_HEIGHT;
-      comp.w = COMP_W;
-      comp.h = COMP_H;
-    });
-
-    // Compute zone bounds based on positioned components
-    for (const tier of tierOrder) {
-      if (!tierZones[tier]) continue;
-      const comps = tierZones[tier];
-      const zone = zones.find(z => z.id === `${tier}-zone`);
+  // Helper to re-calculate zone bounds live as nodes are interactively dragged
+  const updateZoneBounds = () => {
+    if (!sysDataRef.current) return;
+    const tierOrder = ['client', 'gateway', 'service', 'data', 'devops'];
+    tierOrder.forEach(tier => {
+      const comps = sysDataRef.current.components.filter(c => c.tier === tier);
+      const zone = sysDataRef.current.zones.find(z => z.id === `${tier}-zone`);
       if (zone && comps.length > 0) {
         const minX = Math.min(...comps.map(c => c.x));
         const maxX = Math.max(...comps.map(c => c.x + c.w));
         const minY = Math.min(...comps.map(c => c.y));
         const maxY = Math.max(...comps.map(c => c.y + c.h));
 
-        zone.x = minX - ZONE_PADDING;
-        zone.y = minY - ZONE_PADDING - 18;
-        zone.w = maxX - minX + ZONE_PADDING * 2;
-        zone.h = maxY - minY + ZONE_PADDING * 2 + 18;
+        zone.x = minX - 24;
+        zone.y = minY - 36;
+        zone.w = maxX - minX + 48;
+        zone.h = maxY - minY + 56;
       }
+    });
+  };
+
+  // Layout computation - positions components and zones with ZERO OVERLAP
+  const computeLayout = (zones, components) => {
+    const canvas = canvasRef.current;
+    const CANVAS_W = (canvas ? canvas.offsetWidth : 1200) || 1200;
+    const ROW_HEIGHT = 240;
+    const COMP_W = 200;
+    const COMP_H = 105;
+    const COMP_GAP = 90;
+
+    const tierOrder = ['client', 'gateway', 'service', 'data', 'devops'];
+
+    // Collect active tiers present in components
+    const activeTiers = tierOrder.filter(tier => components.some(c => c.tier === tier));
+    const tierToRowIndex = {};
+    activeTiers.forEach((tier, idx) => {
+      tierToRowIndex[tier] = idx;
+    });
+
+    // Group components by tier row
+    const rowGroups = {};
+    components.forEach(comp => {
+      const rowIndex = tierToRowIndex[comp.tier] ?? 0;
+      comp.rowIndex = rowIndex;
+      if (!rowGroups[rowIndex]) rowGroups[rowIndex] = [];
+      rowGroups[rowIndex].push(comp);
+    });
+
+    // Position each component centered horizontally within its tier row
+    Object.entries(rowGroups).forEach(([rStr, compsInRow]) => {
+      const r = parseInt(rStr, 10);
+      const count = compsInRow.length;
+      const totalW = count * COMP_W + (count - 1) * COMP_GAP;
+      const startX = Math.max(50, CANVAS_W / 2 - totalW / 2);
+
+      compsInRow.forEach((comp, idx) => {
+        comp.x = startX + idx * (COMP_W + COMP_GAP);
+        comp.y = 150 + r * ROW_HEIGHT;
+        comp.w = COMP_W;
+        comp.h = COMP_H;
+      });
+    });
+
+    // Compute non-overlapping zone bounds
+    if (sysDataRef.current) {
+      updateZoneBounds();
+    } else {
+      activeTiers.forEach(tier => {
+        const comps = components.filter(c => c.tier === tier);
+        const zone = zones.find(z => z.id === `${tier}-zone`);
+        if (zone && comps.length > 0) {
+          const minX = Math.min(...comps.map(c => c.x));
+          const maxX = Math.max(...comps.map(c => c.x + c.w));
+          const minY = Math.min(...comps.map(c => c.y));
+          const maxY = Math.max(...comps.map(c => c.y + c.h));
+
+          zone.x = minX - 24;
+          zone.y = minY - 36;
+          zone.w = maxX - minX + 48;
+          zone.h = maxY - minY + 56;
+        }
+      });
     }
   };
 
@@ -265,43 +225,71 @@ function SystemDesignView({ DATA, isActive }) {
     const canvas = canvasRef.current;
     if (!canvas || !sysDataRef.current) return;
 
-    const ctx = canvas.getContext('2d');
-    const W = canvas.offsetWidth;
-    const H = canvas.offsetHeight;
-    const transform = transformRef.current;
-    const dpr = window.devicePixelRatio || 1;
-    ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
-    ctx.save();
-    ctx.translate(transform.x, transform.y);
-    ctx.scale(transform.scale, transform.scale);
+    try {
+      const ctx = canvas.getContext('2d');
+      const W = canvas.offsetWidth;
+      const H = canvas.offsetHeight;
+      const transform = transformRef.current;
+      const dpr = window.devicePixelRatio || 1;
+      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+      ctx.save();
+      ctx.translate(transform.x, transform.y);
+      ctx.scale(transform.scale, transform.scale);
 
-    // Background - dark #0a0a0a
-    ctx.fillStyle = '#0a0a0a';
-    const worldW = W / transform.scale;
-    const worldH = H / transform.scale;
-    ctx.fillRect(-transform.x / transform.scale, -transform.y / transform.scale, worldW, worldH);
+      // Background - Crisp White Base #FFFFFF
+      ctx.fillStyle = '#FFFFFF';
+      const worldW = W / transform.scale;
+      const worldH = H / transform.scale;
+      const worldX = -transform.x / transform.scale;
+      const worldY = -transform.y / transform.scale;
+      ctx.fillRect(worldX, worldY, worldW, worldH);
 
-    // Title
-    ctx.fillStyle = '#FF4D00';
-    ctx.fillRect(32, 24, 4, 28);
-    ctx.font = '600 17px "Space Grotesk", sans-serif';
-    ctx.fillStyle = '#F5F0E8';
-    ctx.fillText(`${DATA.project.name} — System Design`, 44, 44);
+      // Subtle Dot Grid
+      ctx.fillStyle = '#E2E8F0';
+      const gridStep = 40;
+      const startX = Math.floor(worldX / gridStep) * gridStep;
+      const startY = Math.floor(worldY / gridStep) * gridStep;
+      for (let gx = startX; gx < worldX + worldW; gx += gridStep) {
+        for (let gy = startY; gy < worldY + worldH; gy += gridStep) {
+          ctx.beginPath();
+          ctx.arc(gx, gy, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Title
+      const perspectiveTitles = {
+        cloud: 'Cloud Infrastructure Topology (Cloud Architect Perspective)',
+        devops: 'DevOps & CI/CD Pipeline (DevOps Engineer Perspective)',
+        system: 'Multi-Tier System Architecture (System Architect Perspective)',
+        software: 'Software & Code Module Flow (Software Engineer Perspective)'
+      };
+      const projName = DATA?.project?.name || DATA?.name || 'System Architecture';
+      ctx.fillStyle = '#FF5E1A';
+      ctx.fillRect(32, 60, 4, 28);
+      ctx.font = '700 18px "Space Grotesk", sans-serif';
+      ctx.fillStyle = '#111827';
+      ctx.fillText(`${projName} — ${perspectiveTitles[perspective] || 'System Architecture'}`, 44, 80);
 
     // Draw zones (dashed rectangles with labels)
     sysDataRef.current.zones.forEach(zone => {
       ctx.save();
       ctx.strokeStyle = zone.color;
-      ctx.lineWidth = 1;
-      ctx.setLineDash([6, 4]);
-      roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 10);
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([8, 5]);
+      roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 12);
       ctx.stroke();
       ctx.setLineDash([]);
 
+      // Light zone background fill
+      ctx.fillStyle = zone.color + '0B';
+      roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 12);
+      ctx.fill();
+
       // Zone label
-      ctx.font = '700 10px "Space Grotesk", sans-serif';
+      ctx.font = '800 11px "Space Grotesk", sans-serif';
       ctx.fillStyle = zone.color;
-      ctx.fillText(zone.label.toUpperCase(), zone.x + 10, zone.y + 14);
+      ctx.fillText(zone.label.toUpperCase(), zone.x + 12, zone.y + 16);
       ctx.restore();
     });
 
@@ -315,7 +303,6 @@ function SystemDesignView({ DATA, isActive }) {
       let x1, y1, x2, y2, cy1, cy2;
 
       if (sameRow) {
-        // Horizontal connection between components in the same row
         if (src.x < tgt.x) {
           x1 = src.x + src.w;
           y1 = src.y + src.h / 2;
@@ -330,7 +317,6 @@ function SystemDesignView({ DATA, isActive }) {
         cy1 = y1;
         cy2 = y2;
       } else {
-        // Vertical connection between different rows
         x1 = src.x + src.w / 2;
         y1 = src.y + src.h;
         x2 = tgt.x + tgt.w / 2;
@@ -339,14 +325,13 @@ function SystemDesignView({ DATA, isActive }) {
         cy2 = y2 - (y2 - y1) * 0.45;
       }
 
-      const lineColor = conn.style === 'dashed' ? '#FF7700' : '#FF4D00';
+      const lineColor = conn.style === 'dashed' ? '#FF2E93' : '#FF5E1A';
       ctx.strokeStyle = lineColor;
       ctx.lineWidth = 2.5;
       if (conn.style === 'dashed') ctx.setLineDash([6, 4]);
 
-      // Glow effect for connection lines
       ctx.save();
-      ctx.shadowColor = 'rgba(255, 77, 0, 0.4)';
+      ctx.shadowColor = 'rgba(255, 94, 26, 0.25)';
       ctx.shadowBlur = 6;
       ctx.beginPath();
       ctx.moveTo(x1, y1);
@@ -355,11 +340,9 @@ function SystemDesignView({ DATA, isActive }) {
       ctx.restore();
       ctx.setLineDash([]);
 
-      // Calculate arrowhead angle entering target
-      const angle = Math.atan2(y2 - cy2, x2 - (sameRow ? (src.x < tgt.x ? x1 : x1) : x2));
+      const angle = Math.atan2(y2 - cy2, x2 - (sameRow ? x1 : x2));
       drawArrowhead(ctx, x2, y2, angle, lineColor);
 
-      // Connection label pill badge
       if (conn.label) {
         ctx.font = '600 10px "Space Grotesk", sans-serif';
         const tw = ctx.measureText(conn.label).width;
@@ -367,14 +350,14 @@ function SystemDesignView({ DATA, isActive }) {
         const my = (y1 + y2) / 2;
         
         ctx.save();
-        ctx.fillStyle = '#1A1A1E';
-        ctx.strokeStyle = '#FF5500';
+        ctx.fillStyle = '#FFFFFF';
+        ctx.strokeStyle = '#CBD5E1';
         ctx.lineWidth = 1;
-        roundRect(ctx, mx - tw / 2 - 6, my - 9, tw + 12, 18, 5);
+        roundRect(ctx, mx - tw / 2 - 8, my - 10, tw + 16, 20, 6);
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = '#0F172A';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(conn.label, mx, my + 1);
@@ -394,83 +377,97 @@ function SystemDesignView({ DATA, isActive }) {
         ctx.globalAlpha = 0.4;
       }
 
-      // Selected glow
+      // Drop Shadow for cards
       if (isSelected && !isDisabled) {
-        ctx.shadowColor = '#FF4D00';
-        ctx.shadowBlur = 14;
+        ctx.shadowColor = 'rgba(255, 94, 26, 0.4)';
+        ctx.shadowBlur = 16;
       } else if (isHovered && !isDisabled) {
-        ctx.shadowColor = 'rgba(255, 77, 0, 0.4)';
-        ctx.shadowBlur = 8;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.12)';
+        ctx.shadowBlur = 12;
       } else {
-        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.05)';
+        ctx.shadowBlur = 6;
       }
 
-      // Box background
-      ctx.fillStyle = isDisabled ? '#220000' : isInferred ? '#111111' : '#1a1a1a';
-      roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 8);
+      // Box Card background (Crisp White)
+      ctx.fillStyle = '#FFFFFF';
+      roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 10);
       ctx.fill();
 
-      // Reset shadow for border, text, and icons
+      // Top Provider Accent Banner Bar (4px height)
+      ctx.fillStyle = comp.badgeColor || '#FF5E1A';
+      ctx.beginPath();
+      ctx.moveTo(comp.x + 10, comp.y);
+      ctx.lineTo(comp.x + comp.w - 10, comp.y);
+      ctx.quadraticCurveTo(comp.x + comp.w, comp.y, comp.x + comp.w, comp.y + 4);
+      ctx.lineTo(comp.x, comp.y + 4);
+      ctx.quadraticCurveTo(comp.x, comp.y, comp.x + 10, comp.y);
+      ctx.closePath();
+      ctx.fill();
+
       ctx.shadowBlur = 0;
 
-      // Box border
-      ctx.strokeStyle = isDisabled ? '#FF0000' : isSelected ? '#FF4D00' : isHovered ? '#FF4D00' : isInferred ? '#2a2a2a' : '#333333';
-      ctx.lineWidth = isSelected ? 1.5 : 1;
-      if (isInferred) ctx.setLineDash([4, 3]);
-      roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 8);
+      // Card Border
+      ctx.strokeStyle = isSelected ? '#FF5E1A' : isHovered ? '#FF2E93' : '#E2E8F0';
+      ctx.lineWidth = isSelected || isHovered ? 2 : 1;
+      roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 10);
       ctx.stroke();
-      ctx.setLineDash([]);
 
-      // Number badge - black circle top-left
-      ctx.fillStyle = '#000000';
+      // Number badge - top left
+      ctx.fillStyle = comp.badgeColor || '#111827';
       ctx.beginPath();
-      ctx.arc(comp.x + 14, comp.y + 14, 9, 0, Math.PI * 2);
+      ctx.arc(comp.x + 16, comp.y + 18, 9, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#FFFFFF';
       ctx.font = '700 9px "Space Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(comp.number, comp.x + 14, comp.y + 14);
+      ctx.fillText(comp.number, comp.x + 16, comp.y + 18);
 
-      // Component icon
-      drawComponentIcon(ctx, comp.icon, comp.x + comp.w / 2, comp.y + 22, isInferred);
+      // Component icon with official colorful logo
+      drawComponentIcon(ctx, comp, comp.x + comp.w / 2, comp.y + 24);
 
-      // Component label
-      ctx.font = '600 11px "Space Grotesk", sans-serif';
-      ctx.fillStyle = isInferred ? '#555555' : '#F5F0E8';
+      // Component title (Dark Obsidian #111827)
+      ctx.font = '700 12px "Space Grotesk", sans-serif';
+      ctx.fillStyle = '#111827';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       const label = truncate(comp.label, comp.w - 16, ctx);
-      ctx.fillText(label, comp.x + comp.w / 2, comp.y + 42);
+      ctx.fillText(label, comp.x + comp.w / 2, comp.y + 44);
 
-      // Sub-label
-      ctx.font = '400 9px "Space Mono", monospace';
-      ctx.fillStyle = isInferred ? '#444444' : '#888888';
+      // Sub-label (Slate #475569)
+      ctx.font = '500 10px "Space Grotesk", sans-serif';
+      ctx.fillStyle = '#475569';
       const sub = truncate(comp.sublabel, comp.w - 12, ctx);
-      ctx.fillText(sub, comp.x + comp.w / 2, comp.y + 56);
+      ctx.fillText(sub, comp.x + comp.w / 2, comp.y + 58);
 
-      // Draw actual file names inside the box
-      if (comp.files && comp.files.length > 0) {
-        ctx.font = `400 8px "Space Mono", monospace`;
-        ctx.fillStyle = isInferred ? '#333333' : 'rgba(245,240,232,0.4)';
-        ctx.textAlign = 'center';
-        const fileStartY = comp.y + 70;
-        comp.files.slice(0, 3).forEach((fp, fi) => {
-          const fname = fp.split('/').pop();
-          ctx.fillText(truncate(fname, comp.w - 16, ctx), comp.x + comp.w / 2, fileStartY + fi * 11);
-        });
-        if (comp.files.length > 3) {
-          ctx.fillStyle = 'rgba(245,240,232,0.25)';
-          ctx.fillText(`+${comp.files.length - 3} more`, comp.x + comp.w / 2, fileStartY + 3 * 11);
-        }
+      // Provider Tag Pill (Solid Vibrant Badge with White Bold Text)
+      if (comp.provider) {
+        ctx.font = '700 9px "Space Mono", monospace';
+        ctx.fillStyle = comp.badgeColor || '#FF5E1A';
+        roundRect(ctx, comp.x + comp.w / 2 - 48, comp.y + 72, 96, 16, 4);
+        ctx.fill();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText(comp.provider, comp.x + comp.w / 2, comp.y + 75);
       }
-      ctx.restore();
+
+      // File names count (Sharp Dark Slate #1E293B)
+      if (comp.files && comp.files.length > 0) {
+        ctx.font = `600 10px "Space Mono", monospace`;
+        ctx.fillStyle = '#334155';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${comp.files.length} source file${comp.files.length > 1 ? 's' : ''}`, comp.x + comp.w / 2, comp.y + 91);
+      }
+      ctx.restore(); // Restore component-level transform
     });
 
-    ctx.restore();
+      ctx.restore(); // Restore top-level world transform (matches line 230 ctx.save)
 
-    // Draw legend in screen space (bottom-right)
-    drawLegend(ctx, W, H);
+      // Draw legend in screen space (bottom-right)
+      drawLegend(ctx, W, H);
+  } catch (err) {
+    console.error('SystemDesignView draw error:', err);
+  }
   };
 
   // Truncate text to fit width
@@ -513,37 +510,83 @@ function SystemDesignView({ DATA, isActive }) {
     ctx.restore();
   };
 
-  // Draw component icons
-  const drawComponentIcon = (ctx, iconType, cx, cy, isInferred) => {
-    ctx.strokeStyle = isInferred ? '#444444' : '#888888';
-    ctx.lineWidth = 1.2;
+  // Official Tech & Cloud Logo Loader Cache
+  const logoCacheRef = useRef({});
+  const getTechLogoUrl = (comp) => {
+    const k = (comp.techKey || comp.label || comp.provider || '').toLowerCase();
+    if (k.includes('aws') || k.includes('amazon') || k.includes('s3') || k.includes('ec2') || k.includes('rds') || k.includes('lambda')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-original.svg';
+    }
+    if (k.includes('docker')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg';
+    }
+    if (k.includes('k8s') || k.includes('kubernetes')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/kubernetes/kubernetes-plain.svg';
+    }
+    if (k.includes('github') || k.includes('octokit') || k.includes('gha') || k.includes('bot') || k.includes('event')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg';
+    }
+    if (k.includes('react') || k.includes('next')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg';
+    }
+    if (k.includes('node') || k.includes('express')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nodejs/nodejs-original.svg';
+    }
+    if (k.includes('postgres') || k.includes('sql') || k.includes('prisma')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg';
+    }
+    if (k.includes('mongo')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/mongodb/mongodb-original.svg';
+    }
+    if (k.includes('redis')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/redis/redis-original.svg';
+    }
+    if (k.includes('python')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg';
+    }
+    if (k.includes('vue')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/vuejs/vuejs-original.svg';
+    }
+    return '';
+  };
+
+  // Draw component icons with official colorful logos
+  const drawComponentIcon = (ctx, comp, cx, cy) => {
+    const logoUrl = getTechLogoUrl(comp);
+    if (logoUrl) {
+      if (!logoCacheRef.current[logoUrl]) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = logoUrl;
+        logoCacheRef.current[logoUrl] = img;
+      }
+      const img = logoCacheRef.current[logoUrl];
+      if (img.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, cx - 12, cy - 12, 24, 24);
+        return;
+      }
+    }
+
+    ctx.strokeStyle = comp.badgeColor || '#888888';
+    ctx.lineWidth = 1.5;
     ctx.fillStyle = 'transparent';
 
-    switch (iconType) {
+    switch (comp.icon) {
       case 'browser': {
-        // Monitor with tabs
-        roundRect(ctx, cx - 14, cy - 8, 28, 18, 2);
+        roundRect(ctx, cx - 14, cy - 8, 28, 18, 3);
         ctx.stroke();
         ctx.beginPath();
         ctx.moveTo(cx - 14, cy - 1);
         ctx.lineTo(cx + 14, cy - 1);
         ctx.stroke();
-        // Two tab notches
-        roundRect(ctx, cx - 12, cy - 6, 8, 6, 1);
-        ctx.stroke();
         break;
       }
       case 'mobile': {
-        // Phone with home button
         roundRect(ctx, cx - 9, cy - 12, 18, 24, 3);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(cx, cy + 10, 2, 0, Math.PI * 2);
         ctx.stroke();
         break;
       }
       case 'database': {
-        // Cylinder (3 ellipses)
         ctx.beginPath();
         ctx.ellipse(cx, cy - 6, 12, 4, 0, 0, Math.PI * 2);
         ctx.stroke();
@@ -558,87 +601,8 @@ function SystemDesignView({ DATA, isActive }) {
         ctx.stroke();
         break;
       }
-      case 'cache': {
-        // Lightning bolt
-        ctx.beginPath();
-        ctx.moveTo(cx + 4, cy - 10);
-        ctx.lineTo(cx - 2, cy - 1);
-        ctx.lineTo(cx + 3, cy - 1);
-        ctx.lineTo(cx - 4, cy + 10);
-        ctx.lineTo(cx + 2, cy + 1);
-        ctx.lineTo(cx - 3, cy + 1);
-        ctx.closePath();
-        ctx.stroke();
-        break;
-      }
-      case 'queue': {
-        // Three lines with arrow
-        for (let i = -1; i <= 1; i++) {
-          ctx.beginPath();
-          ctx.moveTo(cx - 10, cy + i * 5);
-          ctx.lineTo(cx + 6, cy + i * 5);
-          ctx.stroke();
-        }
-        ctx.beginPath();
-        ctx.moveTo(cx + 6, cy - 6);
-        ctx.lineTo(cx + 12, cy);
-        ctx.lineTo(cx + 6, cy + 6);
-        ctx.stroke();
-        break;
-      }
-      case 'network': {
-        // Globe with cross lines
-        ctx.beginPath();
-        ctx.arc(cx, cy, 10, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(cx - 10, cy);
-        ctx.lineTo(cx + 10, cy);
-        ctx.moveTo(cx, cy - 10);
-        ctx.lineTo(cx, cy + 10);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, 5, 10, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        break;
-      }
-      case 'cloud': {
-        // Cloud shape
-        ctx.beginPath();
-        ctx.arc(cx - 4, cy + 2, 6, Math.PI, Math.PI * 1.5);
-        ctx.arc(cx, cy - 4, 8, Math.PI * 1.2, 0);
-        ctx.arc(cx + 5, cy + 2, 5, Math.PI * 1.5, 0);
-        ctx.lineTo(cx + 10, cy + 8);
-        ctx.lineTo(cx - 10, cy + 8);
-        ctx.closePath();
-        ctx.stroke();
-        break;
-      }
-      case 'monitor': {
-        // Monitor with chart lines
-        roundRect(ctx, cx - 12, cy - 8, 24, 16, 2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(cx - 8, cy + 2);
-        ctx.lineTo(cx - 4, cy - 2);
-        ctx.lineTo(cx, cy + 1);
-        ctx.lineTo(cx + 4, cy - 3);
-        ctx.lineTo(cx + 8, cy);
-        ctx.stroke();
-        break;
-      }
-      case 'service':
       default: {
-        // Hexagon
-        ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-          const angle = (i * Math.PI) / 3 - Math.PI / 6;
-          const px = cx + 10 * Math.cos(angle);
-          const py = cy + 10 * Math.sin(angle);
-          if (i === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
+        roundRect(ctx, cx - 10, cy - 10, 20, 20, 4);
         ctx.stroke();
         break;
       }
@@ -711,24 +675,55 @@ function SystemDesignView({ DATA, isActive }) {
     drawDiagram();
   };
 
-  // Refs for drag state
-  const dragState = useRef({ dragging: false, startX: 0, startY: 0 });
+  // Refs for drag state (Canvas panning OR node dragging)
+  const dragState = useRef({ draggingCanvas: false, draggingNode: false, node: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0 });
   const clickStart = useRef({ x: 0, y: 0 });
 
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    dragState.current.dragging = true;
-    dragState.current.startX = e.clientX - transformRef.current.x;
-    dragState.current.startY = e.clientY - transformRef.current.y;
+    
     clickStart.current = { x: e.clientX, y: e.clientY };
+    const pos = canvasToWorld(e.clientX, e.clientY);
+    const clickedComp = sysDataRef.current?.components?.find(c =>
+      pos.x >= c.x && pos.x <= c.x + c.w && pos.y >= c.y && pos.y <= c.y + c.h
+    );
+
+    if (clickedComp) {
+      dragState.current = {
+        draggingCanvas: false,
+        draggingNode: true,
+        node: clickedComp,
+        offsetX: pos.x - clickedComp.x,
+        offsetY: pos.y - clickedComp.y
+      };
+      canvas.style.cursor = 'grabbing';
+    } else {
+      dragState.current = {
+        draggingCanvas: true,
+        draggingNode: false,
+        node: null,
+        startX: e.clientX - transformRef.current.x,
+        startY: e.clientY - transformRef.current.y
+      };
+      canvas.style.cursor = 'move';
+    }
   };
 
   const handleMouseMove = (e) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    if (dragState.current.dragging) {
+    if (dragState.current.draggingNode && dragState.current.node) {
+      const pos = canvasToWorld(e.clientX, e.clientY);
+      dragState.current.node.x = Math.round(pos.x - dragState.current.offsetX);
+      dragState.current.node.y = Math.round(pos.y - dragState.current.offsetY);
+      updateZoneBounds();
+      drawDiagram();
+      return;
+    }
+
+    if (dragState.current.draggingCanvas) {
       transformRef.current.x = e.clientX - dragState.current.startX;
       transformRef.current.y = e.clientY - dragState.current.startY;
       drawDiagram();
@@ -742,12 +737,14 @@ function SystemDesignView({ DATA, isActive }) {
     const newHoveredId = hovered ? hovered.id : null;
     if (newHoveredId !== hoveredId) {
       setHoveredId(newHoveredId);
-      canvas.style.cursor = hovered ? 'pointer' : 'default';
+      canvas.style.cursor = hovered ? 'grab' : 'default';
     }
   };
 
   const handleMouseUp = () => {
-    dragState.current.dragging = false;
+    const canvas = canvasRef.current;
+    if (canvas) canvas.style.cursor = 'default';
+    dragState.current = { draggingCanvas: false, draggingNode: false, node: null };
   };
 
   const handleClick = (e) => {
@@ -899,8 +896,343 @@ function SystemDesignView({ DATA, isActive }) {
 
   const simImpact = getSimulatedImpact();
 
+  // High-Resolution Export Handler (PNG, JPEG, PDF for Selective or All 4 Views)
+  const handleExportDiagram = (target = exportTarget, format = exportFormat) => {
+    const perspectivesToExport = target === 'all'
+      ? ['cloud', 'devops', 'system', 'software']
+      : [perspective];
+
+    perspectivesToExport.forEach((p, idx) => {
+      setTimeout(() => {
+        exportSinglePerspectiveHD(p, format);
+      }, idx * 350);
+    });
+
+    setShowExportModal(false);
+  };
+
+  const exportSinglePerspectiveHD = (pTarget, format) => {
+    const pData = buildSystemDesign(DATA, DATA?.files || [], pTarget);
+    computeLayout(pData.zones, pData.components);
+
+    if (!pData.components || pData.components.length === 0) return;
+
+    // Calculate exact bounds of components and zones for 100% full diagram visibility
+    const allX1 = pData.components.map(c => c.x);
+    const allY1 = pData.components.map(c => c.y);
+    const allX2 = pData.components.map(c => c.x + c.w);
+    const allY2 = pData.components.map(c => c.y + c.h);
+
+    pData.zones.forEach(z => {
+      if (z.w > 0 && z.h > 0) {
+        allX1.push(z.x);
+        allY1.push(z.y);
+        allX2.push(z.x + z.w);
+        allY2.push(z.y + z.h);
+      }
+    });
+
+    const minX = Math.min(...allX1);
+    const minY = Math.min(...allY1);
+    const maxX = Math.max(...allX2);
+    const maxY = Math.max(...allY2);
+
+    const diagramW = maxX - minX;
+    const diagramH = maxY - minY;
+
+    // HD Scale factor (1.8x for crisp vector export)
+    const scale = 1.8;
+    const PADDING_X = 100;
+    const PADDING_Y = 140; // Title bar space
+
+    const EXPORT_W = Math.max(1600, Math.ceil(diagramW * scale + PADDING_X * 2));
+    const EXPORT_H = Math.max(1000, Math.ceil(diagramH * scale + PADDING_Y + 160));
+
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = EXPORT_W;
+    exportCanvas.height = EXPORT_H;
+    const ctx = exportCanvas.getContext('2d');
+
+    const toCanvasX = (wx) => PADDING_X + (wx - minX) * scale;
+    const toCanvasY = (wy) => PADDING_Y + (wy - minY) * scale;
+
+    // 1. Fill Crisp Pure White Background
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, EXPORT_W, EXPORT_H);
+
+    // 2. Subtle Dot Grid
+    ctx.fillStyle = '#E2E8F0';
+    for (let gx = 0; gx < EXPORT_W; gx += 40) {
+      for (let gy = 0; gy < EXPORT_H; gy += 40) {
+        ctx.beginPath();
+        ctx.arc(gx, gy, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 3. Header & Title
+    const perspectiveNames = {
+      cloud: 'Cloud Infrastructure Topology (Cloud Architect)',
+      devops: 'DevOps & CI/CD Pipeline (DevOps Engineer)',
+      system: 'Multi-Tier System Architecture (System Architect)',
+      software: 'Software Code Module Flow (Software Engineer)'
+    };
+    const projName = DATA?.project?.name || DATA?.name || 'System Architecture';
+
+    ctx.fillStyle = '#FF5E1A';
+    ctx.fillRect(40, 36, 6, 36);
+    ctx.font = '700 24px "Space Grotesk", sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText(`${projName} — ${perspectiveNames[pTarget]}`, 56, 62);
+
+    // 4. Render Zones
+    pData.zones.forEach(zone => {
+      if (zone.w <= 0 || zone.h <= 0) return;
+      const zx = toCanvasX(zone.x);
+      const zy = toCanvasY(zone.y);
+      const zw = zone.w * scale;
+      const zh = zone.h * scale;
+
+      ctx.save();
+      ctx.fillStyle = zone.color + '15';
+      roundRect(ctx, zx, zy, zw, zh, 16);
+      ctx.fill();
+
+      ctx.strokeStyle = zone.color + '88';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([10, 8]);
+      roundRect(ctx, zx, zy, zw, zh, 16);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.font = '700 13px "Space Mono", monospace';
+      ctx.fillStyle = zone.color;
+      ctx.fillText(zone.label, zx + 20, zy + 28);
+      ctx.restore();
+    });
+
+    // 5. Render Connections
+    pData.connections.forEach(conn => {
+      const fromNode = pData.components.find(c => c.id === conn.from);
+      const toNode = pData.components.find(c => c.id === conn.to);
+      if (!fromNode || !toNode) return;
+
+      const x1 = toCanvasX(fromNode.x + fromNode.w / 2);
+      const y1 = toCanvasY(fromNode.y + fromNode.h / 2);
+      const x2 = toCanvasX(toNode.x + toNode.w / 2);
+      const y2 = toCanvasY(toNode.y + toNode.h / 2);
+
+      ctx.save();
+      ctx.strokeStyle = conn.style === 'dashed' ? '#94A3B8' : '#334155';
+      ctx.lineWidth = 2.5;
+      if (conn.style === 'dashed') ctx.setLineDash([8, 6]);
+
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      drawArrowhead(ctx, x2, y2, angle, '#334155');
+
+      if (conn.label) {
+        const mx = (x1 + x2) / 2;
+        const my = (y1 + y2) / 2;
+        ctx.font = '600 11px "Space Mono", monospace';
+        const tw = ctx.measureText(conn.label).width;
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.strokeStyle = '#CBD5E1';
+        roundRect(ctx, mx - tw / 2 - 10, my - 12, tw + 20, 24, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#0F172A';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(conn.label, mx, my + 1);
+      }
+      ctx.restore();
+    });
+
+    // 6. Render Components
+    pData.components.forEach(comp => {
+      ctx.save();
+      const cx = toCanvasX(comp.x);
+      const cy = toCanvasY(comp.y);
+      const cw = comp.w * scale;
+      const ch = comp.h * scale;
+
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.08)';
+      ctx.shadowBlur = 12;
+      ctx.shadowOffsetY = 4;
+      ctx.fillStyle = '#FFFFFF';
+      roundRect(ctx, cx, cy, cw, ch, 14);
+      ctx.fill();
+
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = '#E2E8F0';
+      ctx.lineWidth = 2;
+      roundRect(ctx, cx, cy, cw, ch, 14);
+      ctx.stroke();
+
+      // Card Header Label
+      ctx.font = '700 15px "Space Grotesk", sans-serif';
+      ctx.fillStyle = '#111827';
+      ctx.fillText(comp.label, cx + 24, cy + 32);
+
+      ctx.font = '500 12px "Space Grotesk", sans-serif';
+      ctx.fillStyle = '#64748B';
+      ctx.fillText(comp.sublabel, cx + 24, cy + 54);
+
+      // Provider Badge
+      ctx.font = '700 11px "Space Mono", monospace';
+      ctx.fillStyle = comp.badgeColor || '#FF5E1A';
+      roundRect(ctx, cx + cw / 2 - 65, cy + ch - 40, 130, 24, 6);
+      ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.fillText(comp.provider, cx + cw / 2, cy + ch - 24);
+
+      ctx.restore();
+    });
+
+    // PDF Format
+    if (format === 'pdf') {
+      const printWin = window.open('', '_blank');
+      const imgData = exportCanvas.toDataURL('image/png', 1.0);
+      printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${projName} - ${perspectiveNames[pTarget]}</title>
+            <style>
+              body { margin: 0; padding: 24px; text-align: center; font-family: 'Space Grotesk', sans-serif; background: #fafafa; }
+              .header { margin-bottom: 20px; }
+              h2 { color: #111827; margin: 0 0 6px 0; }
+              p { color: #64748B; margin: 0; font-size: 14px; }
+              img { max-width: 100%; height: auto; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+              @media print {
+                body { padding: 0; background: #fff; }
+                .header { display: none; }
+                img { width: 100%; box-shadow: none; border: none; page-break-after: always; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h2>${projName} — System Architecture Document</h2>
+              <p>${perspectiveNames[pTarget]} • Generated by CodeBaseX-Ray</p>
+            </div>
+            <img src="${imgData}" />
+            <script>
+              setTimeout(() => { window.print(); }, 600);
+            </script>
+          </body>
+        </html>
+      `);
+      printWin.document.close();
+      return;
+    }
+
+    // PNG / JPEG Download
+    const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const ext = format === 'jpeg' ? 'jpg' : 'png';
+    const dataUrl = exportCanvas.toDataURL(mimeType, 0.95);
+
+    const link = document.createElement('a');
+    link.download = `${projName.replace(/\s+/g, '_')}_${pTarget}_architecture.${ext}`;
+    link.href = dataUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }} ref={containerRef}>
+      {/* Top Left Perspective Selector Bar */}
+      <div style={{
+        position: 'absolute',
+        top: '16px',
+        left: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        background: 'rgba(255, 255, 255, 0.95)',
+        backdropFilter: 'blur(8px)',
+        border: '1px solid var(--border)',
+        borderRadius: '10px',
+        padding: '6px',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+        zIndex: 20
+      }}>
+        {[
+          {
+            id: 'cloud',
+            label: 'Cloud Architect',
+            icon: (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+              </svg>
+            )
+          },
+          {
+            id: 'devops',
+            label: 'DevOps Engineer',
+            icon: (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
+              </svg>
+            )
+          },
+          {
+            id: 'system',
+            label: 'System Architect',
+            icon: (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                <polyline points="2 17 12 22 22 17"/>
+                <polyline points="2 12 12 17 22 12"/>
+              </svg>
+            )
+          },
+          {
+            id: 'software',
+            label: 'Software Engineer',
+            icon: (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="16 18 22 12 16 6"/>
+                <polyline points="8 6 2 12 8 18"/>
+              </svg>
+            )
+          }
+        ].map(p => (
+          <button
+            key={p.id}
+            onClick={() => setPerspective(p.id)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: 'none',
+              background: perspective === p.id ? 'var(--gradient-sunset)' : 'transparent',
+              color: perspective === p.id ? '#FFFFFF' : 'var(--beige-2)',
+              fontSize: '11px',
+              fontWeight: perspective === p.id ? '700' : '500',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease',
+              boxShadow: perspective === p.id ? '0 2px 8px rgba(255,94,26,0.3)' : 'none'
+            }}
+          >
+            {p.icon}
+            <span>{p.label}</span>
+          </button>
+        ))}
+      </div>
+
       <canvas ref={canvasRef} id="system-design-canvas" style={{ width: '100%', height: '100%', display: 'block' }} />
 
       {/* Top Action Bar */}
@@ -919,15 +1251,15 @@ function SystemDesignView({ DATA, isActive }) {
             if (isSimulatorMode) setDisabledCompIds(new Set());
           }}
           style={{
-            background: isSimulatorMode ? 'var(--orange)' : 'rgba(26, 26, 26, 0.95)',
-            color: '#fff',
+            background: isSimulatorMode ? 'var(--gradient-sunset)' : '#FFFFFF',
+            color: isSimulatorMode ? '#FFFFFF' : '#111827',
             border: isSimulatorMode ? 'none' : '1px solid var(--border)',
             padding: '8px 14px',
             borderRadius: '8px',
             fontSize: '12px',
             fontWeight: '600',
             cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            boxShadow: isSimulatorMode ? '0 4px 12px rgba(255,94,26,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
             display: 'flex',
             alignItems: 'center',
             gap: '6px'
@@ -950,15 +1282,15 @@ function SystemDesignView({ DATA, isActive }) {
           className="btn-liquid"
           onClick={() => setShowSecurityModal(true)}
           style={{
-            background: 'rgba(26, 26, 26, 0.95)',
-            color: 'var(--beige-2)',
+            background: '#FFFFFF',
+            color: '#111827',
             border: '1px solid var(--border)',
             padding: '8px 14px',
             borderRadius: '8px',
             fontSize: '12px',
-            fontWeight: '500',
+            fontWeight: '600',
             cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
             display: 'flex',
             alignItems: 'center',
             gap: '6px'
@@ -966,6 +1298,28 @@ function SystemDesignView({ DATA, isActive }) {
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           <span>Security & Scope</span>
+        </button>
+
+        <button
+          className="btn-liquid"
+          onClick={() => setShowExportModal(true)}
+          style={{
+            background: 'var(--gradient-sunset)',
+            color: '#FFFFFF',
+            border: 'none',
+            padding: '8px 14px',
+            borderRadius: '8px',
+            fontSize: '12px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(255,94,26,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Export Diagram</span>
         </button>
       </div>
 
@@ -1058,24 +1412,38 @@ function SystemDesignView({ DATA, isActive }) {
         </div>
       )}
 
-      {/* Zoom Controls - bottom left */}
+      {/* Zoom & Layout Controls - bottom left */}
       <div className="canvas-controls" style={{
         position: 'absolute',
         bottom: '16px',
         left: '16px',
-        backgroundColor: 'rgba(26, 26, 26, 0.95)',
-        border: '1px solid #2a2a2a',
-        borderRadius: '6px',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        backdropFilter: 'blur(8px)',
+        border: '1px solid var(--border)',
+        borderRadius: '8px',
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
-        padding: '6px 12px',
+        padding: '6px 14px',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
         zIndex: 10
       }}>
-        <button onClick={zoomOut} style={{ background: 'transparent', border: 'none', color: '#F5F0E8', fontSize: '16px', cursor: 'pointer', fontFamily: '"Space Mono", monospace' }}>−</button>
-        <span style={{ fontFamily: '"Space Mono", monospace', fontSize: '11px', color: '#888888' }}>{zoomText}</span>
-        <button onClick={zoomIn} style={{ background: 'transparent', border: 'none', color: '#F5F0E8', fontSize: '16px', cursor: 'pointer', fontFamily: '"Space Mono", monospace' }}>+</button>
-        <button onClick={resetZoom} style={{ background: 'transparent', border: 'none', color: '#888888', fontSize: '10px', cursor: 'pointer', fontFamily: '"Space Grotesk", sans-serif', padding: '2px 6px', marginLeft: '4px' }}>Reset</button>
+        <button onClick={zoomOut} style={{ background: 'transparent', border: 'none', color: '#111827', fontSize: '16px', cursor: 'pointer', fontFamily: '"Space Mono", monospace', fontWeight: '700' }}>−</button>
+        <span style={{ fontFamily: '"Space Mono", monospace', fontSize: '11px', color: '#64748B', fontWeight: '600' }}>{zoomText}</span>
+        <button onClick={zoomIn} style={{ background: 'transparent', border: 'none', color: '#111827', fontSize: '16px', cursor: 'pointer', fontFamily: '"Space Mono", monospace', fontWeight: '700' }}>+</button>
+        <div style={{ width: '1px', height: '14px', background: 'var(--border)', margin: '0 4px' }} />
+        <button onClick={resetZoom} style={{ background: 'transparent', border: 'none', color: '#475569', fontSize: '11px', cursor: 'pointer', fontFamily: '"Space Grotesk", sans-serif', fontWeight: '600' }}>Reset View</button>
+        <button 
+          onClick={() => {
+            if (sysDataRef.current) {
+              computeLayout(sysDataRef.current.zones, sysDataRef.current.components);
+              drawDiagram();
+            }
+          }}
+          style={{ background: 'var(--orange-dim)', border: '1px solid var(--orange-glow)', color: 'var(--orange)', fontSize: '11px', cursor: 'pointer', fontFamily: '"Space Grotesk", sans-serif', fontWeight: '700', borderRadius: '4px', padding: '3px 8px' }}
+        >
+          ✨ Auto-Space Layout
+        </button>
       </div>
 
       {/* Info Panel - right side */}
@@ -1123,6 +1491,131 @@ function SystemDesignView({ DATA, isActive }) {
                     </div>
                   ) : null;
                 })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* High Resolution Export Modal */}
+      {showExportModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.6)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100
+        }}>
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            padding: '28px',
+            width: '460px',
+            maxWidth: '90%',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.2)',
+            border: '1px solid var(--border)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'var(--gradient-sunset)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#111827' }}>Export Architecture Diagram</h3>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748B' }}>Download high-resolution PNG, JPEG, or PDF</p>
+                </div>
+              </div>
+              <button onClick={() => setShowExportModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94A3B8' }}>✕</button>
+            </div>
+
+            {/* Target Selection */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '8px' }}>Export Scope</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <button
+                  onClick={() => setExportTarget('current')}
+                  style={{
+                    padding: '12px',
+                    borderRadius: '10px',
+                    border: exportTarget === 'current' ? '2px solid #FF5E1A' : '1px solid #E2E8F0',
+                    background: exportTarget === 'current' ? '#FFF7ED' : '#F8FAFC',
+                    color: exportTarget === 'current' ? '#FF5E1A' : '#475569',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    textAlign: 'center'
+                  }}
+                >
+                  Current View ({perspective.toUpperCase()})
+                </button>
+
+                <button
+                  onClick={() => setExportTarget('all')}
+                  style={{
+                    padding: '12px',
+                    borderRadius: '10px',
+                    border: exportTarget === 'all' ? '2px solid #FF5E1A' : '1px solid #E2E8F0',
+                    background: exportTarget === 'all' ? '#FFF7ED' : '#F8FAFC',
+                    color: exportTarget === 'all' ? '#FF5E1A' : '#475569',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    textAlign: 'center'
+                  }}
+                >
+                  All 4 Architecture Views
+                </button>
+              </div>
+            </div>
+
+            {/* Format Selection */}
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '8px' }}>File Format</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                {[
+                  { id: 'png', label: 'PNG (4K Ultra HD)' },
+                  { id: 'jpeg', label: 'JPEG (High Quality)' },
+                  { id: 'pdf', label: 'PDF Print Document' }
+                ].map(fmt => (
+                  <button
+                    key={fmt.id}
+                    onClick={() => setExportFormat(fmt.id)}
+                    style={{
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: exportFormat === fmt.id ? '2px solid #FF5E1A' : '1px solid #E2E8F0',
+                      background: exportFormat === fmt.id ? '#FFF7ED' : '#FFFFFF',
+                      color: exportFormat === fmt.id ? '#FF5E1A' : '#475569',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {fmt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowExportModal(false)}
+                style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleExportDiagram()}
+                style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: 'var(--gradient-sunset)', color: '#FFFFFF', fontSize: '12px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 12px rgba(255,94,26,0.3)' }}
+              >
+                Download Now
+              </button>
             </div>
           </div>
         </div>

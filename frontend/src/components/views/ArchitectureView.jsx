@@ -295,14 +295,14 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.scale, transform.scale);
 
-    ctx.fillStyle = '#F7F4EF';
+    ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(-transform.x / transform.scale, -transform.y / transform.scale, W / transform.scale, H / transform.scale);
 
     // Title
-    ctx.fillStyle = '#FF4D00';
+    ctx.fillStyle = '#FF5E1A';
     ctx.fillRect(32, 24, 4, 28);
-    ctx.font = '600 18px "Space Grotesk", sans-serif';
-    ctx.fillStyle = '#1E1B18';
+    ctx.font = '700 18px "Space Grotesk", sans-serif';
+    ctx.fillStyle = '#111827';
     ctx.fillText(data.project.name + ' — System Architecture', 44, 44);
 
     // Zones

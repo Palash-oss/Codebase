@@ -46,13 +46,16 @@ function LandingPage({ onAnalysisSuccess }) {
       constructor() {
         this.x = Math.random() * canvas.width;
         this.y = Math.random() * canvas.height;
-        this.size = Math.random() * 2 + 1;
-        this.vx = (Math.random() - 0.5) * 0.4;
-        this.vy = (Math.random() - 0.5) * 0.4;
+        this.size = Math.random() * 2.2 + 2.0; // Slightly larger, clear dots (2.0px to 4.2px)
+        this.vx = (Math.random() - 0.5) * 0.45;
+        this.vy = (Math.random() - 0.5) * 0.45;
+        this.isPulseNode = Math.random() < 0.25; // 25% key architecture nodes
+        this.pulsePhase = Math.random() * Math.PI * 2;
       }
       update() {
         this.x += this.vx;
         this.y += this.vy;
+        this.pulsePhase += 0.03;
 
         // Bounce off edges
         if (this.x < 0 || this.x > canvas.width) this.vx = -this.vx;
@@ -65,15 +68,25 @@ function LandingPage({ onAnalysisSuccess }) {
           const dist = Math.hypot(dx, dy);
           if (dist < mouse.radius) {
             const force = (mouse.radius - dist) / mouse.radius;
-            this.x += (dx / dist) * force * 0.35;
-            this.y += (dy / dist) * force * 0.35;
+            this.x += (dx / dist) * force * 0.4;
+            this.y += (dy / dist) * force * 0.4;
           }
         }
       }
       draw() {
-        ctx.fillStyle = 'rgba(255, 77, 0, 0.65)'; // Much darker, highly visible orange particles
+        const pulseSize = this.isPulseNode ? Math.sin(this.pulsePhase) * 1.2 : 0;
+        const currentSize = Math.max(1.8, this.size + pulseSize);
+
+        // Subtle Outer Glow Halo
+        ctx.fillStyle = 'rgba(255, 94, 26, 0.15)';
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.arc(this.x, this.y, currentSize * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Core Solid Node Dot
+        ctx.fillStyle = 'rgba(255, 80, 15, 0.85)';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, currentSize, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -96,10 +109,10 @@ function LandingPage({ onAnalysisSuccess }) {
           const dy = particles[i].y - particles[j].y;
           const dist = Math.hypot(dx, dy);
 
-          if (dist < 110) {
-            const alpha = (110 - dist) / 110 * 0.55; // Significantly darker lines
-            ctx.strokeStyle = `rgba(30, 27, 24, ${alpha})`; // Highly visible dark charcoal connection line
-            ctx.lineWidth = 0.5;
+          if (dist < 135) {
+            const alpha = ((135 - dist) / 135) * 0.48; // Clear, rich subtle lines
+            ctx.strokeStyle = `rgba(255, 80, 15, ${alpha})`;
+            ctx.lineWidth = 1.0;
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
@@ -113,9 +126,9 @@ function LandingPage({ onAnalysisSuccess }) {
           const dy = particles[i].y - mouse.y;
           const dist = Math.hypot(dx, dy);
           if (dist < mouse.radius) {
-            const alpha = (mouse.radius - dist) / mouse.radius * 0.85; // Bold interactive opacity
-            ctx.strokeStyle = `rgba(255, 77, 0, ${alpha})`; // Bold glowing orange connection to mouse
-            ctx.lineWidth = 0.6;
+            const alpha = ((mouse.radius - dist) / mouse.radius) * 0.65;
+            ctx.strokeStyle = `rgba(255, 70, 10, ${alpha})`;
+            ctx.lineWidth = 1.25;
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(mouse.x, mouse.y);

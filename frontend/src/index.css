@@ -1,35 +1,45 @@
 :root {
-  /* Backgrounds (Converted to Warm Light Theme) */
-  --black:      #F7F4EF;
-  --black-2:    #FFFFFF;
-  --black-3:    #EFECE6;
-  --black-4:    #E5DFD4;
+  /* Backgrounds (Clean White Base & Glass Surfaces) */
+  --black:      #FFFFFF;
+  --black-2:    #FAFAFC;
+  --black-3:    #F4F4F8;
+  --black-4:    #EAEAEF;
 
-  /* The neon (Preserved Orange) */
-  --orange:     #FF4D00;
-  --orange-dim: rgba(255, 77, 0, 0.06);
-  --orange-glow: rgba(255, 77, 0, 0.12);
+  /* Modern Sunset Palette (Orange, Hot Pink / Magenta, Golden Yellow) */
+  --orange:        #FF5E1A;
+  --pink:          #FF2E93;
+  --yellow:        #FFB800;
+  
+  --orange-dim:    rgba(255, 94, 26, 0.08);
+  --orange-glow:   rgba(255, 94, 26, 0.16);
+  --pink-dim:      rgba(255, 46, 147, 0.08);
+  --pink-glow:     rgba(255, 46, 147, 0.16);
+  --yellow-dim:    rgba(255, 184, 0, 0.10);
+  --yellow-glow:   rgba(255, 184, 0, 0.20);
 
-  /* Text (Inverted: dark charcoal and warm browns for light mode) */
-  --beige:      #1E1B18;
-  --beige-2:    #5E574E;
-  --beige-3:    #8E8578;
+  --gradient-sunset: linear-gradient(135deg, #FF5E1A 0%, #FF2E93 50%, #FFB800 100%);
+  --gradient-sunset-soft: linear-gradient(135deg, rgba(255,94,26,0.12) 0%, rgba(255,46,147,0.12) 50%, rgba(255,184,0,0.12) 100%);
 
-  /* Borders (Updated to clean warm-greys) */
-  --border:     #E1DDD5;
-  --border-2:   #D5CFC5;
-  --border-3:   #C6BEB2;
+  /* Text (Dark Obsidian Charcoal & Slate for high contrast) */
+  --beige:      #111827;
+  --beige-2:    #374151;
+  --beige-3:    #6B7280;
 
-  /* Layer colors */
-  --layer-presentation: #FF4D00;
-  --layer-interaction:  #A855F7;
+  /* Borders (Clean glass borders & outlines) */
+  --border:     #E5E7EB;
+  --border-2:   #D1D5DB;
+  --border-3:   #9CA3AF;
+
+  /* Layer colors (Modern refreshed palette) */
+  --layer-presentation: #FF5E1A;
+  --layer-interaction:  #FF2E93;
   --layer-gateway:      #3B82F6;
   --layer-domain:       #06B6D4;
-  --layer-persistence:  #22C55E;
-  --layer-foundation:   #8E8578;
-  --layer-infra:        #5A6472;
-  --layer-test:         #EAB308;
-  --layer-unknown:      #7A7268;
+  --layer-persistence:  #10B981;
+  --layer-foundation:   #FFB800;
+  --layer-infra:        #6366F1;
+  --layer-test:         #F59E0B;
+  --layer-unknown:      #9CA3AF;
 }
 
 /* Smooth scrolling */
@@ -101,50 +111,54 @@ body {
 }
 .glow-blob {
   position: absolute;
-  width: 320px;
-  height: 320px;
+  width: 380px;
+  height: 380px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 77, 0, 0.12) 0%, rgba(255, 77, 0, 0) 70%);
-  filter: blur(90px);
+  background: radial-gradient(circle, rgba(255, 94, 26, 0.15) 0%, rgba(255, 94, 26, 0) 70%);
+  filter: blur(100px);
   opacity: 0.85;
   pointer-events: none;
 }
 
-/* 3 Pairs Initial Positioning */
-/* Pair 1: Top-Left & Bottom-Right */
+/* 3 Pairs Initial Positioning with Sunset Multi-color Mesh */
+/* Pair 1: Hot Pink Blobs */
 .blob-1a {
   top: -10%;
   left: -5%;
+  background: radial-gradient(circle, rgba(255, 46, 147, 0.22) 0%, rgba(255, 46, 147, 0) 70%);
 }
 .blob-1b {
   bottom: -15%;
   right: -5%;
+  background: radial-gradient(circle, rgba(255, 46, 147, 0.18) 0%, rgba(255, 46, 147, 0) 70%);
 }
 
-/* Pair 2: Mid-Right & Mid-Left */
+/* Pair 2: Electric Orange Blobs */
 .blob-2a {
   top: 35%;
   right: -10%;
-  background: radial-gradient(circle, rgba(255, 77, 0, 0.10) 0%, rgba(255, 77, 0, 0) 70%);
+  background: radial-gradient(circle, rgba(255, 94, 26, 0.20) 0%, rgba(255, 94, 26, 0) 70%);
 }
 .blob-2b {
   top: 55%;
   left: -12%;
-  background: radial-gradient(circle, rgba(255, 77, 0, 0.10) 0%, rgba(255, 77, 0, 0) 70%);
+  background: radial-gradient(circle, rgba(255, 94, 26, 0.18) 0%, rgba(255, 94, 26, 0) 70%);
 }
 
-/* Pair 3: Top-Right & Bottom-Left */
+/* Pair 3: Golden Yellow Blobs */
 .blob-3a {
   top: 10%;
   right: 15%;
-  width: 250px;
-  height: 250px;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(255, 184, 0, 0.22) 0%, rgba(255, 184, 0, 0) 70%);
 }
 .blob-3b {
   bottom: 10%;
   left: 20%;
-  width: 250px;
-  height: 250px;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(255, 184, 0, 0.20) 0%, rgba(255, 184, 0, 0) 70%);
 }
 
 /* Navbar */
@@ -252,7 +266,11 @@ body {
   text-transform: uppercase;
 }
 .hero-line.beige { color: var(--beige); }
-.hero-line.orange { color: var(--orange); }
+.hero-line.orange { 
+  background: var(--gradient-sunset);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
 .hero-line.light-beige { color: var(--beige-2); font-weight: 300; }
 .hero-sub {
   font-size: 18px;
@@ -268,21 +286,23 @@ body {
   gap: 12px;
 }
 .btn-primary {
-  background-color: var(--orange);
-  color: var(--black);
+  background: var(--gradient-sunset);
+  color: #FFFFFF;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   padding: 13px 28px;
   font-family: 'Space Grotesk', sans-serif;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 4px 14px rgba(255, 94, 26, 0.35);
+  transition: all 0.25s ease;
   text-decoration: none;
 }
 .btn-primary:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
+  opacity: 0.95;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 46, 147, 0.45);
 }
 
 /* Marquee */
@@ -503,16 +523,22 @@ body {
 }
 .submit-btn {
   width: 100%;
-  background-color: var(--orange);
-  color: var(--black);
+  background: var(--gradient-sunset);
+  color: #FFFFFF;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   padding: 13px;
   font-family: 'Space Grotesk', sans-serif;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.2s ease;
+  box-shadow: 0 4px 14px rgba(255, 94, 26, 0.3);
+  transition: all 0.25s ease;
+}
+.submit-btn:hover:not(:disabled) {
+  opacity: 0.95;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(255, 46, 147, 0.4);
 }
 .submit-btn:disabled {
   background-color: var(--border-3);
@@ -815,23 +841,8 @@ body {
   pointer-events: all;
 }
 
-#view-blast-radius, #view-story, #view-system-design {
-  background-color: #0a0a0a;
-  --black: #0a0a0a;
-  --black-2: #141414;
-  --black-3: #1a1a1b;
-  --black-4: #242426;
-  --beige: #f5f0e8;
-  --beige-2: #a8a29e;
-  --beige-3: #78716c;
-  --border: #2e2e2e;
-  --border-2: #3a3a3a;
-  --border-3: #4a4a4a;
-}
-
-/* Architecture View styles */
-#view-architecture {
-  background-color: #0b0b0c;
+#view-blast-radius, #view-story, #view-system-design, #view-architecture {
+  background-color: var(--black);
 }
 #arch-canvas {
   width: 100%;
@@ -1699,101 +1710,20 @@ body {
     left: 0;
     width: 100%;
   }
-}
-
-/* ========================================================
-   ULTRA-PREMIUM SLOW LIQUID FILL & CLICK POP RIPPLE
+}/* ========================================================
+   MODERN SLEEK BUTTON MICRO-INTERACTIONS
    ======================================================== */
 
 .btn-liquid {
   position: relative !important;
-  overflow: hidden !important;
-  isolation: isolate;
-  transition: color 0.75s cubic-bezier(0.19, 1, 0.22, 1), border-color 0.75s cubic-bezier(0.19, 1, 0.22, 1), transform 0.4s cubic-bezier(0.19, 1, 0.22, 1), box-shadow 0.75s cubic-bezier(0.19, 1, 0.22, 1) !important;
-}
-
-.btn-liquid * {
-  position: relative;
-  z-index: 2;
-  transition: color 0.75s cubic-bezier(0.19, 1, 0.22, 1), stroke 0.75s cubic-bezier(0.19, 1, 0.22, 1);
-}
-
-/* Luxury ultra-smooth fluid liquid background fill */
-.btn-liquid::before {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #FF3300 0%, #FF6600 50%, #FF1100 100%);
-  border-radius: inherit;
-  transition: top 0.95s cubic-bezier(0.19, 1, 0.22, 1);
-  z-index: 1;
-  pointer-events: none;
-}
-
-/* Ultra-smooth slow 100% vertical slide-up liquid fill on hover */
-.btn-liquid:hover::before {
-  top: 0% !important;
-}
-
-.btn-liquid:hover,
-.btn-liquid:hover *,
-.btn-liquid:hover span,
-.btn-action:hover,
-.btn-action.btn-liquid:hover,
-.btn-action.btn-liquid:hover span {
-  color: #FFFFFF !important;
-  border-color: #FF5500 !important;
-  font-weight: 700 !important;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .btn-liquid:hover {
-  box-shadow: 0 0 25px rgba(255, 77, 0, 0.8), inset 0 0 12px rgba(255, 255, 255, 0.4) !important;
-  transform: translateY(-1.5px);
-}
-
-.btn-liquid:hover svg {
-  stroke: #FFFFFF !important;
-  fill: none;
-}
-
-/* Click/Pop liquid expansion ripple bubble */
-.btn-liquid::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 14px;
-  height: 14px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(255, 120, 0, 0.75) 45%, rgba(255, 77, 0, 0) 100%);
-  border-radius: 50%;
-  transform: translate(-50%, -50%) scale(0);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 3;
-}
-
-.btn-liquid:active::after {
-  animation: liquidPop 1.1s cubic-bezier(0.19, 1, 0.22, 1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 94, 26, 0.18) !important;
 }
 
 .btn-liquid:active {
-  transform: scale(0.96);
-}
-
-@keyframes liquidPop {
-  0% {
-    transform: translate(-50%, -50%) scale(0);
-    opacity: 0.95;
-  }
-  30% {
-    opacity: 0.7;
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(36);
-    opacity: 0;
-  }
+  transform: translateY(0) scale(0.98);
 }
