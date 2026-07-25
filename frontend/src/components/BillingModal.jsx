@@ -131,9 +131,11 @@ export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSu
       <div style={{
         background: '#FFFFFF',
         borderRadius: '20px',
-        padding: '32px',
-        width: '740px',
-        maxWidth: '92%',
+        padding: '24px',
+        width: '760px',
+        maxWidth: '94%',
+        maxHeight: '90vh',
+        overflowY: 'auto',
         boxShadow: '0 25px 60px rgba(0,0,0,0.3)',
         border: '1px solid #E2E8F0',
         position: 'relative'
@@ -180,7 +182,7 @@ export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSu
         )}
 
         {/* Pricing Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
           {/* Free Tier */}
           <div style={{
             border: '1px solid #E2E8F0',

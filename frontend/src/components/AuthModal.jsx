@@ -63,9 +63,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       <div style={{
         background: '#FFFFFF',
         borderRadius: '16px',
-        padding: '32px',
+        padding: '28px',
         width: '420px',
-        maxWidth: '90%',
+        maxWidth: '94%',
+        maxHeight: '90vh',
+        overflowY: 'auto',
         boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
         border: '1px solid #E2E8F0',
         position: 'relative'
