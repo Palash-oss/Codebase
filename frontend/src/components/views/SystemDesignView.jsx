@@ -513,25 +513,68 @@ function SystemDesignView({ DATA, isActive }) {
   // Official Tech & Cloud Logo Loader Cache
   const logoCacheRef = useRef({});
   const getTechLogoUrl = (comp) => {
-    const k = (comp.techKey || comp.label || comp.provider || '').toLowerCase();
-    if (k.includes('aws') || k.includes('amazon') || k.includes('s3') || k.includes('ec2') || k.includes('rds') || k.includes('lambda')) {
+    const k = (comp.techKey || comp.label || comp.provider || comp.sublabel || '').toLowerCase();
+
+    // Specific AWS Service & Cloud Icon Mappings
+    if (k.includes('dynamodb')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/dynamodb/dynamodb-original.svg';
+    }
+    if (k.includes('s3') || k.includes('bucket') || k.includes('object storage')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-original-wordmark.svg';
+    }
+    if (k.includes('lambda') || k.includes('serverless')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-plain-wordmark.svg';
+    }
+    if (k.includes('cloudfront') || k.includes('api gateway') || k.includes('route53')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-line-wordmark.svg';
+    }
+    if (k.includes('rds') || k.includes('aurora')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg';
+    }
+    if (k.includes('aws') || k.includes('amazon') || k.includes('ec2') || k.includes('ecs') || k.includes('eks') || k.includes('sqs') || k.includes('sns') || k.includes('iam') || k.includes('cloudwatch')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-original.svg';
     }
+
+    // Other Major Cloud Providers
+    if (k.includes('gcp') || k.includes('google cloud') || k.includes('firebase')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/googlecloud/googlecloud-original.svg';
+    }
+    if (k.includes('azure')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/azure/azure-original.svg';
+    }
+    if (k.includes('vercel') || k.includes('next')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nextjs/nextjs-original.svg';
+    }
+
+    // Containers & DevOps Infrastructure
     if (k.includes('docker')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg';
     }
     if (k.includes('k8s') || k.includes('kubernetes')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/kubernetes/kubernetes-plain.svg';
     }
-    if (k.includes('github') || k.includes('octokit') || k.includes('gha') || k.includes('bot') || k.includes('event')) {
+    if (k.includes('github') || k.includes('octokit') || k.includes('actions') || k.includes('event')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg';
     }
-    if (k.includes('react') || k.includes('next')) {
+
+    // Frameworks & Runtimes
+    if (k.includes('react')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg';
     }
     if (k.includes('node') || k.includes('express')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nodejs/nodejs-original.svg';
     }
+    if (k.includes('python')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg';
+    }
+    if (k.includes('go') || k.includes('golang')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/go/go-original.svg';
+    }
+    if (k.includes('java') || k.includes('spring')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg';
+    }
+
+    // Databases & Caching
     if (k.includes('postgres') || k.includes('sql') || k.includes('prisma')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg';
     }
@@ -541,12 +584,7 @@ function SystemDesignView({ DATA, isActive }) {
     if (k.includes('redis')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/redis/redis-original.svg';
     }
-    if (k.includes('python')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg';
-    }
-    if (k.includes('vue')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/vuejs/vuejs-original.svg';
-    }
+
     return '';
   };
 
