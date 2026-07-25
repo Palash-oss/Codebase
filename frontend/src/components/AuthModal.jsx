@@ -87,10 +87,13 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         localStorage.setItem('xray_user', JSON.stringify(res.user));
         if (onAuthSuccess) onAuthSuccess(res.user);
         onClose();
-      } else {
-        // Fallback for custom Google account if popup is blocked or environment lacks keys
-        const userEmail = (email && validateEmail(email)) ? email : 'palash.pathare005@gmail.com';
-        const userName = name || userEmail.split('@')[0];
+        return;
+      }
+
+      // If Firebase SDK is not configured with keys yet, use user's typed email or prompt
+      if (email && validateEmail(email)) {
+        const userEmail = email.trim();
+        const userName = name.trim() || userEmail.split('@')[0];
         const googleUser = {
           id: `goog_${Date.now()}`,
           name: userName,
@@ -102,9 +105,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         localStorage.setItem('xray_user', JSON.stringify(googleUser));
         if (onAuthSuccess) onAuthSuccess(googleUser);
         onClose();
+      } else {
+        setError('Please enter your Google Email address above to sign in, or configure VITE_FIREBASE_API_KEY in .env for live OAuth popup.');
       }
     } catch (err) {
-      setError(`Google Sign In: ${err.message}`);
+      setError(`Google Sign In Error: ${err.message}`);
     } finally {
       setLoading(false);
     }
