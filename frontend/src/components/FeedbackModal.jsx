@@ -44,7 +44,7 @@ export default function FeedbackModal({ isOpen, onClose, currentUser, activeRepo
 
       const data = await res.json();
       if (res.ok && data.success) {
-        setSuccessMsg('🎉 Your support ticket has been submitted successfully! The team will review it.');
+        setSuccessMsg('Your support ticket has been submitted successfully. Our engineering team will review it.');
         setSubject('');
         setMessage('');
         setTimeout(() => {
@@ -170,10 +170,10 @@ export default function FeedbackModal({ isOpen, onClose, currentUser, activeRepo
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               {[
-                { name: 'Bug Report', icon: '🐛' },
-                { name: 'Feature Request', icon: '✨' },
-                { name: 'General Feedback', icon: '💬' },
-                { name: 'Billing / Account', icon: '💳' }
+                { name: 'Bug Report' },
+                { name: 'Feature Request' },
+                { name: 'General Feedback' },
+                { name: 'Billing / Account' }
               ].map(cat => (
                 <button
                   type="button"
@@ -190,11 +190,11 @@ export default function FeedbackModal({ isOpen, onClose, currentUser, activeRepo
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
+                    justifyContent: 'center',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <span>{cat.icon}</span> {cat.name}
+                  {cat.name}
                 </button>
               ))}
             </div>
@@ -220,10 +220,10 @@ export default function FeedbackModal({ isOpen, onClose, currentUser, activeRepo
                   outline: 'none'
                 }}
               >
-                <option value="Low">🟢 Low Priority</option>
-                <option value="Medium">🟡 Medium Priority</option>
-                <option value="High">🟠 High Priority</option>
-                <option value="Urgent">🔴 Urgent / Critical</option>
+                <option value="Low">Low Priority</option>
+                <option value="Medium">Medium Priority</option>
+                <option value="High">High Priority</option>
+                <option value="Urgent">Urgent / Critical</option>
               </select>
             </div>
 
