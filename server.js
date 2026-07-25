@@ -18,7 +18,9 @@ import {
   saveProjectWorkspace,
   getUserProjects,
   getProjectById,
-  deleteProjectWorkspace
+  deleteProjectWorkspace,
+  createSupportTicket,
+  getAllSupportTickets
 } from './database/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1164,6 +1166,58 @@ app.post('/api/billing/verify-payment', (req, res) => {
     } else {
       return res.status(400).json({ error: 'Invalid payment signature' });
     }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =========================================================================
+// SUPPORT TICKETS & USER FEEDBACK ROUTES
+// =========================================================================
+
+app.post('/api/support/tickets', (req, res) => {
+  try {
+    const { category, severity, subject, message, activeRepo, browserEnv } = req.body;
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const user = getUserByToken(token);
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Feedback message cannot be empty' });
+    }
+
+    const ticket = createSupportTicket({
+      userId: user?.id || 'guest',
+      email: user?.email || req.body.email || 'guest@codebasexray.com',
+      category: category || 'General Feedback',
+      severity: severity || 'Medium',
+      subject: subject || 'No Subject',
+      message: message.trim(),
+      activeRepo: activeRepo || 'None',
+      browserEnv: browserEnv || 'Web Browser'
+    });
+
+    console.log(`[X-RAY SUPPORT TICKET] Created #${ticket.id} (${ticket.category}) from ${ticket.userEmail}`);
+
+    res.json({
+      success: true,
+      message: 'Support ticket submitted successfully! Our engineering team will review it shortly.',
+      ticket
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/support/tickets', (req, res) => {
+  try {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const user = getUserByToken(token);
+
+    // Provide tickets list for admin or authorized users
+    const tickets = getAllSupportTickets();
+    res.json({ success: true, count: tickets.length, tickets });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

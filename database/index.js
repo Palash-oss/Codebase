@@ -12,6 +12,7 @@ if (!fs.existsSync(DATA_DIR)) {
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+const TICKETS_FILE = path.join(DATA_DIR, 'tickets.json');
 
 // Helper to safely read JSON store
 function readStore(filePath, fallback = []) {
@@ -184,4 +185,34 @@ export function deleteProjectWorkspace(userId, projectId) {
   projects = projects.filter(p => !(p.id === projectId && (p.userId === userId || userId === 'admin')));
   writeStore(PROJECTS_FILE, projects);
   return projects.length < initialLen;
+}
+
+// =========================================================================
+// FEEDBACK & SUPPORT TICKET STORAGE CONTROLLERS
+// =========================================================================
+
+export function createSupportTicket(ticketData) {
+  const tickets = readStore(TICKETS_FILE, []);
+  const newTicket = {
+    id: `tkt_${crypto.randomBytes(8).toString('hex')}`,
+    userId: ticketData.userId || 'guest',
+    userEmail: ticketData.email || 'anonymous@user.com',
+    category: ticketData.category || 'General Feedback',
+    severity: ticketData.severity || 'Medium',
+    subject: ticketData.subject || 'No Subject',
+    message: ticketData.message || '',
+    activeRepo: ticketData.activeRepo || 'N/A',
+    browserEnv: ticketData.browserEnv || 'Web Browser',
+    status: 'open',
+    createdAt: new Date().toISOString()
+  };
+
+  tickets.push(newTicket);
+  writeStore(TICKETS_FILE, tickets);
+  return newTicket;
+}
+
+export function getAllSupportTickets() {
+  const tickets = readStore(TICKETS_FILE, []);
+  return tickets.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }

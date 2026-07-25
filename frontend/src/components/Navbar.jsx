@@ -4,6 +4,7 @@ import AuthModal from './AuthModal';
 import WorkspacesDrawer from './WorkspacesDrawer';
 import AiArchitectDrawer from './AiArchitectDrawer';
 import BillingModal from './BillingModal';
+import FeedbackModal from './FeedbackModal';
 
 function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWorkspaceProject }) {
   // Count error/warning findings
@@ -45,6 +46,7 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWo
   const [showWorkspacesDrawer, setShowWorkspacesDrawer] = React.useState(false);
   const [showAiDrawer, setShowAiDrawer] = React.useState(false);
   const [showBillingModal, setShowBillingModal] = React.useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = React.useState(false);
   const [mermaidCode, setMermaidCode] = React.useState('');
   const [ghActionYaml, setGhActionYaml] = React.useState('');
   const [toastMsg, setToastMsg] = React.useState('');
@@ -233,6 +235,16 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWo
           <span>Workspaces</span>
         </button>
 
+        {/* Support & Feedback Button */}
+        <button
+          className="btn-liquid"
+          style={{ background: '#FF2E9322', border: '1px solid #FF2E9388', color: '#FF2E93', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
+          onClick={() => setShowFeedbackModal(true)}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>Feedback</span>
+        </button>
+
         {/* User Account / Auth Button */}
         {currentUser ? (
           <button
@@ -374,6 +386,14 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWo
           setCurrentUser(updatedUser);
           setToastMsg(`Upgraded to ${updatedUser.tier.toUpperCase()} Plan!`);
         }}
+      />
+
+      {/* User Feedback & Support Portal Modal */}
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        currentUser={currentUser}
+        activeRepoName={project?.name || ''}
       />
     </header>
   );
