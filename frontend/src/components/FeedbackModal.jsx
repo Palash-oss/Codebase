@@ -36,7 +36,7 @@ export default function FeedbackModal({ isOpen, onClose, currentUser, activeRepo
           severity,
           subject: subject.trim() || `${category} Ticket`,
           message: message.trim(),
-          email: email.trim() || currentUser?.email || 'guest@codebasexray.com',
+          email: email.trim() || currentUser?.email || 'palash.pathare005@gmail.com',
           activeRepo: activeRepoName || 'None',
           browserEnv: `${navigator.userAgent}`
         })

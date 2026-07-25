@@ -47,15 +47,16 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWo
   const [showAiDrawer, setShowAiDrawer] = React.useState(false);
   const [showBillingModal, setShowBillingModal] = React.useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = React.useState(false);
+  const [showUserModal, setShowUserModal] = React.useState(false);
   const [mermaidCode, setMermaidCode] = React.useState('');
   const [ghActionYaml, setGhActionYaml] = React.useState('');
   const [toastMsg, setToastMsg] = React.useState('');
   const [currentUser, setCurrentUser] = React.useState(() => {
     try {
       const u = localStorage.getItem('xray_user');
-      return u ? JSON.parse(u) : { name: 'Palash', email: 'palash@dev.com', tier: 'pro' };
+      return u ? JSON.parse(u) : null;
     } catch (e) {
-      return { name: 'Palash', email: 'palash@dev.com', tier: 'pro' };
+      return null;
     }
   });
 
@@ -249,21 +250,15 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWo
         {currentUser ? (
           <button
             className="btn-liquid"
-            style={{ background: '#10B98122', border: '1px solid #10B98188', color: '#10B981', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
-            onClick={() => {
-              if (window.confirm(`Signed in as ${currentUser.email} (${(currentUser.tier || 'pro').toUpperCase()} Plan). Do you want to sign out?`)) {
-                localStorage.removeItem('xray_auth_token');
-                localStorage.removeItem('xray_user');
-                setCurrentUser(null);
-              }
-            }}
+            style={{ background: '#10B98122', border: '1px solid #10B98188', color: '#10B981', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+            onClick={() => setShowUserModal(true)}
           >
-            <span>{currentUser.name || currentUser.email.split('@')[0]} ({(currentUser.tier || 'pro').toUpperCase()})</span>
+            <span>{currentUser.name || currentUser.email.split('@')[0]} ({(currentUser.tier || 'free').toUpperCase()})</span>
           </button>
         ) : (
           <button
             className="btn-liquid"
-            style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: '#FFFFFF', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+            style={{ background: '#FF5E1A', border: '1px solid #FF5E1A', color: '#FFFFFF', padding: '6px 14px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(255,94,26,0.3)' }}
             onClick={() => setShowAuthModal(true)}
           >
             <span>Sign In</span>
@@ -395,6 +390,110 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWo
         currentUser={currentUser}
         activeRepoName={project?.name || ''}
       />
+
+      {/* Custom User Profile / Sign Out Modal */}
+      {showUserModal && currentUser && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.65)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 230
+        }}>
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            padding: '24px',
+            width: '380px',
+            maxWidth: '92%',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+            border: '1px solid #E2E8F0',
+            position: 'relative'
+          }}>
+            <button
+              onClick={() => setShowUserModal(false)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'none',
+                border: 'none',
+                fontSize: '18px',
+                cursor: 'pointer',
+                color: '#64748B'
+              }}
+            >
+              ✕
+            </button>
+
+            <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#FF5E1A', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: '700', marginBottom: '10px' }}>
+                {(currentUser.name || currentUser.email)[0].toUpperCase()}
+              </div>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#111827' }}>
+                {currentUser.name || 'Developer Account'}
+              </h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
+                {currentUser.email}
+              </p>
+              <div style={{ marginTop: '8px', display: 'inline-block', padding: '3px 10px', borderRadius: '12px', background: '#F1F5F9', border: '1px solid #E2E8F0', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>
+                {(currentUser.tier || 'free')} Plan
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '20px' }}>
+              <button
+                onClick={() => {
+                  setShowUserModal(false);
+                  setShowBillingModal(true);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #FF5E1A 0%, #FF2A00 100%)',
+                  color: '#FFFFFF',
+                  fontWeight: '700',
+                  fontSize: '13px',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                Manage Subscription / Upgrade
+              </button>
+
+              <button
+                onClick={() => {
+                  localStorage.removeItem('xray_auth_token');
+                  localStorage.removeItem('xray_user');
+                  setCurrentUser(null);
+                  setShowUserModal(false);
+                  setToastMsg('Signed out successfully.');
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  borderRadius: '8px',
+                  background: '#FEF2F2',
+                  border: '1px solid #FCA5A5',
+                  color: '#DC2626',
+                  fontWeight: '600',
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

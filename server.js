@@ -1188,7 +1188,7 @@ app.post('/api/support/tickets', (req, res) => {
 
     const ticket = createSupportTicket({
       userId: user?.id || 'guest',
-      email: user?.email || req.body.email || 'guest@codebasexray.com',
+      email: user?.email || req.body.email || 'palash.pathare005@gmail.com',
       category: category || 'General Feedback',
       severity: severity || 'Medium',
       subject: subject || 'No Subject',

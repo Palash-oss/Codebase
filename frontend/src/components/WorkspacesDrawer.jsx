@@ -57,9 +57,14 @@ export default function WorkspacesDrawer({ isOpen, onClose, onSelectProject, act
     }
   };
 
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
   const handleDelete = async (projectId, e) => {
     e.stopPropagation();
-    if (!window.confirm('Are you sure you want to delete this workspace?')) return;
+    if (confirmDeleteId !== projectId) {
+      setConfirmDeleteId(projectId);
+      return;
+    }
 
     try {
       const token = localStorage.getItem('xray_auth_token') || '';
@@ -68,6 +73,7 @@ export default function WorkspacesDrawer({ isOpen, onClose, onSelectProject, act
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
+        setConfirmDeleteId(null);
         fetchProjects();
       }
     } catch (err) {

@@ -3,6 +3,7 @@ import gsap from 'gsap';
 import LocomotiveScroll from 'locomotive-scroll';
 import Toast from './Toast';
 import BillingModal from './BillingModal';
+import AuthModal from './AuthModal';
 
 function LandingPage({ onAnalysisSuccess }) {
   const [dragOver, setDragOver] = useState(false);
@@ -13,6 +14,7 @@ function LandingPage({ onAnalysisSuccess }) {
   const [progressWidth, setProgressWidth] = useState('0%');
   const [toastMsg, setToastMsg] = useState('');
   const [showPricingModal, setShowPricingModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Interactive Canvas Background
   const canvasRef = useRef(null);
@@ -466,6 +468,7 @@ function LandingPage({ onAnalysisSuccess }) {
         <div className="nav-right" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <span className="version">v3.0</span>
           <button className="btn-outline" onClick={() => setShowPricingModal(true)} style={{ padding: '6px 14px', borderRadius: '6px', cursor: 'pointer' }}>Pricing & Plans</button>
+          <button style={{ background: '#FF5E1A', border: '1px solid #FF5E1A', color: '#FFFFFF', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }} onClick={() => setShowAuthModal(true)}>Sign In</button>
           <button className="btn-outline" onClick={scrollToUpload} style={{ padding: '6px 14px', borderRadius: '6px', cursor: 'pointer' }}>Start analyzing →</button>
         </div>
       </header>
@@ -623,9 +626,18 @@ function LandingPage({ onAnalysisSuccess }) {
       <BillingModal
         isOpen={showPricingModal}
         onClose={() => setShowPricingModal(false)}
-        currentUser={{ name: 'Palash', email: 'palash@dev.com', tier: 'pro' }}
+        currentUser={null}
         onUpgradeSuccess={(user) => {
           setToastMsg(`Upgraded account to ${user.tier.toUpperCase()} Plan!`);
+        }}
+      />
+
+      {/* Developer Sign In & Registration Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onAuthSuccess={(user) => {
+          setToastMsg(`Welcome back, ${user.name || user.email}!`);
         }}
       />
     </div>
