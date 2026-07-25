@@ -34,6 +34,16 @@ export default function WorkspacesDrawer({ isOpen, onClose, onSelectProject, act
     setSaving(true);
     setMessage('');
     try {
+      const uStr = localStorage.getItem('xray_user');
+      const user = uStr ? JSON.parse(uStr) : null;
+      const tier = user?.tier || 'free';
+
+      if (tier === 'free' && projects.length >= 1) {
+        setMessage('Free plan is limited to 1 saved workspace. Upgrade to Pro for Unlimited Workspaces!');
+        setSaving(false);
+        return;
+      }
+
       const token = localStorage.getItem('xray_auth_token') || '';
       const res = await fetch('/api/projects/save', {
         method: 'POST',

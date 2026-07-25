@@ -60,6 +60,9 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWo
     }
   });
 
+  const userTier = currentUser?.tier || 'free';
+  const isPro = userTier === 'pro' || userTier === 'team';
+
   const activeBranch = project.activeBranch || 'main';
   const [realBranches, setRealBranches] = React.useState([activeBranch]);
   const [loadingBranch, setLoadingBranch] = React.useState(false);
@@ -326,7 +329,7 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWo
             </pre>
 
 
-            <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+            <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
               <button 
                 className="btn-liquid"
                 onClick={() => { navigator.clipboard.writeText(mermaidCode); setToastMsg('Copied Mermaid syntax to clipboard!'); }}
@@ -335,6 +338,24 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWo
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                 <span>Copy Mermaid Syntax</span>
               </button>
+
+              {/* 4K SVG Export — Pro Only */}
+              <button
+                onClick={() => {
+                  if (!isPro) {
+                    setShowExportModal(false);
+                    setShowBillingModal(true);
+                    setToastMsg('Upgrade to Pro to export 4K Ultra-HD SVG diagrams!');
+                  } else {
+                    setToastMsg('4K SVG export is coming soon!');
+                  }
+                }}
+                style={{ flex: 1, background: isPro ? 'var(--black-3)' : 'rgba(255,94,26,0.08)', color: isPro ? 'var(--beige)' : 'var(--orange)', border: `1px solid ${isPro ? 'var(--border)' : 'var(--orange)'}`, padding: '10px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', minWidth: '140px' }}
+              >
+                {!isPro && <span style={{ fontSize: '11px' }}>🔒</span>}
+                <span>{isPro ? '4K SVG Export' : '4K SVG — Pro'}</span>
+              </button>
+
               <button 
                 onClick={() => setShowExportModal(false)}
                 style={{ background: 'var(--black-3)', color: 'var(--beige)', border: '1px solid var(--border)', padding: '10px 16px', borderRadius: '6px', cursor: 'pointer' }}

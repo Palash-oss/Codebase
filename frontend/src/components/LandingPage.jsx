@@ -379,8 +379,32 @@ function LandingPage({ onAnalysisSuccess }) {
     });
   };
 
+  const checkAnalysisLimit = () => {
+    try {
+      const uStr = localStorage.getItem('xray_user');
+      const user = uStr ? JSON.parse(uStr) : null;
+      const tier = user?.tier || 'free';
+      const count = parseInt(localStorage.getItem('xray_analysis_count') || '0', 10);
+
+      if (tier === 'free' && count >= 1) {
+        setShowPricingModal(true);
+        setToastMsg('Free plan is limited to 1 codebase analysis. Upgrade to Pro for Unlimited Architecture Generations!');
+        return false;
+      }
+    } catch (e) {}
+    return true;
+  };
+
+  const incrementAnalysisCount = () => {
+    try {
+      const count = parseInt(localStorage.getItem('xray_analysis_count') || '0', 10);
+      localStorage.setItem('xray_analysis_count', String(count + 1));
+    } catch (e) {}
+  };
+
   const submitZip = async () => {
     if (!selectedFile) return;
+    if (!checkAnalysisLimit()) return;
     startLoading();
 
     const formData = new FormData();
@@ -395,11 +419,10 @@ function LandingPage({ onAnalysisSuccess }) {
       let data = {};
       try {
         data = await response.json();
-      } catch (jsonErr) {
-        // Response was not JSON (e.g. server returned an HTML error page)
-      }
+      } catch (jsonErr) {}
 
       if (response.ok) {
+        incrementAnalysisCount();
         handleSuccess();
       } else {
         stopLoading();
@@ -415,6 +438,7 @@ function LandingPage({ onAnalysisSuccess }) {
 
   const submitGithub = async () => {
     if (!githubUrl.includes('github.com')) return;
+    if (!checkAnalysisLimit()) return;
     startLoading();
 
     try {
@@ -427,11 +451,10 @@ function LandingPage({ onAnalysisSuccess }) {
       let data = {};
       try {
         data = await response.json();
-      } catch (jsonErr) {
-        // Response was not JSON (e.g. server returned an HTML error page)
-      }
+      } catch (jsonErr) {}
 
       if (response.ok) {
+        incrementAnalysisCount();
         handleSuccess();
       } else {
         stopLoading();
