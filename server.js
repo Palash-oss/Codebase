@@ -1080,32 +1080,43 @@ app.post('/api/billing/create-checkout', async (req, res) => {
       return res.status(401).json({ error: 'Please sign in to upgrade your subscription plan' });
     }
 
-    // Real Stripe API integration if STRIPE_SECRET_KEY is provided in environment variables
-    if (process.env.STRIPE_SECRET_KEY) {
+    // Razorpay Integration
+    if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
       try {
-        const stripe = (await import('stripe')).default(process.env.STRIPE_SECRET_KEY);
-        const prices = {
-          pro: process.env.STRIPE_PRICE_PRO || 'price_pro_monthly',
-          team: process.env.STRIPE_PRICE_TEAM || 'price_team_monthly'
-        };
-
-        const session = await stripe.checkout.sessions.create({
-          payment_method_types: ['card'],
-          mode: 'subscription',
-          customer_email: user.email,
-          line_items: [
-            {
-              price: prices[plan] || prices.pro,
-              quantity: 1
-            }
-          ],
-          success_url: `${req.headers.origin || 'http://localhost:5173'}/?session_id={CHECKOUT_SESSION_ID}&plan=${plan}`,
-          cancel_url: `${req.headers.origin || 'http://localhost:5173'}/`
+        const Razorpay = require('razorpay');
+        const razorpay = new Razorpay({
+          key_id: process.env.RAZORPAY_KEY_ID,
+          key_secret: process.env.RAZORPAY_KEY_SECRET,
         });
 
-        return res.json({ success: true, url: session.url, checkoutUrl: session.url });
-      } catch (stripeErr) {
-        console.warn('[Stripe API Warning]:', stripeErr.message);
+        const amounts = {
+          pro: 1900, // $19.00 -> 1900 cents
+          team: 4900 // $49.00 -> 4900 cents
+        };
+
+        const options = {
+          amount: amounts[plan] || amounts.pro,
+          currency: 'USD',
+          receipt: `receipt_${Date.now()}_${user.id}`,
+          notes: {
+            plan_name: plan,
+            user_email: user.email
+          }
+        };
+
+        const order = await razorpay.orders.create(options);
+        return res.json({ 
+          success: true, 
+          provider: 'razorpay',
+          order_id: order.id, 
+          amount: order.amount, 
+          currency: order.currency,
+          key_id: process.env.RAZORPAY_KEY_ID,
+          user: user
+        });
+      } catch (rzpErr) {
+        console.error('[Razorpay API Error]:', rzpErr);
+        return res.status(500).json({ error: 'Failed to create payment order' });
       }
     }
 
@@ -1113,9 +1124,46 @@ app.post('/api/billing/create-checkout', async (req, res) => {
     user.tier = plan || 'pro';
     res.json({
       success: true,
+      provider: 'local',
       message: `Subscription successfully updated to ${user.tier.toUpperCase()}`,
       user
     });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/billing/verify-payment', (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan } = req.body;
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const user = getUserByToken(token);
+
+    if (!user) {
+      return res.status(401).json({ error: 'Please sign in' });
+    }
+
+    const crypto = require('crypto');
+    const secret = process.env.RAZORPAY_KEY_SECRET;
+    
+    // Verify signature
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(body.toString())
+      .digest('hex');
+
+    if (expectedSignature === razorpay_signature) {
+      user.tier = plan || 'pro';
+      return res.json({
+        success: true,
+        message: `Subscription upgraded to ${user.tier.toUpperCase()} successfully`,
+        user
+      });
+    } else {
+      return res.status(400).json({ error: 'Invalid payment signature' });
+    }
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

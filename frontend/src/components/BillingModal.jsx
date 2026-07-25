@@ -6,12 +6,24 @@ export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSu
 
   if (!isOpen) return null;
 
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
   const handleSelectPlan = async (planKey) => {
     setLoadingPlan(planKey);
     setSuccessMsg('');
 
     try {
       const token = localStorage.getItem('xray_auth_token') || '';
+      
+      // 1. Create Checkout Order on Backend
       const res = await fetch('/api/billing/create-checkout', {
         method: 'POST',
         headers: {
@@ -22,14 +34,78 @@ export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSu
       });
       const data = await res.json();
 
-      if (res.ok && data.success) {
-        setSuccessMsg(`Upgraded to ${planKey.toUpperCase()} Plan successfully!`);
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to initiate plan upgrade');
+      }
+
+      // If Razorpay provider is returned
+      if (data.provider === 'razorpay') {
+        const isLoaded = await loadRazorpayScript();
+        if (!isLoaded) {
+          throw new Error('Razorpay SDK failed to load. Please check your connection.');
+        }
+
+        const options = {
+          key: data.key_id,
+          amount: data.amount,
+          currency: data.currency,
+          name: 'CodeBase X-Ray',
+          description: `Upgrade to ${planKey.toUpperCase()} Plan`,
+          image: '/og-image.png', // Or logo URL
+          order_id: data.order_id,
+          handler: async function (response) {
+            // 2. Verify Payment Signature on Backend
+            try {
+              const verifyRes = await fetch('/api/billing/verify-payment', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                  plan: planKey
+                })
+              });
+              
+              const verifyData = await verifyRes.json();
+              if (verifyRes.ok && verifyData.success) {
+                setSuccessMsg(verifyData.message);
+                if (verifyData.user) {
+                  localStorage.setItem('xray_user', JSON.stringify(verifyData.user));
+                  if (onUpgradeSuccess) onUpgradeSuccess(verifyData.user);
+                }
+              } else {
+                throw new Error(verifyData.error || 'Payment verification failed');
+              }
+            } catch (vErr) {
+              alert(`Verification Error: ${vErr.message}`);
+            }
+          },
+          prefill: {
+            name: currentUser?.name || 'Developer',
+            email: currentUser?.email || data.user?.email || ''
+          },
+          theme: {
+            color: '#FF5E1A'
+          }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.on('payment.failed', function (response){
+          alert(`Payment Failed: ${response.error.description}`);
+        });
+        rzp.open();
+      } 
+      // Local development fallback
+      else if (data.provider === 'local') {
+        setSuccessMsg(data.message);
         if (data.user) {
           localStorage.setItem('xray_user', JSON.stringify(data.user));
           if (onUpgradeSuccess) onUpgradeSuccess(data.user);
         }
-      } else {
-        throw new Error(data.error || 'Failed to initiate plan upgrade');
       }
     } catch (err) {
       alert(`Billing Error: ${err.message}`);
