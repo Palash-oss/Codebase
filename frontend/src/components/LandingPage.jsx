@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import LocomotiveScroll from 'locomotive-scroll';
 import Toast from './Toast';
+import BillingModal from './BillingModal';
 
 function LandingPage({ onAnalysisSuccess }) {
   const [dragOver, setDragOver] = useState(false);
@@ -11,6 +12,7 @@ function LandingPage({ onAnalysisSuccess }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [progressWidth, setProgressWidth] = useState('0%');
   const [toastMsg, setToastMsg] = useState('');
+  const [showPricingModal, setShowPricingModal] = useState(false);
 
   // Interactive Canvas Background
   const canvasRef = useRef(null);
@@ -461,9 +463,10 @@ function LandingPage({ onAnalysisSuccess }) {
         <div className="wordmark">
           <span className="first">CODEBASE</span> <span className="second">X-RAY</span>
         </div>
-        <div className="nav-right">
+        <div className="nav-right" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <span className="version">v3.0</span>
-          <button className="btn-outline" onClick={scrollToUpload}>Start analyzing →</button>
+          <button className="btn-outline" onClick={() => setShowPricingModal(true)} style={{ padding: '6px 14px', borderRadius: '6px', cursor: 'pointer' }}>Pricing & Plans</button>
+          <button className="btn-outline" onClick={scrollToUpload} style={{ padding: '6px 14px', borderRadius: '6px', cursor: 'pointer' }}>Start analyzing →</button>
         </div>
       </header>
 
@@ -542,66 +545,30 @@ function LandingPage({ onAnalysisSuccess }) {
         <p className="step-desc" style={{ marginBottom: '56px' }}>Under 30 seconds.</p>
 
         {!loading ? (
-          <div className="options-grid" id="controls-grid">
-            {/* ZIP Upload */}
-            <div className="option-container">
-              <div>
-                <div className="option-title">Option A — ZIP upload</div>
-                <div 
-                  className={`drop-zone ${dragOver ? 'dragover' : ''}`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  onClick={() => document.getElementById('file-input').click()}
-                >
-                  <svg className="drop-icon" viewBox="0 0 24 24">
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                  </svg>
-                  <div className="drop-zone-text">drop your zip here</div>
-                  <div className="drop-zone-subtext">or click to browse</div>
-                  {selectedFile && (
-                    <div className="filename-display" style={{ display: 'block' }}>
-                      ✓ {selectedFile.name}
-                    </div>
-                  )}
-                </div>
-                <input 
-                  type="file" 
-                  id="file-input" 
-                  accept=".zip" 
-                  style={{ display: 'none' }} 
-                  onChange={handleFileChange}
-                />
-              </div>
-              <button 
-                className="submit-btn" 
-                disabled={!selectedFile}
-                onClick={submitZip}
-              >
-                Analyze project →
-              </button>
-            </div>
-
+          <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }} id="controls-grid">
             {/* GitHub URL */}
-            <div className="option-container">
+            <div className="option-container" style={{ padding: '32px', borderRadius: '16px', background: 'var(--black-2)', border: '1px solid var(--border)' }}>
               <div>
-                <div className="option-title">Option B — GitHub URL</div>
+                <div className="option-title" style={{ textAlign: 'center', fontSize: '14px', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '20px', color: 'var(--orange)' }}>
+                  Analyze Any GitHub Repository
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '24px' }}>
-                  <svg className="git-icon" style={{ width: '32px', height: '32px', fill: 'var(--beige-2)', marginBottom: '16px' }} viewBox="0 0 24 24">
+                  <svg className="git-icon" style={{ width: '40px', height: '40px', fill: 'var(--beige)', marginBottom: '16px' }} viewBox="0 0 24 24">
                     <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.11.82-.26.82-.577v-2.234c-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.43.372.82 1.102.82 2.222v3.293c0 .319.22.694.825.576C20.565 21.795 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
                   </svg>
-                  <label className="version" style={{ letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '12px' }}>paste a github url</label>
+                  <label className="version" style={{ letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '12px', color: 'var(--beige-2)' }}>Paste GitHub repository URL</label>
                   <input 
                     type="text" 
                     className="input-text" 
                     id="github-url-input" 
-                    placeholder="https://github.com/owner/repo" 
+                    placeholder="https://github.com/owner/repository" 
                     value={githubUrl}
                     onChange={(e) => setGithubUrl(e.target.value)}
+                    style={{ width: '100%', padding: '14px', fontSize: '14px', borderRadius: '8px', border: '1px solid var(--border-2)', background: 'var(--black-3)', color: '#FFFFFF' }}
                   />
                 </div>
                 
-                <div className="chips-container">
+                <div className="chips-container" style={{ justifyContent: 'center' }}>
                   <div className="chip" onClick={() => fillGithub('https://github.com/t3-oss/create-t3-app')}>t3-oss/create-t3-app</div>
                   <div className="chip" onClick={() => fillGithub('https://github.com/expressjs/express')}>expressjs/express</div>
                   <div className="chip" onClick={() => fillGithub('https://github.com/vuejs/vue')}>vuejs/vue</div>
@@ -611,8 +578,9 @@ function LandingPage({ onAnalysisSuccess }) {
                 className="submit-btn" 
                 disabled={!gitUrlValid}
                 onClick={submitGithub}
+                style={{ marginTop: '20px' }}
               >
-                Clone and analyze →
+                Analyze GitHub Architecture →
               </button>
             </div>
           </div>
@@ -650,6 +618,16 @@ function LandingPage({ onAnalysisSuccess }) {
           Built for developers who want to understand their code, not just write it.
         </div>
       </footer>
+
+      {/* SaaS Pricing & Plans Modal */}
+      <BillingModal
+        isOpen={showPricingModal}
+        onClose={() => setShowPricingModal(false)}
+        currentUser={{ name: 'Palash', email: 'palash@dev.com', tier: 'pro' }}
+        onUpgradeSuccess={(user) => {
+          setToastMsg(`Upgraded account to ${user.tier.toUpperCase()} Plan!`);
+        }}
+      />
     </div>
   );
 }

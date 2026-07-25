@@ -643,24 +643,26 @@ body {
 
 /* Navbar in Dashboard */
 .dashboard-navbar {
-  height: 48px;
+  height: 52px;
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   background-color: var(--black-2);
   border-bottom: 1px solid var(--border);
-  padding: 0 16px;
+  padding: 0 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   z-index: 1001;
+  box-sizing: border-box;
 }
 .nav-left {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 .separator {
   color: var(--beige-3);
@@ -668,19 +670,27 @@ body {
 .project-name {
   font-family: 'Space Grotesk', sans-serif;
   font-size: 13px;
-  font-weight: 500;
-  color: var(--beige-2);
+  font-weight: 600;
+  color: var(--beige);
 }
 .file-count {
   font-family: 'Space Mono', monospace;
   font-size: 11px;
   color: var(--beige-3);
+  white-space: nowrap;
 }
 .nav-middle {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: auto;
+  gap: 6px;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+@media (max-width: 1300px) {
+  .nav-middle {
+    display: none !important;
+  }
 }
 .tech-pill {
   display: flex;

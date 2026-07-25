@@ -294,7 +294,7 @@ function SystemDesignView({ DATA, isActive }) {
     });
 
     // Draw connections (before components)
-    sysDataRef.current.connections.forEach(conn => {
+    sysDataRef.current.connections.forEach((conn, connIndex) => {
       const src = sysDataRef.current.components.find(c => c.id === conn.from);
       const tgt = sysDataRef.current.components.find(c => c.id === conn.to);
       if (!src || !tgt) return;
@@ -339,6 +339,20 @@ function SystemDesignView({ DATA, isActive }) {
       ctx.stroke();
       ctx.restore();
       ctx.setLineDash([]);
+
+      // Real-time Directional Flow Pulse Dot
+      const animTime = (Date.now() * 0.0012 + (connIndex || 0) * 0.3) % 1;
+      const pulseX = Math.pow(1 - animTime, 2) * x1 + 2 * (1 - animTime) * animTime * ((x1 + x2) / 2) + Math.pow(animTime, 2) * x2;
+      const pulseY = Math.pow(1 - animTime, 2) * y1 + 2 * (1 - animTime) * animTime * cy1 + Math.pow(animTime, 2) * y2;
+
+      ctx.save();
+      ctx.fillStyle = lineColor;
+      ctx.shadowColor = lineColor;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(pulseX, pulseY, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
 
       const angle = Math.atan2(y2 - cy2, x2 - (sameRow ? x1 : x2));
       drawArrowhead(ctx, x2, y2, angle, lineColor);
@@ -852,6 +866,20 @@ function SystemDesignView({ DATA, isActive }) {
     };
   }, [isInitialized]);
 
+  // Continuous 60fps animation loop for real-time connection pulse dots
+  useEffect(() => {
+    if (!isInitialized) return;
+    let animId;
+    const animate = () => {
+      drawDiagram();
+      animId = requestAnimationFrame(animate);
+    };
+    animId = requestAnimationFrame(animate);
+    return () => {
+      if (animId) cancelAnimationFrame(animId);
+    };
+  }, [isInitialized]);
+
   // Attach event listeners when initialized
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1196,13 +1224,16 @@ function SystemDesignView({ DATA, isActive }) {
         left: '16px',
         display: 'flex',
         alignItems: 'center',
-        gap: '6px',
-        background: 'rgba(255, 255, 255, 0.95)',
+        gap: '4px',
+        background: '#FFFFFF',
         backdropFilter: 'blur(8px)',
         border: '1px solid var(--border)',
         borderRadius: '10px',
-        padding: '6px',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+        padding: '4px',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+        maxWidth: 'calc(100% - 480px)',
+        overflowX: 'auto',
+        whiteSpace: 'nowrap',
         zIndex: 20
       }}>
         {[
@@ -1248,7 +1279,11 @@ function SystemDesignView({ DATA, isActive }) {
         ].map(p => (
           <button
             key={p.id}
-            onClick={() => setPerspective(p.id)}
+            onClick={() => {
+              setPerspective(p.id);
+              transformRef.current = { x: 20, y: 20, scale: 0.95 };
+              setZoomText('95%');
+            }}
             style={{
               padding: '6px 12px',
               borderRadius: '6px',
@@ -1367,24 +1402,31 @@ function SystemDesignView({ DATA, isActive }) {
           position: 'absolute',
           top: '64px',
           right: '16px',
-          background: 'rgba(20, 20, 22, 0.95)',
-          border: '1px solid var(--orange)',
-          borderRadius: '10px',
-          padding: '12px 16px',
-          maxWidth: '320px',
+          background: '#0F172A',
+          border: '1px solid #FF5E1A',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+          borderRadius: '12px',
+          padding: '14px 18px',
+          maxWidth: '340px',
           zIndex: 20,
-          color: 'var(--beige)',
+          color: '#F8FAFC',
           fontSize: '12px'
         }}>
-          <div style={{ fontWeight: '700', color: 'var(--orange)', marginBottom: '4px' }}>
+          <div style={{ fontWeight: '700', color: '#FF5E1A', marginBottom: '6px', fontSize: '13px' }}>
             Refactoring Impact Simulation
           </div>
-          <div style={{ color: 'var(--beige-2)', marginBottom: '6px', fontSize: '11px' }}>
+          <div style={{ color: '#94A3B8', marginBottom: '10px', fontSize: '11px', lineHeight: '1.4' }}>
             Click any component box to simulate removing it from the architecture.
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid var(--border-2)', paddingTop: '6px' }}>
-            <div>Simulated Disabled Files: <strong>{simImpact.disabledCount}</strong></div>
-            <div>Predicted Broken Dependent Files: <strong style={{ color: simImpact.count > 0 ? '#ff4d00' : '#22c55e' }}>{simImpact.count}</strong></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid #334155', paddingTop: '10px', fontSize: '12px', color: '#CBD5E1' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Simulated Disabled Files:</span>
+              <strong style={{ color: '#F8FAFC', fontFamily: 'Space Mono, monospace' }}>{simImpact.disabledCount}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Predicted Broken Dependent Files:</span>
+              <strong style={{ color: simImpact.count > 0 ? '#EF4444' : '#22C55E', fontFamily: 'Space Mono, monospace' }}>{simImpact.count}</strong>
+            </div>
           </div>
         </div>
       )}

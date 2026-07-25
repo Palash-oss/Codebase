@@ -1,0 +1,187 @@
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+import os from 'os';
+
+// Setup Data Persistence Directory (Works locally and serverless on Vercel)
+const DATA_DIR = path.join(os.tmpdir(), 'codebase-xray-db');
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json');
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+
+// Helper to safely read JSON store
+function readStore(filePath, fallback = []) {
+  try {
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.warn(`[DB Store] Warning reading ${filePath}:`, err.message);
+  }
+  return fallback;
+}
+
+// Helper to safely write JSON store
+function writeStore(filePath, data) {
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (err) {
+    console.error(`[DB Store] Error writing ${filePath}:`, err.message);
+    return false;
+  }
+}
+
+// Password Hashing Helper
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return { hash, salt };
+}
+
+function verifyPassword(password, hash, salt) {
+  const checkHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return checkHash === hash;
+}
+
+// =========================================================================
+// USER AUTHENTICATION CONTROLLERS
+// =========================================================================
+
+export function registerUser(email, password, name = '') {
+  const users = readStore(USERS_FILE, []);
+  const normalizedEmail = String(email).toLowerCase().trim();
+
+  const existing = users.find(u => u.email === normalizedEmail);
+  if (existing) {
+    throw new Error('User with this email already exists');
+  }
+
+  const { hash, salt } = hashPassword(password);
+  const newUser = {
+    id: `usr_${crypto.randomBytes(8).toString('hex')}`,
+    email: normalizedEmail,
+    name: name || normalizedEmail.split('@')[0],
+    hash,
+    salt,
+    tier: 'free', // 'free' | 'pro' | 'team'
+    createdAt: new Date().toISOString()
+  };
+
+  users.push(newUser);
+  writeStore(USERS_FILE, users);
+
+  // Auto-generate Session
+  const session = createSession(newUser.id);
+  return { user: sanitizeUser(newUser), token: session.token };
+}
+
+export function loginUser(email, password) {
+  const users = readStore(USERS_FILE, []);
+  const normalizedEmail = String(email).toLowerCase().trim();
+
+  const user = users.find(u => u.email === normalizedEmail);
+  if (!user) {
+    throw new Error("No account found with this email. Click 'Create one now' below to register first!");
+  }
+  if (!verifyPassword(password, user.hash, user.salt)) {
+    throw new Error('Incorrect password. Please try again or re-enter.');
+  }
+
+  const session = createSession(user.id);
+  return { user: sanitizeUser(user), token: session.token };
+}
+
+export function createSession(userId) {
+  const sessions = readStore(SESSIONS_FILE, []);
+  const token = `token_${crypto.randomBytes(24).toString('hex')}`;
+  const newSession = {
+    token,
+    userId,
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 Days
+  };
+
+  sessions.push(newSession);
+  writeStore(SESSIONS_FILE, sessions);
+  return newSession;
+}
+
+export function getUserByToken(token) {
+  if (!token) return null;
+  const sessions = readStore(SESSIONS_FILE, []);
+  const session = sessions.find(s => s.token === token);
+  if (!session) return null;
+
+  if (new Date(session.expiresAt) < new Date()) {
+    return null; // Expired
+  }
+
+  const users = readStore(USERS_FILE, []);
+  const user = users.find(u => u.id === session.userId);
+  return user ? sanitizeUser(user) : null;
+}
+
+function sanitizeUser(user) {
+  const { hash, salt, ...sanitized } = user;
+  return sanitized;
+}
+
+// =========================================================================
+// PROJECT WORKSPACE STORAGE CONTROLLERS
+// =========================================================================
+
+export function saveProjectWorkspace(userId, projectData) {
+  const projects = readStore(PROJECTS_FILE, []);
+  const projName = projectData.name || projectData.project?.name || 'Untitled Architecture';
+
+  // Check if project already exists for user
+  const existingIdx = projects.findIndex(p => p.userId === userId && p.name === projName);
+
+  const newProject = {
+    id: existingIdx >= 0 ? projects[existingIdx].id : `proj_${crypto.randomBytes(8).toString('hex')}`,
+    userId: userId || 'guest',
+    name: projName,
+    summary: projectData.summary || `${projName} Codebase Map`,
+    stats: {
+      fileCount: projectData.files?.length || projectData.project?.totalFiles || 0,
+      techStack: (projectData.stack?.detected || []).map(t => t.name)
+    },
+    data: projectData,
+    updatedAt: new Date().toISOString(),
+    createdAt: existingIdx >= 0 ? projects[existingIdx].createdAt : new Date().toISOString()
+  };
+
+  if (existingIdx >= 0) {
+    projects[existingIdx] = newProject;
+  } else {
+    projects.push(newProject);
+  }
+
+  writeStore(PROJECTS_FILE, projects);
+  return newProject;
+}
+
+export function getUserProjects(userId) {
+  const projects = readStore(PROJECTS_FILE, []);
+  return projects
+    .filter(p => p.userId === userId)
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+}
+
+export function getProjectById(projectId) {
+  const projects = readStore(PROJECTS_FILE, []);
+  return projects.find(p => p.id === projectId) || null;
+}
+
+export function deleteProjectWorkspace(userId, projectId) {
+  let projects = readStore(PROJECTS_FILE, []);
+  const initialLen = projects.length;
+  projects = projects.filter(p => !(p.id === projectId && (p.userId === userId || userId === 'admin')));
+  writeStore(PROJECTS_FILE, projects);
+  return projects.length < initialLen;
+}

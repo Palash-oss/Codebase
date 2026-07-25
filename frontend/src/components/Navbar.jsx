@@ -1,7 +1,11 @@
 import React from 'react';
 import Toast from './Toast';
+import AuthModal from './AuthModal';
+import WorkspacesDrawer from './WorkspacesDrawer';
+import AiArchitectDrawer from './AiArchitectDrawer';
+import BillingModal from './BillingModal';
 
-function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
+function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWorkspaceProject }) {
   // Count error/warning findings
   let errorCount = 0;
   let warningCount = 0;
@@ -22,8 +26,8 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
     return `https://cdn.jsdelivr.net/gh/devicons/devicon/icons/${logoKey}/${logoKey}-original.svg`;
   };
 
-  const first6 = detectedStack.slice(0, 6);
-  const moreCount = detectedStack.length - 6;
+  const first3 = detectedStack.slice(0, 3);
+  const moreCount = detectedStack.length - 3;
 
   const handleReset = async () => {
     try {
@@ -37,9 +41,82 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
 
   const [showPrGuardModal, setShowPrGuardModal] = React.useState(false);
   const [showExportModal, setShowExportModal] = React.useState(false);
+  const [showAuthModal, setShowAuthModal] = React.useState(false);
+  const [showWorkspacesDrawer, setShowWorkspacesDrawer] = React.useState(false);
+  const [showAiDrawer, setShowAiDrawer] = React.useState(false);
+  const [showBillingModal, setShowBillingModal] = React.useState(false);
   const [mermaidCode, setMermaidCode] = React.useState('');
   const [ghActionYaml, setGhActionYaml] = React.useState('');
   const [toastMsg, setToastMsg] = React.useState('');
+  const [currentUser, setCurrentUser] = React.useState(() => {
+    try {
+      const u = localStorage.getItem('xray_user');
+      return u ? JSON.parse(u) : { name: 'Palash', email: 'palash@dev.com', tier: 'pro' };
+    } catch (e) {
+      return { name: 'Palash', email: 'palash@dev.com', tier: 'pro' };
+    }
+  });
+
+  const activeBranch = project.activeBranch || 'main';
+  const [realBranches, setRealBranches] = React.useState([activeBranch]);
+  const [loadingBranch, setLoadingBranch] = React.useState(false);
+
+  React.useEffect(() => {
+    const fetchRepoBranches = async () => {
+      const repoUrl = project.repoUrl || (project.name && project.name.includes('/') ? `https://github.com/${project.name}` : '');
+      if (!repoUrl || !repoUrl.includes('github.com')) {
+        setRealBranches([activeBranch]);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/github/branches?url=${encodeURIComponent(repoUrl)}`);
+        const data = await res.json();
+        if (data.branches && Array.isArray(data.branches) && data.branches.length > 0) {
+          setRealBranches(data.branches);
+        } else {
+          setRealBranches([activeBranch]);
+        }
+      } catch (e) {
+        setRealBranches([activeBranch]);
+      }
+    };
+
+    fetchRepoBranches();
+  }, [project.name, project.repoUrl, activeBranch]);
+
+  const handleBranchSelect = async (e) => {
+    const targetBranch = e.target.value;
+    if (!targetBranch || targetBranch === activeBranch) return;
+
+    setLoadingBranch(true);
+    setToastMsg(`Switching architecture map to branch "${targetBranch}"...`);
+
+    try {
+      const repoUrl = project.repoUrl || `https://github.com/${project.name}`;
+      const res = await fetch('/api/github', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: repoUrl, branch: targetBranch })
+      });
+      const resData = await res.json();
+      if (!res.ok || resData.error) {
+        throw new Error(resData.error || 'Failed to switch branch');
+      }
+
+      // Fetch fresh analysis data for the new branch
+      const freshRes = await fetch('/api/latest-result');
+      const freshData = await freshRes.json();
+      if (onSelectWorkspaceProject) {
+        onSelectWorkspaceProject(freshData);
+      } else {
+        window.location.reload();
+      }
+    } catch (err) {
+      setToastMsg(`Error switching branch: ${err.message}`);
+    } finally {
+      setLoadingBranch(false);
+    }
+  };
 
   const handleFetchGhAction = async () => {
     try {
@@ -81,35 +158,45 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
           <span className="first">CODEBASE</span> <span className="second">X-RAY</span>
         </div>
         <span className="separator">·</span>
-        <div className="project-name">{project.name}</div>
+        <div className="project-name" title={project.name} style={{ maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {project.name}
+        </div>
+
+        {/* Git Branch Selector Dropdown */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'var(--black-3)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-2)' }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="6" y1="3" x2="6" y2="15"/>
+            <circle cx="18" cy="6" r="3"/>
+            <circle cx="6" cy="18" r="3"/>
+            <path d="M18 9a9 9 0 0 1-9 9"/>
+          </svg>
+          <select
+            value={activeBranch}
+            onChange={handleBranchSelect}
+            disabled={loadingBranch}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--orange)',
+              fontSize: '11px',
+              fontWeight: '700',
+              fontFamily: '"Space Mono", monospace',
+              cursor: loadingBranch ? 'wait' : 'pointer',
+              outline: 'none'
+            }}
+          >
+            {realBranches.map(b => (
+              <option key={b} value={b} style={{ background: '#111827', color: '#FFF' }}>
+                {b}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <span className="file-count">{project.totalFiles} files</span>
       </div>
 
-      <div className="nav-middle">
-        {first6.map((tech, index) => {
-          const logoUrl = getTechLogoUrl(tech.logoKey);
-          return (
-            <div className="tech-pill" key={index}>
-              <img 
-                className="tech-pill-logo" 
-                src={logoUrl} 
-                alt="" 
-                onError={(e) => {
-                  e.target.src = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="%23${tech.brandColor.replace('#', '')}"/></svg>`;
-                }}
-              />
-              <span>{tech.name}</span>
-            </div>
-          );
-        })}
-        {moreCount > 0 && (
-          <div className="tech-pill">
-            <span>+{moreCount} more</span>
-          </div>
-        )}
-      </div>
-
-      <div className="nav-right" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+      <div className="nav-right" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
         {errorCount === 0 && warningCount === 0 ? (
           <div className="findings-badge clean" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -124,6 +211,51 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
               <div className="findings-badge warnings">{warningCount} warning{warningCount > 1 ? 's' : ''}</div>
             )}
           </>
+        )}
+
+        {/* AI Architect Assistant Button */}
+        <button
+          className="btn-liquid"
+          style={{ background: '#8B5CF622', border: '1px solid #8B5CF688', color: '#A78BFA', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
+          onClick={() => setShowAiDrawer(true)}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12A10 10 0 0 1 12 2z"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
+          <span>AI Architect</span>
+        </button>
+
+        {/* Workspaces Portfolio Drawer Button */}
+        <button
+          className="btn-liquid"
+          style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--orange)', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
+          onClick={() => setShowWorkspacesDrawer(true)}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span>Workspaces</span>
+        </button>
+
+        {/* User Account / Auth Button */}
+        {currentUser ? (
+          <button
+            className="btn-liquid"
+            style={{ background: '#10B98122', border: '1px solid #10B98188', color: '#10B981', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
+            onClick={() => {
+              if (window.confirm(`Signed in as ${currentUser.email} (${(currentUser.tier || 'pro').toUpperCase()} Plan). Do you want to sign out?`)) {
+                localStorage.removeItem('xray_auth_token');
+                localStorage.removeItem('xray_user');
+                setCurrentUser(null);
+              }
+            }}
+          >
+            <span>{currentUser.name || currentUser.email.split('@')[0]} ({(currentUser.tier || 'pro').toUpperCase()})</span>
+          </button>
+        ) : (
+          <button
+            className="btn-liquid"
+            style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: '#FFFFFF', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+            onClick={() => setShowAuthModal(true)}
+          >
+            <span>Sign In</span>
+          </button>
         )}
 
         <button 
@@ -185,6 +317,8 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
             <pre style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', padding: '16px', borderRadius: '8px', fontSize: '11px', overflowX: 'auto', maxHeight: '250px', fontFamily: '"Space Mono", monospace' }}>
               {mermaidCode}
             </pre>
+
+
             <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
               <button 
                 className="btn-liquid"
@@ -204,6 +338,43 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
           </div>
         </div>
       )}
+
+      {/* Phase 1 Auth & Workspaces UI */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onAuthSuccess={(user) => {
+          setCurrentUser(user);
+          setToastMsg(`Welcome, ${user.name || user.email}!`);
+        }}
+      />
+
+      <WorkspacesDrawer
+        isOpen={showWorkspacesDrawer}
+        onClose={() => setShowWorkspacesDrawer(false)}
+        activeProjectData={data}
+        onSelectProject={(projectData) => {
+          if (onSelectWorkspaceProject) onSelectWorkspaceProject(projectData);
+        }}
+      />
+
+      {/* Phase 3 AI Architect Assistant Drawer */}
+      <AiArchitectDrawer
+        isOpen={showAiDrawer}
+        onClose={() => setShowAiDrawer(false)}
+        activeAnalysisData={data}
+      />
+
+      {/* Phase 4 Subscription Monetization & Billing Modal */}
+      <BillingModal
+        isOpen={showBillingModal}
+        onClose={() => setShowBillingModal(false)}
+        currentUser={currentUser}
+        onUpgradeSuccess={(updatedUser) => {
+          setCurrentUser(updatedUser);
+          setToastMsg(`Upgraded to ${updatedUser.tier.toUpperCase()} Plan!`);
+        }}
+      />
     </header>
   );
 }

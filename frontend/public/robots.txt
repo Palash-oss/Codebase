@@ -1,0 +1,5 @@
+# Robots.txt for CodeBase X-Ray - Allow all search crawlers
+User-agent: *
+Allow: /
+
+Sitemap: https://codebasexray.com/sitemap.xml
