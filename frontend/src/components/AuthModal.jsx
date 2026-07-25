@@ -90,21 +90,9 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         return;
       }
 
-      // If Firebase popup was closed or pending localhost domain authorization,
-      // authenticate seamlessly as a Google Developer account
-      const userEmail = (email && validateEmail(email)) ? email.trim() : 'google.developer@gmail.com';
-      const userName = (name && name.trim()) ? name.trim() : 'Google Developer';
-      const googleUser = {
-        id: `goog_${Date.now()}`,
-        name: userName,
-        email: userEmail,
-        tier: 'pro',
-        provider: 'google'
-      };
-      localStorage.setItem('xray_auth_token', `goog_token_${Date.now()}`);
-      localStorage.setItem('xray_user', JSON.stringify(googleUser));
-      if (onAuthSuccess) onAuthSuccess(googleUser);
-      onClose();
+      if (res.error) {
+        setError(`Firebase Auth Error: ${res.error}`);
+      }
     } catch (err) {
       setError(`Google Sign In Error: ${err.message}`);
     } finally {

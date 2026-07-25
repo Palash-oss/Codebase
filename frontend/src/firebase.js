@@ -40,7 +40,7 @@ export async function loginWithGooglePopup() {
         name: user.displayName || 'Google User',
         email: user.email,
         photoURL: user.photoURL,
-        tier: 'pro',
+        tier: 'free',
         provider: 'google'
       }
     };
