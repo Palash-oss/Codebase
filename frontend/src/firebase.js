@@ -1,14 +1,28 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
-// Firebase Client Web Config
+const getEnv = (key, fallback = '') => {
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
+      return import.meta.env[key];
+    }
+  } catch (e) {}
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env[key]) {
+      return process.env[key];
+    }
+  } catch (e) {}
+  return fallback;
+};
+
+// Firebase Client Web Config (tradeio-20a33 Project)
 const firebaseConfig = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY || "AIzaSyDummyKeyForGoogleAuthPopup",
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "codebase-xray.firebaseapp.com",
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "codebase-xray",
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "codebase-xray.appspot.com",
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1234567890",
-  appId: process.env.VITE_FIREBASE_APP_ID || "1:1234567890:web:abc123def456"
+  apiKey: getEnv('VITE_FIREBASE_API_KEY', 'AIzaSyB3FIPhN8A9blCPDFPiJwRejBCM9FFTHA0'),
+  authDomain: getEnv('VITE_FIREBASE_AUTH_DOMAIN', 'tradeio-20a33.firebaseapp.com'),
+  projectId: getEnv('VITE_FIREBASE_PROJECT_ID', 'tradeio-20a33'),
+  storageBucket: getEnv('VITE_FIREBASE_STORAGE_BUCKET', 'tradeio-20a33.appspot.com'),
+  messagingSenderId: getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID', '388630394068'),
+  appId: getEnv('VITE_FIREBASE_APP_ID', '1:388630394068:web:e8a7fbb54f584a320e3741')
 };
 
 const app = initializeApp(firebaseConfig);
