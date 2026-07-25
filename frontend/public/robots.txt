@@ -1,5 +1,5 @@
-# Robots.txt for CodeBase X-Ray - Allow all search crawlers
+# Robots.txt for CodeBase X-Ray
 User-agent: *
 Allow: /
 
-Sitemap: https://codebasexray.com/sitemap.xml
+Sitemap: https://codebase-kpgd.vercel.app/sitemap.xml
