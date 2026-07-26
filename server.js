@@ -1122,12 +1122,16 @@ app.post('/api/billing/create-checkout', async (req, res) => {
       }
     }
 
-    // Local / Dev Fallback: Instant tier upgrade for local testing
+    // Local / Dev Fallback: Instant tier upgrade for local testing (30 days)
     user.tier = plan || 'pro';
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+    user.subscriptionExpiresAt = expiresAt.toISOString();
+
     res.json({
       success: true,
       provider: 'local',
-      message: `Subscription successfully updated to ${user.tier.toUpperCase()}`,
+      message: `Subscription successfully updated to ${user.tier.toUpperCase()} for 30 days`,
       user
     });
   } catch (e) {
@@ -1158,9 +1162,13 @@ app.post('/api/billing/verify-payment', (req, res) => {
 
     if (expectedSignature === razorpay_signature) {
       user.tier = plan || 'pro';
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+      user.subscriptionExpiresAt = expiresAt.toISOString();
+
       return res.json({
         success: true,
-        message: `Subscription upgraded to ${user.tier.toUpperCase()} successfully`,
+        message: `Subscription upgraded to ${user.tier.toUpperCase()} successfully (Valid for 30 days)`,
         user
       });
     } else {

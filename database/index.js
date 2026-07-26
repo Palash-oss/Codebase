@@ -127,8 +127,46 @@ export function getUserByToken(token) {
   return user ? sanitizeUser(user) : null;
 }
 
+export function updateUserTier(userId, tier, durationDays = 30) {
+  const users = readStore(USERS_FILE, []);
+  const userIndex = users.findIndex(u => u.id === userId);
+  if (userIndex !== -1) {
+    users[userIndex].tier = tier;
+    if (tier !== 'free') {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + durationDays);
+      users[userIndex].subscriptionExpiresAt = expiresAt.toISOString();
+    } else {
+      users[userIndex].subscriptionExpiresAt = null;
+    }
+    writeStore(USERS_FILE, users);
+    return sanitizeUser(users[userIndex]);
+  }
+  return null;
+}
+
 function sanitizeUser(user) {
+  if (!user) return null;
   const { hash, salt, ...sanitized } = user;
+  
+  // Expiration check: Auto-revert to free tier after 30 days
+  if (sanitized.tier && sanitized.tier !== 'free' && sanitized.subscriptionExpiresAt) {
+    if (new Date(sanitized.subscriptionExpiresAt) < new Date()) {
+      sanitized.tier = 'free';
+      sanitized.subscriptionExpiresAt = null;
+      // Persist downgrade in store
+      try {
+        const users = readStore(USERS_FILE, []);
+        const uIdx = users.findIndex(u => u.id === user.id);
+        if (uIdx !== -1) {
+          users[uIdx].tier = 'free';
+          users[uIdx].subscriptionExpiresAt = null;
+          writeStore(USERS_FILE, users);
+        }
+      } catch (e) {}
+    }
+  }
+  
   return sanitized;
 }
 

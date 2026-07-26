@@ -53,8 +53,17 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWo
   const [toastMsg, setToastMsg] = React.useState('');
   const [currentUser, setCurrentUser] = React.useState(() => {
     try {
-      const u = localStorage.getItem('xray_user');
-      return u ? JSON.parse(u) : null;
+      const uStr = localStorage.getItem('xray_user');
+      if (!uStr) return null;
+      const u = JSON.parse(uStr);
+      if (u && u.tier && u.tier !== 'free' && u.subscriptionExpiresAt) {
+        if (new Date(u.subscriptionExpiresAt) < new Date()) {
+          u.tier = 'free';
+          u.subscriptionExpiresAt = null;
+          localStorage.setItem('xray_user', JSON.stringify(u));
+        }
+      }
+      return u;
     } catch (e) {
       return null;
     }

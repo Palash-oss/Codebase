@@ -292,7 +292,7 @@ export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSu
             <div>
               <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#111827' }}>Team & Enterprise</h4>
               <div style={{ fontSize: '24px', fontWeight: '800', color: '#111827', margin: '10px 0 4px 0' }}>$49 <span style={{ fontSize: '12px', fontWeight: '500' }}>/mo</span></div>
-              <p style={{ fontSize: '11px', color: '#64748B', margin: 0 }}>Up to 10 Engineers</p>
+              <p style={{ fontSize: '11px', color: '#64748B', margin: 0 }}>Billed Monthly (Up to 10 Engineers)</p>
 
               <ul style={{ paddingLeft: '16px', fontSize: '12px', color: '#334155', margin: '16px 0 0 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <li>Everything in Pro</li>
