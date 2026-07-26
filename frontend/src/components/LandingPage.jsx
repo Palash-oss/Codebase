@@ -15,6 +15,14 @@ function LandingPage({ onAnalysisSuccess }) {
   const [toastMsg, setToastMsg] = useState('');
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const u = localStorage.getItem('xray_user');
+      return u ? JSON.parse(u) : null;
+    } catch (e) {
+      return null;
+    }
+  });
 
   // Interactive Canvas Background
   const canvasRef = useRef(null);
@@ -491,7 +499,25 @@ function LandingPage({ onAnalysisSuccess }) {
         <div className="nav-right" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <span className="version">v3.0</span>
           <button className="btn-outline" onClick={() => setShowPricingModal(true)} style={{ padding: '6px 14px', borderRadius: '6px', cursor: 'pointer' }}>Pricing & Plans</button>
-          <button style={{ background: '#FF5E1A', border: '1px solid #FF5E1A', color: '#FFFFFF', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }} onClick={() => setShowAuthModal(true)}>Sign In</button>
+
+          {currentUser ? (
+            <button 
+              style={{ background: 'rgba(255,94,26,0.15)', border: '1px solid #FF5E1A', color: '#FF5E1A', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
+              onClick={() => {
+                if (window.confirm(`Signed in as ${currentUser.email} (${(currentUser.tier || 'free').toUpperCase()} PLAN).\n\nDo you want to Sign Out?`)) {
+                  localStorage.removeItem('xray_auth_token');
+                  localStorage.removeItem('xray_user');
+                  setCurrentUser(null);
+                  setToastMsg('Signed out successfully');
+                }
+              }}
+            >
+              👤 {currentUser.name || currentUser.email.split('@')[0]} ({(currentUser.tier || 'free').toUpperCase()})
+            </button>
+          ) : (
+            <button style={{ background: '#FF5E1A', border: '1px solid #FF5E1A', color: '#FFFFFF', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }} onClick={() => setShowAuthModal(true)}>Sign In</button>
+          )}
+
           <button className="btn-outline" onClick={scrollToUpload} style={{ padding: '6px 14px', borderRadius: '6px', cursor: 'pointer' }}>Start analyzing →</button>
         </div>
       </header>
@@ -660,6 +686,7 @@ function LandingPage({ onAnalysisSuccess }) {
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         onAuthSuccess={(user) => {
+          setCurrentUser(user);
           setToastMsg(`Welcome back, ${user.name || user.email}!`);
         }}
       />
