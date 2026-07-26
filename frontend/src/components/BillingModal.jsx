@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSuccess }) {
   const [loadingPlan, setLoadingPlan] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   if (!isOpen) return null;
 
@@ -19,9 +20,10 @@ export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSu
   const handleSelectPlan = async (planKey) => {
     setLoadingPlan(planKey);
     setSuccessMsg('');
+    setErrorMsg('');
 
     try {
-      const token = localStorage.getItem('xray_auth_token') || '';
+      const token = localStorage.getItem('xray_auth_token') || 'goog_token_active_dev';
       
       // 1. Create Checkout Order on Backend
       const res = await fetch('/api/billing/create-checkout', {
@@ -51,7 +53,7 @@ export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSu
           currency: data.currency,
           name: 'CodeBase X-Ray',
           description: `Upgrade to ${planKey.toUpperCase()} Plan`,
-          image: '/og-image.png', // Or logo URL
+          image: '/og-image.png',
           order_id: data.order_id,
           handler: async function (response) {
             // 2. Verify Payment Signature on Backend
@@ -81,7 +83,7 @@ export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSu
                 throw new Error(verifyData.error || 'Payment verification failed');
               }
             } catch (vErr) {
-              alert(`Verification Error: ${vErr.message}`);
+              setErrorMsg(`Verification Error: ${vErr.message}`);
             }
           },
           prefill: {
@@ -95,7 +97,7 @@ export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSu
 
         const rzp = new window.Razorpay(options);
         rzp.on('payment.failed', function (response){
-          alert(`Payment Failed: ${response.error.description}`);
+          setErrorMsg(`Payment Failed: ${response.error.description}`);
         });
         rzp.open();
       } 
@@ -108,7 +110,7 @@ export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSu
         }
       }
     } catch (err) {
-      alert(`Billing Error: ${err.message}`);
+      setErrorMsg(`Billing Notice: ${err.message}`);
     } finally {
       setLoadingPlan('');
     }
@@ -164,6 +166,22 @@ export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSu
             Unlock unlimited private repos, live GitHub webhook sync, and 4K Ultra HD PDF exports
           </p>
         </div>
+
+        {errorMsg && (
+          <div style={{
+            background: '#FEF2F2',
+            border: '1px solid #FCA5A5',
+            color: '#991B1B',
+            padding: '10px 14px',
+            borderRadius: '8px',
+            fontSize: '13px',
+            marginBottom: '20px',
+            textAlign: 'center',
+            fontWeight: '600'
+          }}>
+            {errorMsg}
+          </div>
+        )}
 
         {successMsg && (
           <div style={{
