@@ -1092,23 +1092,35 @@ app.post('/api/billing/create-checkout', async (req, res) => {
           key_secret: process.env.RAZORPAY_KEY_SECRET,
         });
 
-        // Razorpay Amounts in INR (Paise): ₹1499 ($19) & ₹3999 ($49)
-        const amountsINR = {
-          pro: 149900,  // ₹1,499.00 INR
-          team: 399900  // ₹3,999.00 INR
-        };
+        // Amounts: USD ($19 / $49 in cents) and INR (₹1499 / ₹3999 in paise)
+        const amountsUSD = { pro: 1900, team: 4900 };
+        const amountsINR = { pro: 149900, team: 399900 };
 
-        const options = {
-          amount: amountsINR[plan] || amountsINR.pro,
-          currency: 'INR',
-          receipt: `rcpt_${Date.now()}_${String(user.id).slice(-8)}`,
-          notes: {
-            plan_name: plan,
-            user_email: user.email || 'developer@codebasexray.com'
-          }
-        };
+        let order;
+        let selectedCurrency = 'USD';
+        let selectedAmount = amountsUSD[plan] || amountsUSD.pro;
 
-        const order = await razorpay.orders.create(options);
+        try {
+          // Attempt 1: Try USD order (for PayPal / International Cards on Razorpay)
+          order = await razorpay.orders.create({
+            amount: selectedAmount,
+            currency: 'USD',
+            receipt: `rcpt_usd_${Date.now()}_${String(user.id).slice(-8)}`,
+            notes: { plan_name: plan, user_email: user.email || 'developer@codebasexray.com' }
+          });
+        } catch (usdErr) {
+          console.warn('[Razorpay USD fallback to INR]:', usdErr?.error?.description || usdErr?.message);
+          // Attempt 2: Fallback to INR for Indian domestic Razorpay accounts
+          selectedCurrency = 'INR';
+          selectedAmount = amountsINR[plan] || amountsINR.pro;
+          order = await razorpay.orders.create({
+            amount: selectedAmount,
+            currency: 'INR',
+            receipt: `rcpt_inr_${Date.now()}_${String(user.id).slice(-8)}`,
+            notes: { plan_name: plan, user_email: user.email || 'developer@codebasexray.com' }
+          });
+        }
+
         return res.json({ 
           success: true, 
           provider: 'razorpay',
