@@ -1092,18 +1092,19 @@ app.post('/api/billing/create-checkout', async (req, res) => {
           key_secret: process.env.RAZORPAY_KEY_SECRET,
         });
 
-        const amounts = {
-          pro: 1900, // $19.00 -> 1900 cents
-          team: 4900 // $49.00 -> 4900 cents
+        // Razorpay Amounts in INR (Paise): ₹1499 ($19) & ₹3999 ($49)
+        const amountsINR = {
+          pro: 149900,  // ₹1,499.00 INR
+          team: 399900  // ₹3,999.00 INR
         };
 
         const options = {
-          amount: amounts[plan] || amounts.pro,
-          currency: 'USD',
-          receipt: `receipt_${Date.now()}_${user.id}`,
+          amount: amountsINR[plan] || amountsINR.pro,
+          currency: 'INR',
+          receipt: `rcpt_${Date.now()}_${String(user.id).slice(-8)}`,
           notes: {
             plan_name: plan,
-            user_email: user.email
+            user_email: user.email || 'developer@codebasexray.com'
           }
         };
 
@@ -1119,7 +1120,8 @@ app.post('/api/billing/create-checkout', async (req, res) => {
         });
       } catch (rzpErr) {
         console.error('[Razorpay API Error]:', rzpErr);
-        return res.status(500).json({ error: 'Failed to create payment order' });
+        const detailMsg = rzpErr?.error?.description || rzpErr?.message || 'Failed to create payment order';
+        return res.status(400).json({ error: `Razorpay Error: ${detailMsg}` });
       }
     }
 
