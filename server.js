@@ -6,7 +6,8 @@ import open from 'open';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
+import crypto from 'crypto';
+import Razorpay from 'razorpay';
 import os from 'os';
 
 import { analyzeProject } from './analyzer/index.js';
@@ -1086,7 +1087,6 @@ app.post('/api/billing/create-checkout', async (req, res) => {
     // Razorpay Integration
     if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
       try {
-        const Razorpay = require('razorpay');
         const razorpay = new Razorpay({
           key_id: process.env.RAZORPAY_KEY_ID,
           key_secret: process.env.RAZORPAY_KEY_SECRET,
@@ -1166,7 +1166,6 @@ app.post('/api/billing/verify-payment', (req, res) => {
       tier: 'free'
     };
 
-    const crypto = require('crypto');
     const secret = process.env.RAZORPAY_KEY_SECRET;
     
     // Verify signature
