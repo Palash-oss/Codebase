@@ -517,7 +517,7 @@ function LandingPage({ onAnalysisSuccess }) {
               style={{ background: 'rgba(255,94,26,0.15)', border: '1px solid #FF5E1A', color: '#FF5E1A', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
               onClick={() => setShowUserModal(true)}
             >
-              👤 {currentUser.name || currentUser.email.split('@')[0]} ({(currentUser.tier || 'free').toUpperCase()})
+              {currentUser.name || currentUser.email.split('@')[0]} ({(currentUser.tier || 'free').toUpperCase()})
             </button>
           ) : (
             <button style={{ background: '#FF5E1A', border: '1px solid #FF5E1A', color: '#FFFFFF', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }} onClick={() => setShowAuthModal(true)}>Sign In</button>
@@ -769,7 +769,7 @@ function LandingPage({ onAnalysisSuccess }) {
                   cursor: 'pointer'
                 }}
               >
-                💳 Manage Subscription & Plans
+                Manage Subscription & Plans
               </button>
 
               <button
@@ -791,7 +791,7 @@ function LandingPage({ onAnalysisSuccess }) {
                   cursor: 'pointer'
                 }}
               >
-                🚪 Sign Out
+                Sign Out
               </button>
             </div>
           </div>
