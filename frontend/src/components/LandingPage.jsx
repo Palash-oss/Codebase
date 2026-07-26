@@ -15,6 +15,7 @@ function LandingPage({ onAnalysisSuccess }) {
   const [toastMsg, setToastMsg] = useState('');
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const u = localStorage.getItem('xray_user');
@@ -514,14 +515,7 @@ function LandingPage({ onAnalysisSuccess }) {
           {currentUser ? (
             <button 
               style={{ background: 'rgba(255,94,26,0.15)', border: '1px solid #FF5E1A', color: '#FF5E1A', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
-              onClick={() => {
-                if (window.confirm(`Signed in as ${currentUser.email} (${(currentUser.tier || 'free').toUpperCase()} PLAN).\n\nDo you want to Sign Out?`)) {
-                  localStorage.removeItem('xray_auth_token');
-                  localStorage.removeItem('xray_user');
-                  setCurrentUser(null);
-                  setToastMsg('Signed out successfully');
-                }
-              }}
+              onClick={() => setShowUserModal(true)}
             >
               👤 {currentUser.name || currentUser.email.split('@')[0]} ({(currentUser.tier || 'free').toUpperCase()})
             </button>
@@ -701,6 +695,108 @@ function LandingPage({ onAnalysisSuccess }) {
           setToastMsg(`Welcome back, ${user.name || user.email}!`);
         }}
       />
+
+      {/* Custom React User Account & Sign Out Modal */}
+      {showUserModal && currentUser && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.65)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 240
+        }}>
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            padding: '28px',
+            width: '380px',
+            maxWidth: '92%',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+            border: '1px solid #E2E8F0',
+            position: 'relative'
+          }}>
+            <button
+              onClick={() => setShowUserModal(false)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'none',
+                border: 'none',
+                fontSize: '18px',
+                cursor: 'pointer',
+                color: '#64748B'
+              }}
+            >
+              ✕
+            </button>
+
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#FF5E1A', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: '700', marginBottom: '12px' }}>
+                {(currentUser.name || currentUser.email)[0].toUpperCase()}
+              </div>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#111827' }}>
+                {currentUser.name || 'Developer Account'}
+              </h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
+                {currentUser.email}
+              </p>
+              <div style={{ display: 'inline-block', marginTop: '10px', padding: '4px 12px', borderRadius: '12px', background: '#FFF7ED', border: '1px solid #FF5E1A', color: '#FF5E1A', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase' }}>
+                {(currentUser.tier || 'free').toUpperCase()} PLAN
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                onClick={() => {
+                  setShowUserModal(false);
+                  setShowPricingModal(true);
+                }}
+                style={{
+                  padding: '11px',
+                  borderRadius: '8px',
+                  background: '#F8FAFC',
+                  border: '1px solid #CBD5E1',
+                  color: '#334155',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                💳 Manage Subscription & Plans
+              </button>
+
+              <button
+                onClick={() => {
+                  localStorage.removeItem('xray_auth_token');
+                  localStorage.removeItem('xray_user');
+                  setCurrentUser(null);
+                  setShowUserModal(false);
+                  setToastMsg('Signed out successfully');
+                }}
+                style={{
+                  padding: '11px',
+                  borderRadius: '8px',
+                  background: '#FEF2F2',
+                  border: '1px solid #FCA5A5',
+                  color: '#991B1B',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                🚪 Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
