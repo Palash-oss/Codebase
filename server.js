@@ -1075,6 +1075,7 @@ app.post('/api/billing/create-checkout', async (req, res) => {
   try {
     const { plan } = req.body;
     const authHeader = req.headers.authorization || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '');
     const user = getUserByToken(token) || {
       id: `usr_active_${Date.now()}`,
       name: 'Active Developer',

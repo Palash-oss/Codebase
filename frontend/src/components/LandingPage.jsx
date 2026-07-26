@@ -24,6 +24,17 @@ function LandingPage({ onAnalysisSuccess }) {
     }
   });
 
+  useEffect(() => {
+    const handleStorageChange = () => {
+      try {
+        const uStr = localStorage.getItem('xray_user');
+        setCurrentUser(uStr ? JSON.parse(uStr) : null);
+      } catch (e) {}
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   // Interactive Canvas Background
   const canvasRef = useRef(null);
   useEffect(() => {
