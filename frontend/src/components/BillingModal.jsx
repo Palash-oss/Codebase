@@ -24,7 +24,10 @@ export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSu
 
     try {
       const token = localStorage.getItem('xray_auth_token') || 'goog_token_active_dev';
-      
+      const userTz = typeof Intl !== 'undefined' ? (Intl.DateTimeFormat().resolvedOptions().timeZone || '') : '';
+      const isIndia = userTz.includes('Kolkata') || userTz.includes('Calcutta') || (typeof navigator !== 'undefined' && (navigator.language === 'en-IN' || navigator.language === 'hi-IN'));
+      const preferredCurrency = isIndia ? 'INR' : 'USD';
+
       // 1. Create Checkout Order on Backend
       const res = await fetch('/api/billing/create-checkout', {
         method: 'POST',
@@ -32,7 +35,7 @@ export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSu
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ plan: planKey })
+        body: JSON.stringify({ plan: planKey, currency: preferredCurrency })
       });
       const data = await res.json();
 

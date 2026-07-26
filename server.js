@@ -1092,16 +1092,38 @@ app.post('/api/billing/create-checkout', async (req, res) => {
           key_secret: process.env.RAZORPAY_KEY_SECRET,
         });
 
-        // Amounts in INR (Paise): ₹1,499 ($19) & ₹3,999 ($49) - Enables UPI (GPay/PhonePe/Paytm/BHIM)
-        const amountsINR = { pro: 149900, team: 399900 };
-        const selectedAmount = amountsINR[plan] || amountsINR.pro;
+        const { currency: clientCurrency } = req.body;
+        const targetCurrency = String(clientCurrency || '').toUpperCase();
 
-        const order = await razorpay.orders.create({
-          amount: selectedAmount,
-          currency: 'INR',
-          receipt: `rcpt_inr_${Date.now()}_${String(user.id).slice(-8)}`,
-          notes: { plan_name: plan, user_email: user.email || 'developer@codebasexray.com' }
-        });
+        const amountsUSD = { pro: 1900, team: 4900 };    // $19 & $49 (cents) -> PayPal & International Cards
+        const amountsINR = { pro: 149900, team: 399900 }; // ₹1,499 & ₹3,999 (paise) -> UPI & Domestic Indian Cards
+
+        let order;
+        if (targetCurrency === 'USD') {
+          try {
+            order = await razorpay.orders.create({
+              amount: amountsUSD[plan] || amountsUSD.pro,
+              currency: 'USD',
+              receipt: `rcpt_usd_${Date.now()}_${String(user.id).slice(-8)}`,
+              notes: { plan_name: plan, user_email: user.email || 'developer@codebasexray.com' }
+            });
+          } catch (usdErr) {
+            console.warn('[Razorpay USD fallback to INR]:', usdErr?.error?.description || usdErr?.message);
+            order = await razorpay.orders.create({
+              amount: amountsINR[plan] || amountsINR.pro,
+              currency: 'INR',
+              receipt: `rcpt_inr_${Date.now()}_${String(user.id).slice(-8)}`,
+              notes: { plan_name: plan, user_email: user.email || 'developer@codebasexray.com' }
+            });
+          }
+        } else {
+          order = await razorpay.orders.create({
+            amount: amountsINR[plan] || amountsINR.pro,
+            currency: 'INR',
+            receipt: `rcpt_inr_${Date.now()}_${String(user.id).slice(-8)}`,
+            notes: { plan_name: plan, user_email: user.email || 'developer@codebasexray.com' }
+          });
+        }
 
         return res.json({ 
           success: true, 
