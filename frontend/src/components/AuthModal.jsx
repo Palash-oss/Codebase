@@ -381,37 +381,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             {isLogin ? 'Create one now' : 'Sign In'}
           </button>
         </div>
-
-        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #E2E8F0', textAlign: 'center' }}>
-          <button
-            type="button"
-            onClick={() => {
-              const devUser = {
-                id: 'usr_owner_palash',
-                name: 'Palash Pathare (Owner)',
-                email: 'palash.pathare005@gmail.com',
-                tier: 'team',
-                provider: 'owner_dev'
-              };
-              localStorage.setItem('xray_auth_token', 'token_owner_dev_unlimited');
-              localStorage.setItem('xray_user', JSON.stringify(devUser));
-              if (onAuthSuccess) onAuthSuccess(devUser);
-              onClose();
-            }}
-            style={{
-              background: '#F8FAFC',
-              border: '1px solid #CBD5E1',
-              color: '#334155',
-              padding: '8px 14px',
-              borderRadius: '6px',
-              fontSize: '11px',
-              fontWeight: '700',
-              cursor: 'pointer'
-            }}
-          >
-            ⚡ Quick Dev Sign In (Palash — Unlimited Team Access)
-          </button>
-        </div>
       </div>
     </div>
   );
