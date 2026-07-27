@@ -361,12 +361,14 @@ app.post(['/github', '/api/github'], async (req, res) => {
 // POST /chat -> AI Q&A Chat route
 app.post(['/chat', '/api/chat'], async (req, res) => {
   const { question, context } = req.body;
-  const key = process.env.GEMINI_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const groqKey = process.env.GROQ_API_KEY;
 
-  if (key) {
+  // 1. Try Gemini API
+  if (geminiKey) {
     try {
       console.log('[X-RAY] Calling Gemini API for chatbot...');
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -387,7 +389,44 @@ app.post(['/chat', '/api/chat'], async (req, res) => {
       }
       throw new Error('Empty response from Gemini API');
     } catch (error) {
-      console.warn(`[X-RAY] Gemini API error: ${error.message}. Falling back to smart mock.`);
+      console.warn(`[X-RAY] Gemini API error: ${error.message}. Trying Groq fallback...`);
+    }
+  }
+
+  // 2. Try Groq API Fallback (Llama 3.3 70B)
+  if (groqKey) {
+    try {
+      console.log('[X-RAY] Calling Groq API for chatbot...');
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${groqKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are Codebase X-Ray chatbot assistant. Answer developer queries based on the provided codebase summary context.'
+            },
+            {
+              role: 'user',
+              content: `Codebase Context:\n${context}\n\nDeveloper Query: ${question}`
+            }
+          ],
+          temperature: 0.5
+        })
+      });
+
+      const data = await response.json();
+      const answer = data.choices?.[0]?.message?.content;
+      if (answer) {
+        return res.json({ answer });
+      }
+      throw new Error('Empty response from Groq API');
+    } catch (error) {
+      console.warn(`[X-RAY] Groq API error: ${error.message}. Falling back to smart mock.`);
     }
   }
 
