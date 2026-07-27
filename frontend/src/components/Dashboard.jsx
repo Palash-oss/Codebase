@@ -87,7 +87,7 @@ function Dashboard({ data, onNewAnalysis }) {
           {currentView === 'architecture' && (
               <ArchitectureView 
               data={data} 
-              onSelectFile={setSelectedFile} 
+              onSelectFile={handleSelectFile} 
               selectedFile={selectedFile}
               impactHighlight={impactHighlight}
               blastRadiusData={blastRadiusData}
@@ -102,7 +102,7 @@ function Dashboard({ data, onNewAnalysis }) {
           {currentView === 'layers' && (
             <LayersView 
               data={data} 
-              onSelectFile={setSelectedFile} 
+              onSelectFile={handleSelectFile} 
             />
           )}
         </div>
@@ -112,7 +112,7 @@ function Dashboard({ data, onNewAnalysis }) {
             <ExplorerView 
               data={data} 
               selectedFile={selectedFile} 
-              onSelectFile={setSelectedFile} 
+              onSelectFile={handleSelectFile} 
               setImpactHighlight={setImpactHighlight}
             />
           )}
@@ -122,7 +122,7 @@ function Dashboard({ data, onNewAnalysis }) {
           {currentView === 'stack' && (
             <TechStackView 
               data={data} 
-              onSelectFile={setSelectedFile} 
+              onSelectFile={handleSelectFile} 
             />
           )}
         </div>
@@ -133,7 +133,10 @@ function Dashboard({ data, onNewAnalysis }) {
             <BlastRadiusView 
               DATA={data} 
               selectedFile={selectedFile} 
-              onFileSelect={setSelectedFile} 
+              onFileSelect={(file) => {
+                setSelectedFile(file);
+                // Keep selected file updated without forced view tab jump unless explicitly requested
+              }} 
               onHighlight={(highlightPayload) => {
                 // BlastRadiusView now sends impactHighlight-shaped payload
                 setImpactHighlight(highlightPayload);
@@ -147,7 +150,7 @@ function Dashboard({ data, onNewAnalysis }) {
           {currentView === 'story' && (
             <CodeStoryView
               DATA={data}
-              onFileSelect={setSelectedFile}
+              onFileSelect={handleSelectFile}
               currentStoryStep={currentStoryStep}
               onStoryStep={(step) => {
                 setCurrentStoryStep(step);

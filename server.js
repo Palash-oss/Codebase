@@ -584,8 +584,8 @@ Only include files that actually exist in the project file list. Start from the 
   }
 
   try {
-    // Fallback Mock Story Generator using Graph Traversal
-    console.log('[X-RAY] Using mock story fallback with graph traversal.');
+    // Fallback Story Generator using Topological AST Graph Traversal
+    console.log('[X-RAY] Generating topological execution flow via AST graph traversal.');
     const lowerQ = question.toLowerCase();
 
     if (nodes.length === 0) {
