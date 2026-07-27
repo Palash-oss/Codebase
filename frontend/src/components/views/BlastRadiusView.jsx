@@ -36,7 +36,11 @@ function BlastRadiusView({ DATA, selectedFile, onFileSelect, onHighlight }) {
         const response = await fetch('/api/blast-radius', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ relativePath: selectedFile.relativePath }),
+          body: JSON.stringify({ 
+            relativePath: selectedFile.relativePath,
+            nodes: DATA?.graph?.nodes,
+            edges: DATA?.graph?.edges
+          }),
           signal
         });
         if (!response.ok) {
@@ -47,10 +51,56 @@ function BlastRadiusView({ DATA, selectedFile, onFileSelect, onHighlight }) {
         setLoading(false);
       } catch (err) {
         if (err.name !== 'AbortError') {
-          console.error('[X-RAY] Error fetching blast radius:', err);
+          console.warn('[X-RAY] API blast radius error. Computing locally fallback:', err.message);
+          // Instant Client Fallback Calculation
+          const fallbackData = computeClientBlast(selectedFile.relativePath, DATA?.files, DATA?.graph);
+          setBlastData(fallbackData);
           setLoading(false);
         }
       }
+    }
+
+    function computeClientBlast(targetPath, files, graph) {
+      const nodes = graph?.nodes || (files ? files.map(f => ({ id: f.relativePath || f.path, layer: f.layer })) : []);
+      const edges = graph?.edges || [];
+
+      const reverseMap = new Map();
+      nodes.forEach(n => reverseMap.set(n.id, []));
+      edges.forEach(e => {
+        if (reverseMap.has(e.target)) {
+          reverseMap.get(e.target).push(e.source);
+        }
+      });
+
+      let directImpact = reverseMap.get(targetPath) || [];
+      if (directImpact.length === 0 && files) {
+        directImpact = files.filter(f => 
+          (f.imports && f.imports.includes(targetPath)) || 
+          (f.dependencies && f.dependencies.includes(targetPath))
+        ).map(f => f.relativePath || f.path);
+      }
+
+      const directSet = new Set(directImpact);
+      const indirectSet = new Set();
+      directImpact.forEach(dFile => {
+        const importers = reverseMap.get(dFile) || [];
+        importers.forEach(f => {
+          if (f !== targetPath && !directSet.has(f)) {
+            indirectSet.add(f);
+          }
+        });
+      });
+
+      const indirectImpact = [...indirectSet].slice(0, 20);
+      const totalAffected = directImpact.length + indirectImpact.length;
+      const safetyScore = Math.round(Math.max(0, 100 - (totalAffected / Math.max(nodes.length, 1)) * 100));
+      let severity = 'safe';
+      if (safetyScore < 25) severity = 'critical';
+      else if (safetyScore < 50) severity = 'high';
+      else if (safetyScore < 70) severity = 'medium';
+      else if (safetyScore < 90) severity = 'low';
+
+      return { targetPath, directImpact, indirectImpact, totalAffected, safetyScore, severity };
     }
 
     fetchBlastRadius();

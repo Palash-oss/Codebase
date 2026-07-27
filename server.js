@@ -486,16 +486,21 @@ app.post('/api/reset', (req, res) => {
 
 // POST /api/blast-radius -> Compute blast radius for a selected file
 app.post('/api/blast-radius', (req, res) => {
-  const scan = getLastScanResult();
-  if (!scan) {
-    return res.status(400).json({ error: 'Scan a project first' });
-  }
-  const { relativePath } = req.body;
+  const { relativePath, nodes: clientNodes, edges: clientEdges } = req.body;
   if (!relativePath) {
     return res.status(400).json({ error: 'relativePath is required' });
   }
+
+  const scan = getLastScanResult() || latestAnalysisResult || {};
+  const nodes = clientNodes || scan.graph?.nodes || [];
+  const edges = clientEdges || scan.graph?.edges || [];
+
+  if (!nodes || nodes.length === 0) {
+    return res.status(400).json({ error: 'Scan graph data required' });
+  }
+
   try {
-    const result = computeBlastRadius(relativePath, scan.graph.nodes, scan.graph.edges);
+    const result = computeBlastRadius(relativePath, nodes, edges);
     res.json(result);
   } catch (err) {
     console.error('[X-RAY] Error computing blast radius:', err);
@@ -505,17 +510,20 @@ app.post('/api/blast-radius', (req, res) => {
 
 // POST /api/story -> AI/Mock execution path generator
 app.post('/api/story', async (req, res) => {
-  if (!lastScanResult) {
-    if (latestAnalysisResult) {
-      lastScanResult = latestAnalysisResult;
-    } else {
-      return res.status(400).json({ error: 'Scan a project first' });
-    }
-  }
-  const { question } = req.body;
+  const { question, nodes: clientNodes, edges: clientEdges, files: clientFiles } = req.body;
   if (!question) {
     return res.status(400).json({ error: 'question is required' });
   }
+
+  const scan = getLastScanResult() || latestAnalysisResult || {};
+  const nodes = (clientNodes && clientNodes.length > 0) 
+    ? clientNodes 
+    : (scan.graph?.nodes && scan.graph.nodes.length > 0)
+      ? scan.graph.nodes
+      : (clientFiles ? clientFiles.map(f => ({ id: f.relativePath || f.path, layer: f.layer || 'Interaction' })) : []);
+  const edges = clientEdges || scan.graph?.edges || [];
+  const projectName = scan.project?.name || req.body.project?.name || 'Codebase';
+  const techStackStr = scan.stack?.detected ? scan.stack.detected.map(t => t.name).join(', ') : 'JavaScript/TypeScript';
 
   const key = process.env.GEMINI_API_KEY;
   if (key) {
@@ -578,8 +586,6 @@ Only include files that actually exist in the project file list. Start from the 
   try {
     // Fallback Mock Story Generator using Graph Traversal
     console.log('[X-RAY] Using mock story fallback with graph traversal.');
-    const nodes = lastScanResult?.graph?.nodes || [];
-    const edges = lastScanResult?.graph?.edges || [];
     const lowerQ = question.toLowerCase();
 
     if (nodes.length === 0) {
