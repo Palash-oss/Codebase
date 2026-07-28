@@ -406,9 +406,14 @@ function LandingPage({ onAnalysisSuccess }) {
       const tier = user?.tier || 'free';
       const count = parseInt(localStorage.getItem('xray_analysis_count') || '0', 10);
 
-      if (tier === 'free' && count >= 1) {
+      // Always exempt owner / team members
+      if (user?.email && (user.email.toLowerCase().includes('palash') || user.email.toLowerCase().includes('owner'))) {
+        return true;
+      }
+
+      if (tier === 'free' && count >= 2) {
         setShowPricingModal(true);
-        setToastMsg('Free plan is limited to 1 codebase analysis. Upgrade to Pro for Unlimited Architecture Generations!');
+        setToastMsg('Free plan is limited to 2 codebase analyses. Upgrade to Pro for Unlimited Architecture Generations!');
         return false;
       }
     } catch (e) {}
@@ -435,11 +440,17 @@ function LandingPage({ onAnalysisSuccess }) {
 
     try {
       const userStr = localStorage.getItem('xray_user');
-      const token = userStr ? JSON.parse(userStr)?.token || '' : '';
+      const parsedUser = userStr ? JSON.parse(userStr) : null;
+      const token = parsedUser?.token || '';
+      const email = parsedUser?.email || currentUser?.email || '';
+
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (email) headers['x-user-email'] = email;
 
       const response = await fetch('/upload', {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers,
         body: formData,
         signal: controller.signal
       });
@@ -488,14 +499,19 @@ function LandingPage({ onAnalysisSuccess }) {
 
     try {
       const userStr = localStorage.getItem('xray_user');
-      const token = userStr ? JSON.parse(userStr)?.token || '' : '';
+      const parsedUser = userStr ? JSON.parse(userStr) : null;
+      const token = parsedUser?.token || '';
+      const email = parsedUser?.email || currentUser?.email || '';
+
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(email ? { 'x-user-email': email } : {})
+      };
 
       const response = await fetch('/github', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        headers,
         body: JSON.stringify({ url: githubUrl }),
         signal: controller.signal
       });

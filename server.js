@@ -217,7 +217,8 @@ app.post(['/upload', '/api/upload'], upload.single('project'), async (req, res) 
   const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
   const authHeader = req.headers.authorization || '';
   const token = authHeader.replace(/^Bearer\s+/i, '');
-  const ipCheck = checkIpScanLimit(clientIp, token);
+  const userEmail = req.headers['x-user-email'] || '';
+  const ipCheck = checkIpScanLimit(clientIp, token, userEmail);
   if (!ipCheck.allowed) {
     return res.status(429).json(ipCheck);
   }
@@ -413,7 +414,8 @@ app.post(['/github', '/api/github'], async (req, res) => {
   const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
   const authHeader = req.headers.authorization || '';
   const token = authHeader.replace(/^Bearer\s+/i, '');
-  const ipCheck = checkIpScanLimit(clientIp, token);
+  const userEmail = req.headers['x-user-email'] || '';
+  const ipCheck = checkIpScanLimit(clientIp, token, userEmail);
   if (!ipCheck.allowed) {
     return res.status(429).json(ipCheck);
   }
