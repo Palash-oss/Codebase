@@ -1666,13 +1666,23 @@ body {
   fill: var(--black);
 }
 
-/* Full-site Responsive Layout Rules */
+/* Full-site Responsive Layout Rules & Anti-Overflow */
+html, body, #root {
+  max-width: 100vw !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+}
+
+*, *:before, *:after {
+  box-sizing: border-box !important;
+}
+
 @media (max-width: 1024px) {
   .dashboard-navbar {
     padding: 0 16px;
   }
   .nav-middle {
-    max-width: 240px;
+    max-width: 200px;
     overflow-x: auto;
   }
   .tech-stack-columns {
@@ -1692,83 +1702,84 @@ body {
     padding-right: 16px !important;
   }
   .hero-line {
-    font-size: 30px !important;
+    font-size: 28px !important;
     line-height: 1.25 !important;
   }
   .hero-subtitle {
-    font-size: 14px !important;
+    font-size: 13px !important;
   }
   .option-container {
     min-height: auto;
   }
 
-  /* Mobile Bottom App Navigation Bar */
+  /* Mobile Bottom Navigation Bar */
   .sidebar {
     top: auto !important;
     bottom: 0 !important;
     left: 0 !important;
     right: 0 !important;
     width: 100% !important;
-    height: 56px !important;
+    height: 54px !important;
     border-right: none !important;
-    border-top: 1px solid var(--border) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
     flex-direction: row !important;
     justify-content: space-around !important;
     align-items: center !important;
-    padding: 0 8px !important;
+    padding: 0 4px !important;
     z-index: 1000 !important;
-    background-color: var(--black-2) !important;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+    background: rgba(11, 14, 20, 0.95) !important;
+    backdrop-filter: blur(16px) !important;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
   }
   .sidebar-btn {
-    width: 44px !important;
-    height: 44px !important;
+    width: 40px !important;
+    height: 40px !important;
     border-radius: 8px !important;
   }
   .sidebar .tooltip {
     display: none !important;
   }
 
-  /* Dashboard Layout on Mobile */
+  /* Main Dashboard Panel Bounds on Mobile */
   .main-content {
     left: 0 !important;
-    top: 52px !important;
-    bottom: 56px !important;
+    top: 50px !important;
+    bottom: 54px !important;
     right: 0 !important;
   }
   .main-content.panel-open,
   .main-content.chat-open,
   .main-content.both-open {
     right: 0 !important;
-    bottom: 56px !important;
+    bottom: 54px !important;
   }
 
-  /* Slide-up Mobile Drawer Panels */
+  /* Full Viewport Mobile Drawer Panels */
   .detail-panel {
-    top: 52px !important;
-    bottom: 56px !important;
+    top: 50px !important;
+    bottom: 54px !important;
     width: 100vw !important;
     right: 0 !important;
     left: 0 !important;
     border-left: none !important;
     z-index: 1100 !important;
-    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.7);
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.8);
   }
   .chat-panel {
     left: 0 !important;
     right: 0 !important;
     width: 100vw !important;
-    bottom: 56px !important;
-    top: 52px !important;
+    bottom: 54px !important;
+    top: 50px !important;
     height: auto !important;
     z-index: 1100 !important;
   }
 
   /* Compact Dashboard Top Navbar */
   .dashboard-navbar {
-    height: 52px !important;
-    padding: 0 12px !important;
-    gap: 8px !important;
+    height: 50px !important;
+    padding: 0 10px !important;
+    gap: 6px !important;
   }
   .nav-middle {
     display: none !important;
@@ -1776,23 +1787,48 @@ body {
   .file-count {
     display: none !important;
   }
+  .project-name {
+    max-width: 140px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 12px !important;
+  }
 
   /* Responsive Diagram Action Bars & Overlays */
+  .perspective-bar-wrapper {
+    top: 8px !important;
+    left: 8px !important;
+    right: 8px !important;
+    max-width: calc(100vw - 16px) !important;
+    overflow-x: auto !important;
+  }
+  .top-action-bar-wrapper {
+    top: 50px !important;
+    right: 8px !important;
+    gap: 4px !important;
+    flex-wrap: wrap !important;
+    scale: 0.88 !important;
+    transform-origin: top right !important;
+  }
   .canvas-controls {
-    bottom: 12px !important;
-    left: 12px !important;
+    bottom: 60px !important;
+    left: 8px !important;
     padding: 4px 8px !important;
+    scale: 0.9 !important;
+    transform-origin: bottom left !important;
   }
   .editor-toolbar {
-    top: 12px !important;
-    right: 12px !important;
+    top: 8px !important;
+    right: 8px !important;
+    gap: 4px !important;
     flex-wrap: wrap !important;
   }
 }
 
 @media (max-width: 480px) {
   .hero-line {
-    font-size: 24px !important;
+    font-size: 22px !important;
   }
   .repo-input-wrapper {
     flex-direction: column !important;
@@ -1803,7 +1839,7 @@ body {
     margin-top: 8px !important;
   }
   .wordmark {
-    font-size: 11px !important;
+    font-size: 10px !important;
     letter-spacing: 0.1em !important;
   }
 }/* ========================================================

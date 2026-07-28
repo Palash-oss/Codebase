@@ -1260,7 +1260,7 @@ function SystemDesignView({ DATA, isActive }) {
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }} ref={containerRef}>
       {/* Top Left Perspective Selector Bar */}
-      <div style={{
+      <div className="perspective-bar-wrapper" style={{
         position: 'absolute',
         top: '16px',
         left: '16px',
@@ -1358,7 +1358,7 @@ function SystemDesignView({ DATA, isActive }) {
       />
 
       {/* Top Action Bar */}
-      <div style={{
+      <div className="top-action-bar-wrapper" style={{
         position: 'absolute',
         top: '16px',
         right: '16px',
