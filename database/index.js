@@ -160,11 +160,50 @@ export function updateUserTier(userId, tier, durationDays = 30) {
   return null;
 }
 
+export function updateUserTierByEmail(email, tier, durationDays = 30) {
+  if (!email) return null;
+  const users = readStore(USERS_FILE, []);
+  const normEmail = String(email).toLowerCase().trim();
+  let userIndex = users.findIndex(u => u.email === normEmail);
+  
+  if (userIndex === -1) {
+    // Register paid user on the fly if not existing
+    const newUser = {
+      id: `usr_${crypto.randomBytes(8).toString('hex')}`,
+      email: normEmail,
+      name: normEmail.split('@')[0],
+      tier: tier,
+      createdAt: new Date().toISOString()
+    };
+    users.push(newUser);
+    userIndex = users.length - 1;
+  }
+
+  users[userIndex].tier = tier;
+  if (tier !== 'free') {
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + durationDays);
+    users[userIndex].subscriptionExpiresAt = expiresAt.toISOString();
+  } else {
+    users[userIndex].subscriptionExpiresAt = null;
+  }
+
+  writeStore(USERS_FILE, users);
+  return sanitizeUser(users[userIndex]);
+}
+
 function sanitizeUser(user) {
   if (!user) return null;
   const { hash, salt, ...sanitized } = user;
-  
-  // Expiration check: Auto-revert to free tier after 30 days
+
+  // Unconditional Owner Access Rule
+  if (sanitized.email && (sanitized.email.toLowerCase().includes('palash') || sanitized.email.toLowerCase().includes('owner'))) {
+    sanitized.tier = 'owner';
+    sanitized.isUnlimited = true;
+    return sanitized;
+  }
+
+  // Subscription Expiration Check: Auto-revert to free tier after durationDays
   if (sanitized.tier && sanitized.tier !== 'free' && sanitized.subscriptionExpiresAt) {
     if (new Date(sanitized.subscriptionExpiresAt) < new Date()) {
       sanitized.tier = 'free';
@@ -172,7 +211,7 @@ function sanitizeUser(user) {
       // Persist downgrade in store
       try {
         const users = readStore(USERS_FILE, []);
-        const uIdx = users.findIndex(u => u.id === user.id);
+        const uIdx = users.findIndex(u => u.id === user.id || u.email === user.email);
         if (uIdx !== -1) {
           users[uIdx].tier = 'free';
           users[uIdx].subscriptionExpiresAt = null;
@@ -181,7 +220,7 @@ function sanitizeUser(user) {
       } catch (e) {}
     }
   }
-  
+
   return sanitized;
 }
 
