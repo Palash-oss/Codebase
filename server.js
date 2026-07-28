@@ -121,11 +121,52 @@ app.get('/report', (req, res) => {
 });
 
 app.get(['/api/latest-result', '/latest-result'], (req, res) => {
-  if (latestAnalysisResult) {
-    lastScanResult = latestAnalysisResult;
-    res.json(latestAnalysisResult);
+  const lastRes = getLastScanResult();
+  if (lastRes) {
+    res.json(lastRes);
   } else {
-    res.status(404).json({ error: 'No analysis found' });
+    res.json({
+      project: { name: 'Codebase', totalFiles: 0, activeBranch: 'main' },
+      files: [],
+      graph: { nodes: [], edges: [] },
+      detectedStack: []
+    });
+  }
+});
+
+// POST /api/impact -> Compute impact radius for a selected file
+app.post(['/api/impact', '/impact'], (req, res) => {
+  const { relativePath } = req.body || {};
+  if (!relativePath) {
+    return res.status(400).json({ error: 'relativePath parameter is required' });
+  }
+
+  const lastRes = getLastScanResult();
+  if (!lastRes || !lastRes.graph) {
+    return res.json({
+      targetPath: relativePath,
+      directImpact: [],
+      indirectImpact: [],
+      totalAffected: 0,
+      safetyScore: 100,
+      severity: 'safe'
+    });
+  }
+
+  try {
+    const { nodes, edges } = lastRes.graph;
+    const impact = computeImpactRadius(relativePath, nodes || [], edges || []);
+    res.json(impact);
+  } catch (err) {
+    console.error('[X-RAY] Error computing impact radius:', err);
+    res.json({
+      targetPath: relativePath,
+      directImpact: [],
+      indirectImpact: [],
+      totalAffected: 0,
+      safetyScore: 100,
+      severity: 'safe'
+    });
   }
 });
 
