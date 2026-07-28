@@ -48,9 +48,11 @@ function App() {
     );
   }
 
+  const hasValidAnalysis = Boolean(latestResult && Array.isArray(latestResult.files) && latestResult.files.length > 0);
+
   return (
     <>
-      {latestResult ? (
+      {hasValidAnalysis ? (
         <Dashboard data={latestResult} onNewAnalysis={handleNewAnalysis} />
       ) : (
         <LandingPage onAnalysisSuccess={setLatestResult} />
