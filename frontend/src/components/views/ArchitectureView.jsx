@@ -295,14 +295,14 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.scale, transform.scale);
 
-    ctx.fillStyle = '#080C14';
+    ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(-transform.x / transform.scale, -transform.y / transform.scale, W / transform.scale, H / transform.scale);
 
     // Title
     ctx.fillStyle = '#FF5E1A';
     ctx.fillRect(32, 24, 4, 28);
     ctx.font = '700 18px "Space Grotesk", sans-serif';
-    ctx.fillStyle = '#F8FAFC';
+    ctx.fillStyle = '#111827';
     ctx.fillText(data.project.name + ' — System Architecture', 44, 44);
 
     // Zones
@@ -622,7 +622,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       ctx.shadowBlur = (isHovered || isCurrentStoryNode) ? 15 : 2;
       ctx.shadowOffsetY = isHovered ? 3 : 1;
  
-      ctx.fillStyle = '#161B26';
+      ctx.fillStyle = '#ffffff';
       roundRect(ctx, drawX, drawY, drawW, drawH, 6);
       ctx.fill();
  
@@ -640,7 +640,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
  
       // File Name
       ctx.font = `600 ${Math.round(11 * cardScale)}px "Space Grotesk", sans-serif`;
-      ctx.fillStyle = '#F8FAFC';
+      ctx.fillStyle = '#1E1B18';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       
@@ -658,7 +658,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
  
       // Subtitle
       ctx.font = `400 ${Math.round(8 * cardScale)}px "Space Mono", monospace`;
-      ctx.fillStyle = 'rgba(248, 250, 252, 0.6)';
+      ctx.fillStyle = 'rgba(30,27,24,0.5)';
       let displaySub = comp.subtitle;
       let subWidth = ctx.measureText(displaySub).width;
       if (subWidth > maxTextWidth) {
