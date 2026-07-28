@@ -276,22 +276,36 @@ export function getAllSupportTickets() {
 
 const IP_LIMITS_FILE = path.join(DATA_DIR, 'ip_limits.json');
 
-export function checkIpScanLimit(ipAddress, userToken = null) {
-  // If user has a valid pro/team token, allow scan
+export function checkIpScanLimit(ipAddress, userToken = null, userEmail = null) {
+  const cleanIp = String(ipAddress || '127.0.0.1').replace(/^::ffff:/, '').trim();
+
+  // 1. Always allow localhost & local development
+  if (cleanIp === '127.0.0.1' || cleanIp === '::1' || cleanIp === 'localhost') {
+    return { allowed: true };
+  }
+
+  // 2. Exempt Owner / Logged-in Team users
+  if (userEmail && (userEmail.toLowerCase().includes('palash') || userEmail.toLowerCase().includes('owner'))) {
+    return { allowed: true };
+  }
+
   if (userToken) {
     const user = getUserByToken(userToken);
-    if (user && user.tier && user.tier !== 'free') {
-      return { allowed: true };
+    if (user) {
+      // Allow if Pro/Team OR if owner email
+      if (user.tier !== 'free' || (user.email && user.email.toLowerCase().includes('palash'))) {
+        return { allowed: true };
+      }
     }
   }
 
-  const cleanIp = String(ipAddress || '127.0.0.1').replace(/^::ffff:/, '').trim();
+  // 3. Rate limit anonymous free users per IP (allow 2 free scans/day)
   const limits = readStore(IP_LIMITS_FILE, {});
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
   const ipKey = `${cleanIp}_${today}`;
 
   const currentCount = limits[ipKey] || 0;
-  if (currentCount >= 1) {
+  if (currentCount >= 2) {
     return {
       allowed: false,
       limitReached: true,
