@@ -155,16 +155,16 @@ function ExplorerView({ data, selectedFile, onSelectFile, setImpactHighlight }) 
   return (
     <div id="view-explorer" className={`explorer-container mobile-tab-${mobileTab}`} style={{ display: 'flex', width: '100%', height: '100%', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Mobile Tab Switcher Bar */}
-      <div className="explorer-mobile-bar" style={{ display: 'none', width: '100%', background: 'var(--black-2)', borderBottom: '1px solid var(--border)', padding: '6px 12px', gap: '8px' }}>
+      <div className="explorer-mobile-bar" style={{ display: 'none', width: '100%', background: '#FFFFFF', borderBottom: '1px solid #E5E7EB', padding: '6px 12px', gap: '8px' }}>
         <button
           onClick={() => setMobileTab('tree')}
           style={{
             flex: 1,
             padding: '8px',
             borderRadius: '6px',
-            border: 'none',
-            background: mobileTab === 'tree' ? 'rgba(255,255,255,0.12)' : 'transparent',
-            color: mobileTab === 'tree' ? '#FFF' : 'var(--beige-3)',
+            border: '1px solid #E5E7EB',
+            background: mobileTab === 'tree' ? '#111827' : '#F9FAFB',
+            color: mobileTab === 'tree' ? '#FFFFFF' : '#6B7280',
             fontSize: '12px',
             fontWeight: '600',
             cursor: 'pointer'
@@ -178,9 +178,9 @@ function ExplorerView({ data, selectedFile, onSelectFile, setImpactHighlight }) 
             flex: 1,
             padding: '8px',
             borderRadius: '6px',
-            border: 'none',
-            background: mobileTab === 'detail' ? 'rgba(255,255,255,0.12)' : 'transparent',
-            color: mobileTab === 'detail' ? '#FFF' : 'var(--beige-3)',
+            border: '1px solid #E5E7EB',
+            background: mobileTab === 'detail' ? '#111827' : '#F9FAFB',
+            color: mobileTab === 'detail' ? '#FFFFFF' : '#6B7280',
             fontSize: '12px',
             fontWeight: '600',
             cursor: 'pointer'
