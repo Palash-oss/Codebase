@@ -23,7 +23,9 @@ import {
   getProjectById,
   deleteProjectWorkspace,
   createSupportTicket,
-  getAllSupportTickets
+  getAllSupportTickets,
+  checkIpScanLimit,
+  recordIpScan
 } from './database/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -211,6 +213,15 @@ app.get(['/api/badge', '/api/badge.svg', '/api/badge/:owner/:repo.svg', '/badge.
 // POST /upload -> single file ZIP analysis
 app.post(['/upload', '/api/upload'], upload.single('project'), async (req, res) => {
   console.log('[X-RAY] Received ZIP file upload.');
+
+  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '');
+  const ipCheck = checkIpScanLimit(clientIp, token);
+  if (!ipCheck.allowed) {
+    return res.status(429).json(ipCheck);
+  }
+
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded. Please upload a ZIP project file.' });
   }
@@ -247,6 +258,7 @@ app.post(['/upload', '/api/upload'], upload.single('project'), async (req, res) 
     latestAnalysisResult = result;
     lastScanResult = result;
     saveAnalysisCache(result);
+    recordIpScan(clientIp);
     // Send result as JSON
     res.json({ success: true });
   } catch (error) {
@@ -398,6 +410,14 @@ app.post(['/github', '/api/github'], async (req, res) => {
   const { url, branch: targetBranch } = req.body;
   console.log(`[X-RAY] Received GitHub clone request for: ${url} (Branch: ${targetBranch || 'default'})`);
 
+  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '');
+  const ipCheck = checkIpScanLimit(clientIp, token);
+  if (!ipCheck.allowed) {
+    return res.status(429).json(ipCheck);
+  }
+
   if (!url || !url.includes('github.com')) {
     return res.status(400).json({ error: 'Invalid URL. Please provide a valid GitHub repository URL.' });
   }
@@ -473,6 +493,7 @@ app.post(['/github', '/api/github'], async (req, res) => {
     latestAnalysisResult = result;
     lastScanResult = result;
     saveAnalysisCache(result);
+    recordIpScan(clientIp);
     res.json({ success: true, branch: result.project?.activeBranch || branch });
   } catch (error) {
     console.error('[X-RAY] Error during GitHub analysis:', error);

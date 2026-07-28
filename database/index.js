@@ -269,3 +269,44 @@ export function getAllSupportTickets() {
   const tickets = readStore(TICKETS_FILE, []);
   return tickets.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
+
+// =========================================================================
+// IP & ANTI-BYPASS RATE LIMITING CONTROLLERS
+// =========================================================================
+
+const IP_LIMITS_FILE = path.join(DATA_DIR, 'ip_limits.json');
+
+export function checkIpScanLimit(ipAddress, userToken = null) {
+  // If user has a valid pro/team token, allow scan
+  if (userToken) {
+    const user = getUserByToken(userToken);
+    if (user && user.tier && user.tier !== 'free') {
+      return { allowed: true };
+    }
+  }
+
+  const cleanIp = String(ipAddress || '127.0.0.1').replace(/^::ffff:/, '').trim();
+  const limits = readStore(IP_LIMITS_FILE, {});
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const ipKey = `${cleanIp}_${today}`;
+
+  const currentCount = limits[ipKey] || 0;
+  if (currentCount >= 1) {
+    return {
+      allowed: false,
+      limitReached: true,
+      error: 'Free codebase scan limit reached for your IP/device network today. Please log in or upgrade to Pro for unlimited scans!'
+    };
+  }
+
+  return { allowed: true };
+}
+
+export function recordIpScan(ipAddress) {
+  const cleanIp = String(ipAddress || '127.0.0.1').replace(/^::ffff:/, '').trim();
+  const limits = readStore(IP_LIMITS_FILE, {});
+  const today = new Date().toISOString().split('T')[0];
+  const ipKey = `${cleanIp}_${today}`;
+  limits[ipKey] = (limits[ipKey] || 0) + 1;
+  writeStore(IP_LIMITS_FILE, limits);
+}

@@ -427,14 +427,23 @@ function LandingPage({ onAnalysisSuccess }) {
     if (!checkAnalysisLimit()) return;
     startLoading();
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s safety timeout
+
     const formData = new FormData();
     formData.append('project', selectedFile);
 
     try {
+      const userStr = localStorage.getItem('xray_user');
+      const token = userStr ? JSON.parse(userStr)?.token || '' : '';
+
       const response = await fetch('/upload', {
         method: 'POST',
-        body: formData
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
       
       let data = {};
       try {
@@ -447,12 +456,25 @@ function LandingPage({ onAnalysisSuccess }) {
       } else {
         stopLoading();
         setLoading(false);
-        setErrorMessage(data.error || `Server error (status: ${response.status}).`);
+        gsap.set('body', { opacity: 1 });
+
+        if (response.status === 429 || data.limitReached) {
+          setShowPricingModal(true);
+          setToastMsg(data.error || 'Free scan limit reached for your device network. Please upgrade to Pro!');
+        } else {
+          setErrorMessage(data.error || `Server error (status: ${response.status}).`);
+        }
       }
     } catch (err) {
+      clearTimeout(timeoutId);
       stopLoading();
       setLoading(false);
-      setErrorMessage('Network error or server unavailable.');
+      gsap.set('body', { opacity: 1 });
+      if (err.name === 'AbortError') {
+        setErrorMessage('Scan timed out. The ZIP archive may be too large or corrupted.');
+      } else {
+        setErrorMessage('Network error or server unavailable.');
+      }
     }
   };
 
@@ -461,12 +483,23 @@ function LandingPage({ onAnalysisSuccess }) {
     if (!checkAnalysisLimit()) return;
     startLoading();
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s safety timeout
+
     try {
+      const userStr = localStorage.getItem('xray_user');
+      const token = userStr ? JSON.parse(userStr)?.token || '' : '';
+
       const response = await fetch('/github', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: githubUrl })
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ url: githubUrl }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
       
       let data = {};
       try {
@@ -479,12 +512,25 @@ function LandingPage({ onAnalysisSuccess }) {
       } else {
         stopLoading();
         setLoading(false);
-        setErrorMessage(data.error || `Server error (status: ${response.status}).`);
+        gsap.set('body', { opacity: 1 });
+
+        if (response.status === 429 || data.limitReached) {
+          setShowPricingModal(true);
+          setToastMsg(data.error || 'Free scan limit reached for your device network. Please upgrade to Pro!');
+        } else {
+          setErrorMessage(data.error || `Server error (status: ${response.status}).`);
+        }
       }
     } catch (err) {
+      clearTimeout(timeoutId);
       stopLoading();
       setLoading(false);
-      setErrorMessage('Network error or server unavailable.');
+      gsap.set('body', { opacity: 1 });
+      if (err.name === 'AbortError') {
+        setErrorMessage('Scan timed out (60s). The repository may be too large, private, or experiencing network latency.');
+      } else {
+        setErrorMessage('Network error or server unavailable.');
+      }
     }
   };
 
