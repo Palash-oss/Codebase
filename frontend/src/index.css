@@ -1666,6 +1666,10 @@ body {
   fill: var(--black);
 }
 
+.mobile-only-nav {
+  display: none !important;
+}
+
 /* Full-site Responsive Layout Rules & Anti-Overflow */
 html, body, #root {
   max-width: 100vw !important;
@@ -1694,6 +1698,36 @@ html, body, #root {
 }
 
 @media (max-width: 768px) {
+  .desktop-only-nav {
+    display: none !important;
+  }
+  .mobile-only-nav {
+    display: flex !important;
+    align-items: center !important;
+  }
+  .navbar {
+    height: 52px !important;
+    padding: 0 12px !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+  }
+  .navbar .version,
+  .navbar .btn-outline {
+    display: none !important;
+  }
+  .hero-ctas {
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 10px !important;
+  }
+  .hero-ctas .btn-primary,
+  .hero-ctas .btn-outline {
+    width: 100% !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    text-align: center !important;
+  }
   .steps-grid, .options-grid {
     grid-template-columns: 1fr !important;
   }
