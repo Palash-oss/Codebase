@@ -109,9 +109,18 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
 
     try {
       const repoUrl = project.repoUrl || `https://github.com/${project.name}`;
+      const uStr = localStorage.getItem('xray_user');
+      const parsed = uStr ? JSON.parse(uStr) : null;
+      const token = parsed?.token || '';
+      const email = parsed?.email || 'palashpathare001@gmail.com';
+
       const res = await fetch('/api/github', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'x-user-email': email
+        },
         body: JSON.stringify({ url: repoUrl, branch: targetBranch })
       });
       const resData = await res.json();
