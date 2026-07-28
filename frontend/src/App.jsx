@@ -10,7 +10,6 @@ function App() {
   useEffect(() => {
     async function checkLatestResult() {
       try {
-        // Get the current hostname/protocol to handle both dev and production URLs
         const baseUrl = window.location.origin;
         const res = await fetch(`${baseUrl}/api/latest-result`);
         if (res.ok) {
@@ -24,6 +23,29 @@ function App() {
       }
     }
     checkLatestResult();
+
+    // Live SSE Real-Time Sync Listener for GitHub Webhooks
+    let eventSource;
+    try {
+      eventSource = new EventSource('/api/live-sync');
+      eventSource.onmessage = async (event) => {
+        const payload = JSON.parse(event.data);
+        console.log('[X-RAY SSE] Live architecture update event received:', payload);
+        if (payload.type === 'ARCH_UPDATE') {
+          const res = await fetch('/api/latest-result');
+          if (res.ok) {
+            const data = await res.json();
+            setLatestResult(data);
+          }
+        }
+      };
+    } catch (e) {
+      console.warn('[X-RAY SSE] Error establishing live sync stream:', e);
+    }
+
+    return () => {
+      if (eventSource) eventSource.close();
+    };
   }, []);
 
   const handleNewAnalysis = () => {

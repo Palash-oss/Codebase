@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import LocomotiveScroll from 'locomotive-scroll';
 import Toast from './Toast';
+import BillingModal from './BillingModal';
+import AuthModal from './AuthModal';
 
 function LandingPage({ onAnalysisSuccess }) {
   const [dragOver, setDragOver] = useState(false);
@@ -11,6 +13,28 @@ function LandingPage({ onAnalysisSuccess }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [progressWidth, setProgressWidth] = useState('0%');
   const [toastMsg, setToastMsg] = useState('');
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const u = localStorage.getItem('xray_user');
+      return u ? JSON.parse(u) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      try {
+        const uStr = localStorage.getItem('xray_user');
+        setCurrentUser(uStr ? JSON.parse(uStr) : null);
+      } catch (e) {}
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   // Interactive Canvas Background
   const canvasRef = useRef(null);
@@ -375,69 +399,138 @@ function LandingPage({ onAnalysisSuccess }) {
     });
   };
 
+  const checkAnalysisLimit = () => {
+    try {
+      const uStr = localStorage.getItem('xray_user');
+      const user = uStr ? JSON.parse(uStr) : null;
+      const tier = user?.tier || 'free';
+      const count = parseInt(localStorage.getItem('xray_analysis_count') || '0', 10);
+
+      if (tier === 'free' && count >= 1) {
+        setShowPricingModal(true);
+        setToastMsg('Free plan is limited to 1 codebase analysis. Upgrade to Pro for Unlimited Architecture Generations!');
+        return false;
+      }
+    } catch (e) {}
+    return true;
+  };
+
+  const incrementAnalysisCount = () => {
+    try {
+      const count = parseInt(localStorage.getItem('xray_analysis_count') || '0', 10);
+      localStorage.setItem('xray_analysis_count', String(count + 1));
+    } catch (e) {}
+  };
+
   const submitZip = async () => {
     if (!selectedFile) return;
+    if (!checkAnalysisLimit()) return;
     startLoading();
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s safety timeout
 
     const formData = new FormData();
     formData.append('project', selectedFile);
 
     try {
+      const userStr = localStorage.getItem('xray_user');
+      const token = userStr ? JSON.parse(userStr)?.token || '' : '';
+
       const response = await fetch('/upload', {
         method: 'POST',
-        body: formData
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
       
       let data = {};
       try {
         data = await response.json();
-      } catch (jsonErr) {
-        // Response was not JSON (e.g. server returned an HTML error page)
-      }
+      } catch (jsonErr) {}
 
       if (response.ok) {
+        incrementAnalysisCount();
         handleSuccess();
       } else {
         stopLoading();
         setLoading(false);
-        setErrorMessage(data.error || `Server error (status: ${response.status}).`);
+        gsap.set('body', { opacity: 1 });
+
+        if (response.status === 429 || data.limitReached) {
+          setShowPricingModal(true);
+          setToastMsg(data.error || 'Free scan limit reached for your device network. Please upgrade to Pro!');
+        } else {
+          setErrorMessage(data.error || `Server error (status: ${response.status}).`);
+        }
       }
     } catch (err) {
+      clearTimeout(timeoutId);
       stopLoading();
       setLoading(false);
-      setErrorMessage('Network error or server unavailable.');
+      gsap.set('body', { opacity: 1 });
+      if (err.name === 'AbortError') {
+        setErrorMessage('Scan timed out. The ZIP archive may be too large or corrupted.');
+      } else {
+        setErrorMessage('Network error or server unavailable.');
+      }
     }
   };
 
   const submitGithub = async () => {
     if (!githubUrl.includes('github.com')) return;
+    if (!checkAnalysisLimit()) return;
     startLoading();
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s safety timeout
+
     try {
+      const userStr = localStorage.getItem('xray_user');
+      const token = userStr ? JSON.parse(userStr)?.token || '' : '';
+
       const response = await fetch('/github', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: githubUrl })
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ url: githubUrl }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
       
       let data = {};
       try {
         data = await response.json();
-      } catch (jsonErr) {
-        // Response was not JSON (e.g. server returned an HTML error page)
-      }
+      } catch (jsonErr) {}
 
       if (response.ok) {
+        incrementAnalysisCount();
         handleSuccess();
       } else {
         stopLoading();
         setLoading(false);
-        setErrorMessage(data.error || `Server error (status: ${response.status}).`);
+        gsap.set('body', { opacity: 1 });
+
+        if (response.status === 429 || data.limitReached) {
+          setShowPricingModal(true);
+          setToastMsg(data.error || 'Free scan limit reached for your device network. Please upgrade to Pro!');
+        } else {
+          setErrorMessage(data.error || `Server error (status: ${response.status}).`);
+        }
       }
     } catch (err) {
+      clearTimeout(timeoutId);
       stopLoading();
       setLoading(false);
-      setErrorMessage('Network error or server unavailable.');
+      gsap.set('body', { opacity: 1 });
+      if (err.name === 'AbortError') {
+        setErrorMessage('Scan timed out (60s). The repository may be too large, private, or experiencing network latency.');
+      } else {
+        setErrorMessage('Network error or server unavailable.');
+      }
     }
   };
 
@@ -461,9 +554,22 @@ function LandingPage({ onAnalysisSuccess }) {
         <div className="wordmark">
           <span className="first">CODEBASE</span> <span className="second">X-RAY</span>
         </div>
-        <div className="nav-right">
+        <div className="nav-right" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <span className="version">v3.0</span>
-          <button className="btn-outline" onClick={scrollToUpload}>Start analyzing →</button>
+          <button className="btn-outline" onClick={() => setShowPricingModal(true)} style={{ padding: '6px 14px', borderRadius: '6px', cursor: 'pointer' }}>Pricing & Plans</button>
+
+          {currentUser ? (
+            <button 
+              style={{ background: 'rgba(255,94,26,0.15)', border: '1px solid #FF5E1A', color: '#FF5E1A', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
+              onClick={() => setShowUserModal(true)}
+            >
+              {currentUser.name || currentUser.email.split('@')[0]} ({(currentUser.tier || 'free').toUpperCase()})
+            </button>
+          ) : (
+            <button style={{ background: '#FF5E1A', border: '1px solid #FF5E1A', color: '#FFFFFF', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }} onClick={() => setShowAuthModal(true)}>Sign In</button>
+          )}
+
+          <button className="btn-outline" onClick={scrollToUpload} style={{ padding: '6px 14px', borderRadius: '6px', cursor: 'pointer' }}>Start analyzing →</button>
         </div>
       </header>
 
@@ -542,67 +648,30 @@ function LandingPage({ onAnalysisSuccess }) {
         <p className="step-desc" style={{ marginBottom: '56px' }}>Under 30 seconds.</p>
 
         {!loading ? (
-          <div className="options-grid" id="controls-grid">
-            {/* ZIP Upload */}
-            <div className="option-container">
-              <div>
-                <div className="option-title">Option A — ZIP upload</div>
-                <div 
-                  className={`drop-zone ${dragOver ? 'dragover' : ''}`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  onClick={() => document.getElementById('file-input').click()}
-                >
-                  <svg className="drop-icon" viewBox="0 0 24 24">
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                  </svg>
-                  <div className="drop-zone-text">drop your zip here</div>
-                  <div className="drop-zone-subtext">or click to browse</div>
-                  {selectedFile && (
-                    <div className="filename-display" style={{ display: 'block' }}>
-                      ✓ {selectedFile.name}
-                    </div>
-                  )}
-                </div>
-                <input 
-                  type="file" 
-                  id="file-input" 
-                  accept=".zip" 
-                  style={{ display: 'none' }} 
-                  onChange={handleFileChange}
-                />
-              </div>
-              <button 
-                className="submit-btn" 
-                disabled={!selectedFile}
-                onClick={submitZip}
-              >
-                Analyze project →
-              </button>
-            </div>
-
+          <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }} id="controls-grid">
             {/* GitHub URL */}
-            <div className="option-container">
+            <div className="option-container" style={{ padding: '32px', borderRadius: '16px', background: 'var(--black-2)', border: '1px solid var(--border)' }}>
               <div>
-                <div className="option-title">Option B — GitHub URL</div>
+                <div className="option-title" style={{ textAlign: 'center', fontSize: '14px', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '20px', color: 'var(--orange)' }}>
+                  Analyze Any GitHub Repository
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '24px' }}>
-                  <svg className="git-icon" style={{ width: '32px', height: '32px', fill: 'var(--beige-2)', marginBottom: '16px' }} viewBox="0 0 24 24">
+                  <svg className="git-icon" style={{ width: '40px', height: '40px', fill: 'var(--beige)', marginBottom: '16px' }} viewBox="0 0 24 24">
                     <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.11.82-.26.82-.577v-2.234c-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.43.372.82 1.102.82 2.222v3.293c0 .319.22.694.825.576C20.565 21.795 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
                   </svg>
-                  <label className="version" style={{ letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '12px' }}>paste a github url</label>
+                  <label className="version" style={{ letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '12px', color: 'var(--beige-2)' }}>Paste GitHub repository URL</label>
                   <input 
                     type="text" 
                     className="input-text" 
                     id="github-url-input" 
-                    placeholder="https://github.com/owner/repo" 
+                    placeholder="https://github.com/owner/repository" 
                     value={githubUrl}
                     onChange={(e) => setGithubUrl(e.target.value)}
                     style={{ width: '100%', padding: '14px', fontSize: '14px', borderRadius: '8px', border: '1.5px solid #D1D5DB', background: '#FFFFFF', color: '#111827', fontWeight: '600', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}
                   />
                 </div>
                 
-                <div className="chips-container">
+                <div className="chips-container" style={{ justifyContent: 'center' }}>
                   <div className="chip" onClick={() => fillGithub('https://github.com/t3-oss/create-t3-app')}>t3-oss/create-t3-app</div>
                   <div className="chip" onClick={() => fillGithub('https://github.com/expressjs/express')}>expressjs/express</div>
                   <div className="chip" onClick={() => fillGithub('https://github.com/vuejs/vue')}>vuejs/vue</div>
@@ -612,8 +681,9 @@ function LandingPage({ onAnalysisSuccess }) {
                 className="submit-btn" 
                 disabled={!gitUrlValid}
                 onClick={submitGithub}
+                style={{ marginTop: '20px' }}
               >
-                Clone and analyze →
+                Analyze GitHub Architecture →
               </button>
             </div>
           </div>
@@ -651,6 +721,128 @@ function LandingPage({ onAnalysisSuccess }) {
           Built for developers who want to understand their code, not just write it.
         </div>
       </footer>
+
+      {/* SaaS Pricing & Plans Modal */}
+      <BillingModal
+        isOpen={showPricingModal}
+        onClose={() => setShowPricingModal(false)}
+        currentUser={null}
+        onUpgradeSuccess={(user) => {
+          setToastMsg(`Upgraded account to ${user.tier.toUpperCase()} Plan!`);
+        }}
+      />
+
+      {/* Developer Sign In & Registration Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onAuthSuccess={(user) => {
+          setCurrentUser(user);
+          setToastMsg(`Welcome back, ${user.name || user.email}!`);
+        }}
+      />
+
+      {/* Custom React User Account & Sign Out Modal */}
+      {showUserModal && currentUser && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.65)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 240
+        }}>
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            padding: '28px',
+            width: '380px',
+            maxWidth: '92%',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+            border: '1px solid #E2E8F0',
+            position: 'relative'
+          }}>
+            <button
+              onClick={() => setShowUserModal(false)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'none',
+                border: 'none',
+                fontSize: '18px',
+                cursor: 'pointer',
+                color: '#64748B'
+              }}
+            >
+              ✕
+            </button>
+
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#FF5E1A', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: '700', marginBottom: '12px' }}>
+                {(currentUser.name || currentUser.email)[0].toUpperCase()}
+              </div>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#111827' }}>
+                {currentUser.name || 'Developer Account'}
+              </h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
+                {currentUser.email}
+              </p>
+              <div style={{ display: 'inline-block', marginTop: '10px', padding: '4px 12px', borderRadius: '12px', background: '#FFF7ED', border: '1px solid #FF5E1A', color: '#FF5E1A', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase' }}>
+                {(currentUser.tier || 'free').toUpperCase()} PLAN
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                onClick={() => {
+                  setShowUserModal(false);
+                  setShowPricingModal(true);
+                }}
+                style={{
+                  padding: '11px',
+                  borderRadius: '8px',
+                  background: '#F8FAFC',
+                  border: '1px solid #CBD5E1',
+                  color: '#334155',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                Manage Subscription & Plans
+              </button>
+
+              <button
+                onClick={() => {
+                  localStorage.removeItem('xray_auth_token');
+                  localStorage.removeItem('xray_user');
+                  setCurrentUser(null);
+                  setShowUserModal(false);
+                  setToastMsg('Signed out successfully');
+                }}
+                style={{
+                  padding: '11px',
+                  borderRadius: '8px',
+                  background: '#FEF2F2',
+                  border: '1px solid #FCA5A5',
+                  color: '#991B1B',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

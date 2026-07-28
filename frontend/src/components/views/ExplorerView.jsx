@@ -204,7 +204,7 @@ function ExplorerView({ data, selectedFile, onSelectFile, setImpactHighlight }) 
           onChange={(e) => setSearchVal(e.target.value)}
         />
         <div className="explorer-tree" id="explorer-tree-container" style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
-          {renderTree()}
+          {renderTree(handleFileClick)}
         </div>
       </div>
 
