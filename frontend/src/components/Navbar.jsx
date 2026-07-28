@@ -73,6 +73,8 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
     }
   };
 
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+
   return (
     <header className="dashboard-navbar">
       <Toast message={toastMsg} onClose={() => setToastMsg('')} />
@@ -109,7 +111,7 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
         )}
       </div>
 
-      <div className="nav-right" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+      <div className="nav-right desktop-only-nav" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         {errorCount === 0 && warningCount === 0 ? (
           <div className="findings-badge clean" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -146,6 +148,105 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
 
         <button className="btn-action btn-liquid" onClick={handleReset}><span>New analysis</span></button>
       </div>
+
+      {/* Mobile Menu Toggle Button */}
+      <div className="mobile-only-nav">
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          style={{
+            background: 'var(--black-3)',
+            border: '1px solid var(--border-2)',
+            color: 'var(--orange)',
+            padding: '6px 10px',
+            borderRadius: '6px',
+            fontSize: '11px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px'
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          <span>Options</span>
+        </button>
+      </div>
+
+      {/* Mobile Actions Drawer Overlay */}
+      {isMobileMenuOpen && (
+        <div style={{
+          position: 'fixed',
+          top: '50px',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(9, 12, 18, 0.96)',
+          backdropFilter: 'blur(20px)',
+          zIndex: 1200,
+          padding: '20px',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-2)', paddingBottom: '12px' }}>
+            <span style={{ fontFamily: 'Space Mono', fontSize: '11px', color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
+              DASHBOARD OPTIONS
+            </span>
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              style={{ background: 'transparent', border: 'none', color: 'var(--beige)', fontSize: '18px', cursor: 'pointer' }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Findings Badges */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {errorCount === 0 && warningCount === 0 ? (
+              <div className="findings-badge clean" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>clean analysis</span>
+              </div>
+            ) : (
+              <>
+                {errorCount > 0 && (
+                  <div className="findings-badge errors" style={{ padding: '6px 12px', fontSize: '12px' }}>{errorCount} error{errorCount > 1 ? 's' : ''} found</div>
+                )}
+                {warningCount > 0 && (
+                  <div className="findings-badge warnings" style={{ padding: '6px 12px', fontSize: '12px' }}>{warningCount} warning{warningCount > 1 ? 's' : ''} found</div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Grid of Action Buttons */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <button
+              style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--beige)', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
+              onClick={() => { handleExportMermaid(); setIsMobileMenuOpen(false); }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span>Export Docs</span>
+            </button>
+
+            <button
+              style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--beige)', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
+              onClick={() => { handleFetchGhAction(); setIsMobileMenuOpen(false); }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <span>PR Guard</span>
+            </button>
+          </div>
+
+          <button
+            style={{ background: 'var(--black-3)', border: '1px solid var(--orange)', color: 'var(--orange)', padding: '12px', borderRadius: '8px', fontSize: '13px', fontWeight: '600', width: '100%', marginTop: '8px' }}
+            onClick={() => { handleReset(); setIsMobileMenuOpen(false); }}
+          >
+            New analysis
+          </button>
+        </div>
+      )}
 
       {/* GitHub PR Guard Modal */}
       {showPrGuardModal && (
