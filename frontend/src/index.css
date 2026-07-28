@@ -1,34 +1,34 @@
 :root {
-  /* Backgrounds (Clean White Base & Glass Surfaces) */
-  --black:      #FFFFFF;
-  --black-2:    #FAFAFC;
-  --black-3:    #F4F4F8;
-  --black-4:    #EAEAEF;
+  /* Premium Dark Mode Obsidian Surfaces */
+  --black:      #080C14;
+  --black-2:    #0F172A;
+  --black-3:    #1E293B;
+  --black-4:    #334155;
 
   /* Modern Sunset Palette (Orange, Hot Pink / Magenta, Golden Yellow) */
   --orange:        #FF5E1A;
   --pink:          #FF2E93;
   --yellow:        #FFB800;
   
-  --orange-dim:    rgba(255, 94, 26, 0.08);
-  --orange-glow:   rgba(255, 94, 26, 0.16);
-  --pink-dim:      rgba(255, 46, 147, 0.08);
-  --pink-glow:     rgba(255, 46, 147, 0.16);
-  --yellow-dim:    rgba(255, 184, 0, 0.10);
-  --yellow-glow:   rgba(255, 184, 0, 0.20);
+  --orange-dim:    rgba(255, 94, 26, 0.12);
+  --orange-glow:   rgba(255, 94, 26, 0.25);
+  --pink-dim:      rgba(255, 46, 147, 0.12);
+  --pink-glow:     rgba(255, 46, 147, 0.25);
+  --yellow-dim:    rgba(255, 184, 0, 0.15);
+  --yellow-glow:   rgba(255, 184, 0, 0.30);
 
   --gradient-sunset: linear-gradient(135deg, #FF5E1A 0%, #FF2E93 50%, #FFB800 100%);
-  --gradient-sunset-soft: linear-gradient(135deg, rgba(255,94,26,0.12) 0%, rgba(255,46,147,0.12) 50%, rgba(255,184,0,0.12) 100%);
+  --gradient-sunset-soft: linear-gradient(135deg, rgba(255,94,26,0.15) 0%, rgba(255,46,147,0.15) 50%, rgba(255,184,0,0.15) 100%);
 
-  /* Text (Dark Obsidian Charcoal & Slate for high contrast) */
-  --beige:      #111827;
-  --beige-2:    #374151;
-  --beige-3:    #6B7280;
+  /* Text (Crisp Light Off-White & Soft Gray for High Contrast) */
+  --beige:      #F8FAFC;
+  --beige-2:    #CBD5E1;
+  --beige-3:    #94A3B8;
 
-  /* Borders (Clean glass borders & outlines) */
-  --border:     #E5E7EB;
-  --border-2:   #D1D5DB;
-  --border-3:   #9CA3AF;
+  /* Borders (Subtle dark glass outlines) */
+  --border:     rgba(255, 255, 255, 0.12);
+  --border-2:   rgba(255, 255, 255, 0.20);
+  --border-3:   rgba(255, 255, 255, 0.35);
 
   /* Layer colors (Modern refreshed palette) */
   --layer-presentation: #FF5E1A;
@@ -1758,36 +1758,37 @@ html, body, #root {
     color: var(--beige) !important;
   }
 
-  /* Crisp White Mobile Bottom Navigation Bar */
+  /* Premium Dark Mobile Bottom Navigation Bar */
   .sidebar {
-    background: #FFFFFF !important;
-    border-top: 1px solid rgba(0, 0, 0, 0.12) !important;
-    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08) !important;
+    background: #090C12 !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.6) !important;
   }
   .sidebar-btn {
-    width: 40px !important;
-    height: 40px !important;
+    width: 42px !important;
+    height: 42px !important;
     border-radius: 8px !important;
+    background: transparent !important;
   }
   .sidebar-btn.active {
-    background-color: #111827 !important;
-    border: 1px solid #111827 !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+    background-color: rgba(255, 94, 26, 0.15) !important;
+    border: 1px solid #FF5E1A !important;
+    box-shadow: 0 0 12px rgba(255, 94, 26, 0.3) !important;
   }
   .sidebar-btn.active svg {
+    fill: #FF5E1A !important;
+    stroke: #FF5E1A !important;
+    color: #FF5E1A !important;
+  }
+  .sidebar-btn svg {
+    fill: #9CA3AF !important;
+    stroke: #9CA3AF !important;
+    color: #9CA3AF !important;
+  }
+  .sidebar-btn:hover svg {
     fill: #FFFFFF !important;
     stroke: #FFFFFF !important;
     color: #FFFFFF !important;
-  }
-  .sidebar-btn svg {
-    fill: #4B5563 !important;
-    stroke: #4B5563 !important;
-    color: #4B5563 !important;
-  }
-  .sidebar-btn:hover svg {
-    fill: #111827 !important;
-    stroke: #111827 !important;
-    color: #111827 !important;
   }
 
   .nav-left {

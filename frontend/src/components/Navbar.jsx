@@ -307,9 +307,9 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           style={{
-            background: '#FFFFFF',
-            border: '1px solid var(--border)',
-            color: '#111827',
+            background: '#1E293B',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            color: '#FF5E1A',
             padding: '6px 12px',
             borderRadius: '6px',
             fontSize: '11px',
@@ -318,7 +318,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
             display: 'flex',
             alignItems: 'center',
             gap: '5px',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+            boxShadow: '0 2px 8px rgba(0,0,0,0.4)'
           }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
