@@ -121,12 +121,13 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
 
       // Fetch fresh analysis data for the new branch
       const freshRes = await fetch('/api/latest-result');
-      const freshData = await freshRes.json();
-      if (onSelectWorkspaceProject) {
-        onSelectWorkspaceProject(freshData);
-      } else {
-        window.location.reload();
+      if (freshRes.ok) {
+        const freshData = await freshRes.json();
+        if (onSelectWorkspaceProject) {
+          onSelectWorkspaceProject(freshData);
+        }
       }
+      setToastMsg(`Switched architecture map to branch "${targetBranch}".`);
     } catch (err) {
       setToastMsg(`Error switching branch: ${err.message}`);
     } finally {

@@ -153,7 +153,7 @@ function ExplorerView({ data, selectedFile, onSelectFile, setImpactHighlight }) 
   };
 
   return (
-    <div id="view-explorer" className={`explorer-container mobile-tab-${mobileTab}`} style={{ display: 'flex', width: '100%', height: '100%', flexDirection: 'column', overflow: 'hidden' }}>
+    <div id="view-explorer" className={`explorer-container mobile-tab-${mobileTab}`} style={{ display: 'flex', width: '100%', height: '100%', flexDirection: 'row', overflow: 'hidden' }}>
       {/* Mobile Tab Switcher Bar */}
       <div className="explorer-mobile-bar" style={{ display: 'none', width: '100%', background: '#FFFFFF', borderBottom: '1px solid #E5E7EB', padding: '6px 12px', gap: '8px' }}>
         <button
@@ -191,7 +191,7 @@ function ExplorerView({ data, selectedFile, onSelectFile, setImpactHighlight }) 
       </div>
 
       {/* File Tree Left Column */}
-      <div className={`explorer-left ${mobileTab === 'detail' ? 'mobile-hidden' : ''}`}>
+      <div className={`explorer-left ${mobileTab === 'detail' ? 'mobile-hidden' : ''}`} style={{ width: '280px', minWidth: '280px', height: '100%', borderRight: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
         <div className="explorer-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>Files</span>
           <span style={{ fontSize: '11px', color: 'var(--beige-3)' }}>{data.files.length} items</span>
@@ -203,13 +203,13 @@ function ExplorerView({ data, selectedFile, onSelectFile, setImpactHighlight }) 
           value={searchVal}
           onChange={(e) => setSearchVal(e.target.value)}
         />
-        <div className="explorer-tree" id="explorer-tree-container" style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+        <div className="explorer-tree" id="explorer-tree-container" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
           {renderTree(handleFileClick)}
         </div>
       </div>
 
       {/* Details Right Column */}
-      <div className={`explorer-right ${mobileTab === 'tree' ? 'mobile-hidden' : ''}`} style={{ flexGrow: 1, padding: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div className={`explorer-right ${mobileTab === 'tree' ? 'mobile-hidden' : ''}`} style={{ flex: 1, minWidth: 0, height: '100%', padding: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {selectedFile ? (
           <div style={{ height: '100%', position: 'relative' }}>
             <DetailPanel 

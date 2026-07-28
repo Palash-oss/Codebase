@@ -75,7 +75,11 @@ function App() {
   return (
     <>
       {hasValidAnalysis ? (
-        <Dashboard data={latestResult} onNewAnalysis={handleNewAnalysis} />
+        <Dashboard 
+          data={latestResult} 
+          onNewAnalysis={handleNewAnalysis}
+          onSelectWorkspaceProject={(newData) => setLatestResult(newData)} 
+        />
       ) : (
         <LandingPage onAnalysisSuccess={setLatestResult} />
       )}
