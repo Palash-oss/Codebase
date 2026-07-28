@@ -236,8 +236,8 @@ function SystemDesignView({ DATA, isActive }) {
       ctx.translate(transform.x, transform.y);
       ctx.scale(transform.scale, transform.scale);
 
-      // Background - Crisp White Base #FFFFFF
-      ctx.fillStyle = '#FFFFFF';
+      // Background - Dark Obsidian Base #080C14
+      ctx.fillStyle = '#080C14';
       const worldW = W / transform.scale;
       const worldH = H / transform.scale;
       const worldX = -transform.x / transform.scale;
@@ -245,7 +245,7 @@ function SystemDesignView({ DATA, isActive }) {
       ctx.fillRect(worldX, worldY, worldW, worldH);
 
       // Subtle Dot Grid
-      ctx.fillStyle = '#E2E8F0';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
       const gridStep = 40;
       const startX = Math.floor(worldX / gridStep) * gridStep;
       const startY = Math.floor(worldY / gridStep) * gridStep;

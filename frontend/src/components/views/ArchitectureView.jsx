@@ -295,14 +295,14 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.scale, transform.scale);
 
-    ctx.fillStyle = '#FFFFFF';
+    ctx.fillStyle = '#080C14';
     ctx.fillRect(-transform.x / transform.scale, -transform.y / transform.scale, W / transform.scale, H / transform.scale);
 
     // Title
     ctx.fillStyle = '#FF5E1A';
     ctx.fillRect(32, 24, 4, 28);
     ctx.font = '700 18px "Space Grotesk", sans-serif';
-    ctx.fillStyle = '#111827';
+    ctx.fillStyle = '#F8FAFC';
     ctx.fillText(data.project.name + ' — System Architecture', 44, 44);
 
     // Zones
@@ -622,7 +622,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       ctx.shadowBlur = (isHovered || isCurrentStoryNode) ? 15 : 2;
       ctx.shadowOffsetY = isHovered ? 3 : 1;
  
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#161B26';
       roundRect(ctx, drawX, drawY, drawW, drawH, 6);
       ctx.fill();
  
@@ -640,7 +640,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
  
       // File Name
       ctx.font = `600 ${Math.round(11 * cardScale)}px "Space Grotesk", sans-serif`;
-      ctx.fillStyle = '#1E1B18';
+      ctx.fillStyle = '#F8FAFC';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       
