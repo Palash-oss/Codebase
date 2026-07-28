@@ -1728,6 +1728,60 @@ html, body, #root {
     border-radius: 8px !important;
     text-align: center !important;
   }
+
+  /* File Explorer Mobile Tabs & Auto-Scroll */
+  .explorer-mobile-bar {
+    display: flex !important;
+  }
+  .explorer-container {
+    flex-direction: column !important;
+  }
+  .explorer-left, .explorer-right {
+    width: 100% !important;
+    height: calc(100% - 44px) !important;
+    flex-grow: 1 !important;
+  }
+  .explorer-left.mobile-hidden, .explorer-right.mobile-hidden {
+    display: none !important;
+  }
+
+  /* Sleek Pure Black & White Mobile Bottom Navigation Bar */
+  .sidebar {
+    background: #090C12 !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+  }
+  .sidebar-btn.active {
+    background-color: rgba(255, 255, 255, 0.14) !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.2) !important;
+  }
+  .sidebar-btn.active svg {
+    fill: #FFFFFF !important;
+    stroke: #FFFFFF !important;
+    color: #FFFFFF !important;
+  }
+  .sidebar-btn svg {
+    fill: rgba(255, 255, 255, 0.5) !important;
+    stroke: rgba(255, 255, 255, 0.5) !important;
+    color: rgba(255, 255, 255, 0.5) !important;
+  }
+  .sidebar-btn:hover svg {
+    fill: #FFFFFF !important;
+    stroke: #FFFFFF !important;
+    color: #FFFFFF !important;
+  }
+
+  .nav-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    max-width: 75vw !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .nav-left select {
+    max-width: 110px !important;
+  }
   .steps-grid, .options-grid {
     grid-template-columns: 1fr !important;
   }

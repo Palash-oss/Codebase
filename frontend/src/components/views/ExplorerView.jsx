@@ -124,7 +124,7 @@ function ExplorerView({ data, selectedFile, onSelectFile, setImpactHighlight }) 
           <div 
             className={`tree-row ${isSelected ? 'selected' : ''}`} 
             key={`file-${file.relativePath}`}
-            onClick={() => onSelectFile(file)}
+            onClick={() => handleFileClick(file)}
             style={{ paddingLeft: `${fileDepth * 12 + 24}px` }}
           >
             <div className="tree-node-left">
@@ -145,11 +145,57 @@ function ExplorerView({ data, selectedFile, onSelectFile, setImpactHighlight }) 
     return rows;
   };
 
+  const [mobileTab, setMobileTab] = useState('tree'); // 'tree' or 'detail'
+
+  const handleFileClick = (file) => {
+    onSelectFile(file);
+    setMobileTab('detail');
+  };
+
   return (
-    <div id="view-explorer" style={{ display: 'flex', width: '100%', height: '100%' }}>
+    <div id="view-explorer" className={`explorer-container mobile-tab-${mobileTab}`} style={{ display: 'flex', width: '100%', height: '100%', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Mobile Tab Switcher Bar */}
+      <div className="explorer-mobile-bar" style={{ display: 'none', width: '100%', background: 'var(--black-2)', borderBottom: '1px solid var(--border)', padding: '6px 12px', gap: '8px' }}>
+        <button
+          onClick={() => setMobileTab('tree')}
+          style={{
+            flex: 1,
+            padding: '8px',
+            borderRadius: '6px',
+            border: 'none',
+            background: mobileTab === 'tree' ? 'rgba(255,255,255,0.12)' : 'transparent',
+            color: mobileTab === 'tree' ? '#FFF' : 'var(--beige-3)',
+            fontSize: '12px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          📁 Files Tree
+        </button>
+        <button
+          onClick={() => setMobileTab('detail')}
+          style={{
+            flex: 1,
+            padding: '8px',
+            borderRadius: '6px',
+            border: 'none',
+            background: mobileTab === 'detail' ? 'rgba(255,255,255,0.12)' : 'transparent',
+            color: mobileTab === 'detail' ? '#FFF' : 'var(--beige-3)',
+            fontSize: '12px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          🔍 Code Inspector {selectedFile ? `(${selectedFile.name})` : ''}
+        </button>
+      </div>
+
       {/* File Tree Left Column */}
-      <div className="explorer-left">
-        <div className="explorer-header">Files</div>
+      <div className={`explorer-left ${mobileTab === 'detail' ? 'mobile-hidden' : ''}`}>
+        <div className="explorer-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Files</span>
+          <span style={{ fontSize: '11px', color: 'var(--beige-3)' }}>{data.files.length} items</span>
+        </div>
         <input 
           type="text" 
           className="explorer-search" 
@@ -157,20 +203,20 @@ function ExplorerView({ data, selectedFile, onSelectFile, setImpactHighlight }) 
           value={searchVal}
           onChange={(e) => setSearchVal(e.target.value)}
         />
-        <div className="explorer-tree" id="explorer-tree-container">
-          {renderTree()}
+        <div className="explorer-tree" id="explorer-tree-container" style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+          {renderTree(handleFileClick)}
         </div>
       </div>
 
       {/* Details Right Column */}
-      <div className="explorer-right" style={{ flexGrow: 1, padding: 0 }}>
+      <div className={`explorer-right ${mobileTab === 'tree' ? 'mobile-hidden' : ''}`} style={{ flexGrow: 1, padding: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {selectedFile ? (
           <div style={{ height: '100%', position: 'relative' }}>
             <DetailPanel 
               file={selectedFile} 
               files={data.files} 
-              onClose={() => { onSelectFile(null); if (setImpactHighlight) setImpactHighlight(null); }} 
-              onSelectFile={onSelectFile}
+              onClose={() => { onSelectFile(null); setMobileTab('tree'); if (setImpactHighlight) setImpactHighlight(null); }} 
+              onSelectFile={(f) => { onSelectFile(f); setMobileTab('detail'); }}
               layout="inline"
               setImpactHighlight={setImpactHighlight}
             />
@@ -181,7 +227,7 @@ function ExplorerView({ data, selectedFile, onSelectFile, setImpactHighlight }) 
               <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
             </svg>
             <div style={{ fontSize: '15px', fontWeight: 500 }}>select a file</div>
-            <div style={{ fontSize: '13px' }}>click anything to inspect it</div>
+            <div style={{ fontSize: '13px' }}>click any file in the list to inspect it</div>
           </div>
         )}
       </div>
