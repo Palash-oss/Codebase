@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import os from 'os';
+import { execSync } from 'child_process';
 
 import { analyzeProject } from './analyzer/index.js';
 import { computeImpactRadius, computeBlastRadius } from './analyzer/graphBuilder.js';
@@ -276,68 +277,101 @@ app.post(['/upload', '/api/upload'], upload.single('project'), async (req, res) 
 app.get(['/github/branches', '/api/github/branches'], async (req, res) => {
   try {
     const { url } = req.query;
-    if (!url || !url.includes('github.com')) {
-      return res.status(400).json({ error: 'Valid GitHub repository URL is required' });
+    if (url && url.includes('github.com')) {
+      const cleanUrl = url.trim().replace(/\/$/, '').replace(/\.git$/, '');
+      const match = cleanUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+      if (match) {
+        const owner = match[1];
+        const repo = match[2];
+        const apiUrl = `https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`;
+        const fetchRes = await fetch(apiUrl, {
+          headers: { 'User-Agent': 'CodeBase-X-Ray' }
+        });
+        if (fetchRes.ok) {
+          const branchData = await fetchRes.json();
+          if (Array.isArray(branchData) && branchData.length > 0) {
+            return res.json({ branches: branchData.map(b => b.name) });
+          }
+        }
+      }
     }
-    const cleanUrl = url.trim().replace(/\/$/, '').replace(/\.git$/, '');
-    const match = cleanUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-    if (!match) {
-      return res.status(400).json({ error: 'Invalid GitHub URL format' });
-    }
-    const owner = match[1];
-    const repo = match[2];
 
-    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`;
-    const fetchRes = await fetch(apiUrl, {
-      headers: { 'User-Agent': 'CodeBase-X-Ray' }
-    });
+    // Local Git Fallback
+    try {
+      const rawBranches = execSync('git branch -a', { cwd: __dirname, encoding: 'utf8' });
+      const branchNames = rawBranches.split('\n')
+        .map(b => b.replace('*', '').trim().replace(/^remotes\/origin\//, ''))
+        .filter(b => b && !b.includes('HEAD ->'))
+        .filter((val, idx, self) => self.indexOf(val) === idx);
 
-    if (!fetchRes.ok) {
-      return res.json({ branches: ['main', 'master', 'dev', 'staging'] }); // Fallback defaults
-    }
+      if (branchNames.length > 0) {
+        return res.json({ branches: branchNames });
+      }
+    } catch (e) {}
 
-    const branchData = await fetchRes.json();
-    const branches = Array.isArray(branchData) ? branchData.map(b => b.name) : ['main', 'master'];
-    res.json({ branches });
+    res.json({ branches: ['main', 'dev', 'staging'] });
   } catch (err) {
-    res.json({ branches: ['main', 'master', 'dev'] });
+    res.json({ branches: ['main', 'dev', 'staging'] });
   }
 });
 
-// GET /api/github/commits -> Fetch list of recent commits for a GitHub repository
+// GET /api/github/commits -> Fetch list of recent commits for a repository
 app.get(['/github/commits', '/api/github/commits'], async (req, res) => {
   try {
     const { url, branch } = req.query;
-    if (!url || !url.includes('github.com')) {
-      return res.status(400).json({ error: 'Valid GitHub repository URL is required' });
-    }
-    const cleanUrl = url.trim().replace(/\/$/, '').replace(/\.git$/, '');
-    const match = cleanUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-    if (!match) {
-      return res.status(400).json({ error: 'Invalid GitHub URL format' });
-    }
-    const owner = match[1];
-    const repo = match[2];
     const targetBranch = branch || 'main';
 
-    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/commits?sha=${targetBranch}&per_page=20`;
-    const fetchRes = await fetch(apiUrl, {
-      headers: { 'User-Agent': 'CodeBase-X-Ray' }
-    });
-
-    if (!fetchRes.ok) {
-      return res.json({ commits: [] });
+    if (url && url.includes('github.com')) {
+      const cleanUrl = url.trim().replace(/\/$/, '').replace(/\.git$/, '');
+      const match = cleanUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+      if (match) {
+        const owner = match[1];
+        const repo = match[2];
+        const apiUrl = `https://api.github.com/repos/${owner}/${repo}/commits?sha=${targetBranch}&per_page=20`;
+        const fetchRes = await fetch(apiUrl, {
+          headers: { 'User-Agent': 'CodeBase-X-Ray' }
+        });
+        if (fetchRes.ok) {
+          const commitsData = await fetchRes.json();
+          if (Array.isArray(commitsData) && commitsData.length > 0) {
+            const commits = commitsData.map(c => ({
+              sha: c.sha,
+              shortSha: c.sha.substring(0, 7),
+              message: c.commit.message.split('\n')[0],
+              author: c.commit.author ? c.commit.author.name : 'Dev Team',
+              date: c.commit.author ? new Date(c.commit.author.date).toLocaleDateString() : ''
+            }));
+            return res.json({ commits });
+          }
+        }
+      }
     }
 
-    const commitsData = await fetchRes.json();
-    const commits = Array.isArray(commitsData) ? commitsData.map(c => ({
-      sha: c.sha,
-      shortSha: c.sha.substring(0, 7),
-      message: c.commit.message.split('\n')[0],
-      author: c.commit.author ? c.commit.author.name : 'Unknown',
-      date: c.commit.author ? c.commit.author.date : ''
-    })) : [];
-    res.json({ commits });
+    // Local Git Commit Log Fallback
+    try {
+      const rawLog = execSync(`git log -n 15 --pretty=format:"%H|%h|%s|%an|%cr" ${targetBranch}`, { cwd: __dirname, encoding: 'utf8' });
+      const commits = rawLog.split('\n').filter(Boolean).map(line => {
+        const [sha, shortSha, message, author, date] = line.split('|');
+        return { sha, shortSha, message, author, date };
+      });
+      if (commits.length > 0) {
+        return res.json({ commits });
+      }
+    } catch (e) {
+      // Fallback for default git log
+      try {
+        const rawLog = execSync('git log -n 15 --pretty=format:"%H|%h|%s|%an|%cr"', { cwd: __dirname, encoding: 'utf8' });
+        const commits = rawLog.split('\n').filter(Boolean).map(line => {
+          const [sha, shortSha, message, author, date] = line.split('|');
+          return { sha, shortSha, message, author, date };
+        });
+        if (commits.length > 0) {
+          return res.json({ commits });
+        }
+      } catch (e2) {}
+    }
+
+    res.json({ commits: [] });
   } catch (err) {
     res.json({ commits: [] });
   }
