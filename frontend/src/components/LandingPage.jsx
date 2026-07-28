@@ -598,6 +598,7 @@ function LandingPage({ onAnalysisSuccess }) {
                     placeholder="https://github.com/owner/repo" 
                     value={githubUrl}
                     onChange={(e) => setGithubUrl(e.target.value)}
+                    style={{ width: '100%', padding: '14px', fontSize: '14px', borderRadius: '8px', border: '1.5px solid #D1D5DB', background: '#FFFFFF', color: '#111827', fontWeight: '600', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}
                   />
                 </div>
                 
@@ -617,13 +618,13 @@ function LandingPage({ onAnalysisSuccess }) {
             </div>
           </div>
         ) : (
-          <div className="loading-container" id="loading-container">
-            <div className="loading-wordmark">CODEBASE X-RAY</div>
-            <div className="loading-status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ color: 'var(--beige-2)', fontSize: '15px' }}>{statusText}</div>
+          <div className="loading-container" id="loading-container" style={{ padding: '40px 24px', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E5E7EB', boxShadow: '0 10px 30px rgba(0,0,0,0.06)', maxWidth: '500px', margin: '0 auto', textAlign: 'center' }}>
+            <div className="loading-wordmark" style={{ color: '#FF5E1A', fontWeight: '800', letterSpacing: '0.15em', fontSize: '20px', marginBottom: '16px' }}>CODEBASE X-RAY</div>
+            <div className="loading-status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+              <div style={{ color: '#111827', fontSize: '16px', fontWeight: '700', textTransform: 'lowercase' }}>{statusText}</div>
             </div>
-            <div className="progress-bar-container">
-              <div className="progress-bar-fill" style={{ width: progressWidth }}></div>
+            <div className="progress-bar-container" style={{ background: '#EAEAEF', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
+              <div className="progress-bar-fill" style={{ width: progressWidth, background: 'var(--gradient-sunset)', height: '100%', borderRadius: '4px' }}></div>
             </div>
           </div>
         )}
