@@ -16,6 +16,18 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
   const [editDesc, setEditDesc] = useState('');
   const [editColor, setEditColor] = useState('#FF4D00');
 
+  // State for Architecture Diffing & Time-Travel History
+  const [isDiffMode, setIsDiffMode] = useState(false);
+  const [baseBranch, setBaseBranch] = useState('main');
+  const [targetBranch, setTargetBranch] = useState('feature/pr-review');
+  const [commits, setCommits] = useState([
+    { sha: '9615aa0', shortSha: '9615aa0', message: 'feat: add auth router & token middleware', author: 'Dev Team', date: '2 hours ago' },
+    { sha: 'fe3ed7d', shortSha: 'fe3ed7d', message: 'refactor: restructure gateway layer & database client', author: 'Dev Team', date: '1 day ago' },
+    { sha: '1d10da7', shortSha: '1d10da7', message: 'feat: integrate postgres pool client & repository models', author: 'Dev Team', date: '3 days ago' },
+    { sha: 'b4a8e91', shortSha: 'b4a8e91', message: 'initial: base project architecture setup', author: 'Dev Team', date: '5 days ago' }
+  ]);
+  const [commitIndex, setCommitIndex] = useState(0);
+
   // Refs for tracking canvas transforms and diagram state
   const transformRef = useRef({ x: 0, y: 0, scale: 1 });
   const archDataRef = useRef(null);
@@ -295,14 +307,14 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.scale, transform.scale);
 
-    ctx.fillStyle = '#080C14';
+    ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(-transform.x / transform.scale, -transform.y / transform.scale, W / transform.scale, H / transform.scale);
 
     // Title
     ctx.fillStyle = '#FF5E1A';
     ctx.fillRect(32, 24, 4, 28);
     ctx.font = '700 18px "Space Grotesk", sans-serif';
-    ctx.fillStyle = '#F8FAFC';
+    ctx.fillStyle = '#111827';
     ctx.fillText(data.project.name + ' — System Architecture', 44, 44);
 
     // Zones
@@ -622,7 +634,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       ctx.shadowBlur = (isHovered || isCurrentStoryNode) ? 15 : 2;
       ctx.shadowOffsetY = isHovered ? 3 : 1;
  
-      ctx.fillStyle = '#161B26';
+      ctx.fillStyle = '#ffffff';
       roundRect(ctx, drawX, drawY, drawW, drawH, 6);
       ctx.fill();
  
@@ -640,7 +652,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
  
       // File Name
       ctx.font = `600 ${Math.round(11 * cardScale)}px "Space Grotesk", sans-serif`;
-      ctx.fillStyle = '#F8FAFC';
+      ctx.fillStyle = '#1E1B18';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       
@@ -972,6 +984,49 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       }
     };
 
+    let touchState = null;
+
+    const onTouchStart = (e) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        clickStartX = touch.clientX;
+        clickStartY = touch.clientY;
+        onMouseDown({ clientX: touch.clientX, clientY: touch.clientY });
+      } else if (e.touches.length === 2) {
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        touchState = { initialDist: dist, initialScale: transformRef.current.scale };
+      }
+    };
+
+    const onTouchMove = (e) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        onMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
+      } else if (e.touches.length === 2 && touchState) {
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const ratio = dist / touchState.initialDist;
+        const newScale = Math.min(3, Math.max(0.2, touchState.initialScale * ratio));
+        transformRef.current.scale = newScale;
+        setZoomText(Math.round(newScale * 100) + '%');
+        drawDiagram();
+      }
+    };
+
+    const onTouchEnd = (e) => {
+      if (e.changedTouches.length === 1 && touchState === null) {
+        const touch = e.changedTouches[0];
+        onClick({ clientX: touch.clientX, clientY: touch.clientY });
+      }
+      onMouseUp();
+      touchState = null;
+    };
+
     // Event listeners
     canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('mousedown', onMouseDown);
@@ -979,6 +1034,9 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     canvas.addEventListener('mouseup', onMouseUp);
     canvas.addEventListener('click', onClick);
     canvas.addEventListener('dblclick', onDoubleClick);
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: true });
+    canvas.addEventListener('touchend', onTouchEnd, { passive: true });
 
     // Resize event
     const handleResize = () => {
@@ -1009,6 +1067,9 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       canvas.removeEventListener('mouseup', onMouseUp);
       canvas.removeEventListener('click', onClick);
       canvas.removeEventListener('dblclick', onDoubleClick);
+      canvas.removeEventListener('touchstart', onTouchStart);
+      canvas.removeEventListener('touchmove', onTouchMove);
+      canvas.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('resize', handleResize);
       resizeObserver.disconnect();
     };
@@ -1083,7 +1144,121 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
         <button className="tool-btn" onClick={resetDiagramLayout} title="Reset Diagram">
           Reset
         </button>
+        <div style={{ width: '1px', height: '16px', background: 'var(--border)', margin: '0 4px' }}></div>
+        <button 
+          className={`tool-btn ${isDiffMode ? 'active' : ''}`} 
+          onClick={() => setIsDiffMode(!isDiffMode)}
+          style={{
+            background: isDiffMode ? '#111827' : '#FFFFFF',
+            color: isDiffMode ? '#FFFFFF' : '#111827',
+            border: '1px solid #E5E7EB',
+            borderRadius: '6px',
+            padding: '4px 10px',
+            fontWeight: '600'
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '4px' }}>
+            <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>
+          </svg>
+          {isDiffMode ? 'Diff Mode Active' : 'Architecture Diff'}
+        </button>
       </div>
+
+      {/* Architecture Diff & Time-Travel Slider Control Panel */}
+      {isDiffMode && (
+        <div className="diff-toolbar" style={{
+          position: 'absolute',
+          top: '64px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: '#FFFFFF',
+          border: '1px solid #E5E7EB',
+          borderRadius: '10px',
+          padding: '12px 18px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
+          zIndex: 100,
+          width: 'calc(100% - 64px)',
+          maxWidth: '820px',
+          fontFamily: '"Space Grotesk", sans-serif'
+        }}>
+          {/* Top Row: Branch Selectors & Summary Badges */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '11px', fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', fontFamily: '"Space Mono", monospace' }}>Comparing:</span>
+              <select 
+                value={baseBranch} 
+                onChange={(e) => setBaseBranch(e.target.value)}
+                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '12px', fontWeight: '600', color: '#111827', background: '#FAFAFC' }}
+              >
+                <option value="main">Base: main</option>
+                <option value="v1.0">Base: v1.0</option>
+                <option value="staging">Base: staging</option>
+              </select>
+              <span style={{ color: '#9CA3AF', fontWeight: 'bold' }}>↔</span>
+              <select 
+                value={targetBranch} 
+                onChange={(e) => setTargetBranch(e.target.value)}
+                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '12px', fontWeight: '600', color: '#111827', background: '#FAFAFC' }}
+              >
+                <option value="feature/pr-review">Target: feature/pr-review</option>
+                <option value="dev">Target: dev</option>
+                <option value="HEAD">Target: HEAD (Current PR)</option>
+              </select>
+            </div>
+
+            {/* Delta Summary Badges */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#065F46', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '700' }}>+2 Added</span>
+              <span style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '700' }}>-1 Removed</span>
+              <span style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '700' }}>~3 Modified</span>
+              <span style={{ background: '#FEF2F2', border: '1.5px solid #EF4444', color: '#DC2626', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4m0 4h.01"/></svg>
+                1 New Cycle Detected
+              </span>
+            </div>
+          </div>
+
+          {/* Bottom Row: Time-Travel Commit Scrubber */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#FAFAFC', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '8px 12px' }}>
+            <button
+              disabled={commitIndex >= commits.length - 1}
+              onClick={() => setCommitIndex(prev => Math.min(commits.length - 1, prev + 1))}
+              style={{ background: 'transparent', border: 'none', color: commitIndex >= commits.length - 1 ? '#D1D5DB' : '#111827', cursor: 'pointer', fontWeight: '700', fontSize: '12px' }}
+            >
+              ← Prev Commit
+            </button>
+
+            <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: '600', color: '#374151' }}>
+                <span>Timeline Scrubber ({commitIndex + 1} of {commits.length})</span>
+                <span style={{ fontFamily: '"Space Mono", monospace', color: '#FF5E1A' }}>Commit {commits[commitIndex].shortSha}</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" 
+                max={commits.length - 1} 
+                value={commitIndex} 
+                onChange={(e) => setCommitIndex(Number(e.target.value))}
+                style={{ width: '100%', accentColor: '#FF5E1A', cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: '11px', color: '#6B7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {commits[commitIndex].message} — <strong style={{ color: '#111827' }}>{commits[commitIndex].author}</strong> ({commits[commitIndex].date})
+              </span>
+            </div>
+
+            <button
+              disabled={commitIndex <= 0}
+              onClick={() => setCommitIndex(prev => Math.max(0, prev - 1))}
+              style={{ background: 'transparent', border: 'none', color: commitIndex <= 0 ? '#D1D5DB' : '#111827', cursor: 'pointer', fontWeight: '700', fontSize: '12px' }}
+            >
+              Next Commit →
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Canvas */}
       <canvas ref={canvasRef} id="arch-canvas"></canvas>
