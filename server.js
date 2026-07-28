@@ -12,6 +12,7 @@ import os from 'os';
 
 import { analyzeProject } from './analyzer/index.js';
 import { computeImpactRadius, computeBlastRadius } from './analyzer/graphBuilder.js';
+import { computeGraphDiff } from './analyzer/diffBuilder.js';
 import {
   registerUser,
   loginUser,
@@ -300,6 +301,61 @@ app.get(['/github/branches', '/api/github/branches'], async (req, res) => {
     res.json({ branches });
   } catch (err) {
     res.json({ branches: ['main', 'master', 'dev'] });
+  }
+});
+
+// GET /api/github/commits -> Fetch list of recent commits for a GitHub repository
+app.get(['/github/commits', '/api/github/commits'], async (req, res) => {
+  try {
+    const { url, branch } = req.query;
+    if (!url || !url.includes('github.com')) {
+      return res.status(400).json({ error: 'Valid GitHub repository URL is required' });
+    }
+    const cleanUrl = url.trim().replace(/\/$/, '').replace(/\.git$/, '');
+    const match = cleanUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    if (!match) {
+      return res.status(400).json({ error: 'Invalid GitHub URL format' });
+    }
+    const owner = match[1];
+    const repo = match[2];
+    const targetBranch = branch || 'main';
+
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/commits?sha=${targetBranch}&per_page=20`;
+    const fetchRes = await fetch(apiUrl, {
+      headers: { 'User-Agent': 'CodeBase-X-Ray' }
+    });
+
+    if (!fetchRes.ok) {
+      return res.json({ commits: [] });
+    }
+
+    const commitsData = await fetchRes.json();
+    const commits = Array.isArray(commitsData) ? commitsData.map(c => ({
+      sha: c.sha,
+      shortSha: c.sha.substring(0, 7),
+      message: c.commit.message.split('\n')[0],
+      author: c.commit.author ? c.commit.author.name : 'Unknown',
+      date: c.commit.author ? c.commit.author.date : ''
+    })) : [];
+    res.json({ commits });
+  } catch (err) {
+    res.json({ commits: [] });
+  }
+});
+
+// POST /api/diff -> Compare two graph AST snapshots
+app.post(['/diff', '/api/diff'], (req, res) => {
+  try {
+    const { baseGraph, targetGraph } = req.body;
+    if (!baseGraph || !targetGraph) {
+      return res.status(400).json({ error: 'Both baseGraph and targetGraph are required for diffing' });
+    }
+
+    const diffResult = computeGraphDiff(baseGraph, targetGraph);
+    res.json({ success: true, diff: diffResult });
+  } catch (err) {
+    console.error('[X-RAY] Error computing graph diff:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
