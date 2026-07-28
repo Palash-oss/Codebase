@@ -1248,25 +1248,27 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
           transform: 'translateX(-50%)',
           background: '#FFFFFF',
           border: '1px solid #E5E7EB',
-          borderRadius: '10px',
+          borderRadius: '12px',
           padding: '12px 18px',
           display: 'flex',
           flexDirection: 'column',
           gap: '10px',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 12px 36px rgba(0, 0, 0, 0.1)',
           zIndex: 100,
-          width: 'calc(100% - 64px)',
-          maxWidth: '820px',
+          width: 'calc(100% - 48px)',
+          maxWidth: '860px',
+          boxSizing: 'border-box',
+          overflow: 'hidden',
           fontFamily: '"Space Grotesk", sans-serif'
         }}>
           {/* Top Row: Branch Selectors & Summary Badges */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '11px', fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', fontFamily: '"Space Mono", monospace' }}>Comparing:</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '0' }}>
+              <span style={{ fontSize: '11px', fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', fontFamily: '"Space Mono", monospace', shrink: 0 }}>Comparing:</span>
               <select 
                 value={baseBranch} 
                 onChange={(e) => setBaseBranch(e.target.value)}
-                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '12px', fontWeight: '600', color: '#111827', background: '#FAFAFC' }}
+                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '12px', fontWeight: '600', color: '#111827', background: '#FAFAFC', outline: 'none' }}
               >
                 {availableBranches.map(b => (
                   <option key={`base-${b}`} value={b}>Base: {b}</option>
@@ -1276,7 +1278,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
               <select 
                 value={targetBranch} 
                 onChange={(e) => setTargetBranch(e.target.value)}
-                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '12px', fontWeight: '600', color: '#111827', background: '#FAFAFC' }}
+                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '12px', fontWeight: '600', color: '#111827', background: '#FAFAFC', outline: 'none' }}
               >
                 {availableBranches.map(b => (
                   <option key={`target-${b}`} value={b}>Target: {b}</option>
@@ -1285,7 +1287,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
             </div>
 
             {/* Delta Summary Badges */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <span style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#065F46', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '700' }}>
                 +{diffSummary.addedFiles} Added
               </span>
@@ -1304,41 +1306,77 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
             </div>
           </div>
 
-          {/* Bottom Row: Time-Travel Commit Scrubber */}
+          {/* Bottom Row: Time-Travel Commit Scrubber (Chronological: Left = Oldest, Right = Latest) */}
           {commits.length > 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#FAFAFC', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '8px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#FAFAFC', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '10px 14px', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
+              {/* Button 1: Move Backward to Older Commit */}
               <button
                 disabled={commitIndex >= commits.length - 1}
                 onClick={() => setCommitIndex(prev => Math.min(commits.length - 1, prev + 1))}
-                style={{ background: 'transparent', border: 'none', color: commitIndex >= commits.length - 1 ? '#D1D5DB' : '#111827', cursor: 'pointer', fontWeight: '700', fontSize: '12px' }}
+                style={{
+                  background: commitIndex >= commits.length - 1 ? '#F3F4F6' : '#FFFFFF',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '6px',
+                  color: commitIndex >= commits.length - 1 ? '#9CA3AF' : '#111827',
+                  cursor: commitIndex >= commits.length - 1 ? 'not-allowed' : 'pointer',
+                  fontWeight: '700',
+                  fontSize: '11px',
+                  padding: '5px 10px',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
+                }}
+                title="Go backward in history to older commit"
               >
-                ← Prev Commit
+                ← Older Commit
               </button>
 
-              <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: '600', color: '#374151' }}>
-                  <span>Timeline Scrubber ({commitIndex + 1} of {commits.length})</span>
-                  <span style={{ fontFamily: '"Space Mono", monospace', color: '#FF5E1A' }}>Commit {commits[commitIndex]?.shortSha || ''}</span>
+              {/* Slider and Commit Meta (Bounded to prevent text leakage) */}
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', fontWeight: '600', color: '#374151', minWidth: 0 }}>
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    Commit Timeline ({commits.length - commitIndex} of {commits.length})
+                  </span>
+                  <span style={{ fontFamily: '"Space Mono", monospace', color: '#FF5E1A', fontWeight: '700', shrink: 0, marginLeft: '8px' }}>
+                    Commit {commits[commitIndex]?.shortSha || ''}
+                  </span>
                 </div>
+
                 <input 
                   type="range" 
                   min="0" 
                   max={commits.length - 1} 
                   value={commitIndex} 
                   onChange={(e) => setCommitIndex(Number(e.target.value))}
-                  style={{ width: '100%', accentColor: '#FF5E1A', cursor: 'pointer' }}
+                  style={{ width: '100%', accentColor: '#FF5E1A', cursor: 'pointer', margin: '2px 0' }}
                 />
-                <span style={{ fontSize: '11px', color: '#6B7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {commits[commitIndex]?.message || 'Commit'} — <strong style={{ color: '#111827' }}>{commits[commitIndex]?.author || 'Git Log'}</strong> ({commits[commitIndex]?.date || ''})
-                </span>
+
+                {/* Truncated Developer Commit Info */}
+                <div style={{ fontSize: '11px', color: '#4B5563', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>
+                  <strong style={{ color: '#111827', marginRight: '4px' }}>{commits[commitIndex]?.author || 'Developer'}:</strong>
+                  <span>{commits[commitIndex]?.message || 'No commit message'}</span>
+                  <span style={{ color: '#9CA3AF', marginLeft: '6px' }}>({commits[commitIndex]?.date || ''})</span>
+                </div>
               </div>
 
+              {/* Button 2: Move Forward to Newer Commit */}
               <button
                 disabled={commitIndex <= 0}
                 onClick={() => setCommitIndex(prev => Math.max(0, prev - 1))}
-                style={{ background: 'transparent', border: 'none', color: commitIndex <= 0 ? '#D1D5DB' : '#111827', cursor: 'pointer', fontWeight: '700', fontSize: '12px' }}
+                style={{
+                  background: commitIndex <= 0 ? '#F3F4F6' : '#FFFFFF',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '6px',
+                  color: commitIndex <= 0 ? '#9CA3AF' : '#111827',
+                  cursor: commitIndex <= 0 ? 'not-allowed' : 'pointer',
+                  fontWeight: '700',
+                  fontSize: '11px',
+                  padding: '5px 10px',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
+                }}
+                title="Go forward in history to newer commit"
               >
-                Next Commit →
+                Newer Commit →
               </button>
             </div>
           ) : (
