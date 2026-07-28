@@ -13,7 +13,7 @@ import TechStackView from './views/TechStackView';
 import BlastRadiusView from './views/BlastRadiusView';
 import CodeStoryView from './views/CodeStoryView';
 
-function Dashboard({ data, onNewAnalysis }) {
+function Dashboard({ data, onNewAnalysis, onSelectWorkspaceProject }) {
   const [currentView, setCurrentView] = useState('architecture');
   const [selectedFile, setSelectedFile] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -75,6 +75,7 @@ function Dashboard({ data, onNewAnalysis }) {
         files={data?.files || []}
         data={data || { project: {}, files: [], graph: { nodes: [], edges: [] } }}
         onNewAnalysis={onNewAnalysis} 
+        onSelectWorkspaceProject={onSelectWorkspaceProject}
       />
 
       <Sidebar 
