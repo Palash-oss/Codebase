@@ -170,7 +170,7 @@ function ExplorerView({ data, selectedFile, onSelectFile, setImpactHighlight }) 
             cursor: 'pointer'
           }}
         >
-          📁 Files Tree
+          Files Tree
         </button>
         <button
           onClick={() => setMobileTab('detail')}
@@ -186,7 +186,7 @@ function ExplorerView({ data, selectedFile, onSelectFile, setImpactHighlight }) 
             cursor: 'pointer'
           }}
         >
-          🔍 Code Inspector {selectedFile ? `(${selectedFile.name})` : ''}
+          Code Inspector {selectedFile ? `(${selectedFile.name})` : ''}
         </button>
       </div>
 
