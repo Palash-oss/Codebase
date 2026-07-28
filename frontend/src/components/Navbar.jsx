@@ -1,12 +1,12 @@
 import React from 'react';
 import Toast from './Toast';
 
-function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
+function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack = [], files = [], data, onNewAnalysis }) {
   // Count error/warning findings
   let errorCount = 0;
   let warningCount = 0;
 
-  files.forEach(f => {
+  (files || []).forEach(f => {
     if (f.findings) {
       f.findings.forEach(fin => {
         if (fin.type === 'error') errorCount++;
@@ -16,14 +16,15 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis }) {
   });
 
   const getTechLogoUrl = (logoKey) => {
-    if (logoKey.startsWith('inline-') || logoKey === 'inline') {
+    if (!logoKey || logoKey.startsWith('inline-') || logoKey === 'inline') {
       return '';
     }
     return `https://cdn.jsdelivr.net/gh/devicons/devicon/icons/${logoKey}/${logoKey}-original.svg`;
   };
 
-  const first6 = detectedStack.slice(0, 6);
-  const moreCount = detectedStack.length - 6;
+  const stackList = Array.isArray(detectedStack) ? detectedStack : [];
+  const first6 = stackList.slice(0, 6);
+  const moreCount = Math.max(0, stackList.length - 6);
 
   const handleReset = async () => {
     try {

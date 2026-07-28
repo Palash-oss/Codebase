@@ -70,10 +70,10 @@ function Dashboard({ data, onNewAnalysis }) {
   return (
     <div className="dashboard-layout">
       <Navbar 
-        project={data.project} 
-        detectedStack={data.stack.detected} 
-        files={data.files}
-        data={data}
+        project={data?.project || { name: 'Codebase', totalFiles: 0, activeBranch: 'main' }} 
+        detectedStack={data?.stack?.detected || []} 
+        files={data?.files || []}
+        data={data || { project: {}, files: [], graph: { nodes: [], edges: [] } }}
         onNewAnalysis={onNewAnalysis} 
       />
 
@@ -181,8 +181,8 @@ function Dashboard({ data, onNewAnalysis }) {
 
       {/* Chat Bot panel and trigger */}
       <ChatPanel 
-        project={data.project}
-        detectedStack={data.stack.detected}
+        project={data?.project || { name: 'Codebase', totalFiles: 0, activeBranch: 'main' }}
+        detectedStack={data?.stack?.detected || []}
         isOpen={isChatOpen} 
         setIsOpen={setIsChatOpen} 
       />
