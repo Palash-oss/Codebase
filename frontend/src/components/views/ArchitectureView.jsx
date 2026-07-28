@@ -972,6 +972,49 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       }
     };
 
+    let touchState = null;
+
+    const onTouchStart = (e) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        clickStartX = touch.clientX;
+        clickStartY = touch.clientY;
+        onMouseDown({ clientX: touch.clientX, clientY: touch.clientY });
+      } else if (e.touches.length === 2) {
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        touchState = { initialDist: dist, initialScale: transformRef.current.scale };
+      }
+    };
+
+    const onTouchMove = (e) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        onMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
+      } else if (e.touches.length === 2 && touchState) {
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const ratio = dist / touchState.initialDist;
+        const newScale = Math.min(3, Math.max(0.2, touchState.initialScale * ratio));
+        transformRef.current.scale = newScale;
+        setZoomText(Math.round(newScale * 100) + '%');
+        drawDiagram();
+      }
+    };
+
+    const onTouchEnd = (e) => {
+      if (e.changedTouches.length === 1 && touchState === null) {
+        const touch = e.changedTouches[0];
+        onClick({ clientX: touch.clientX, clientY: touch.clientY });
+      }
+      onMouseUp();
+      touchState = null;
+    };
+
     // Event listeners
     canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('mousedown', onMouseDown);
@@ -979,6 +1022,9 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     canvas.addEventListener('mouseup', onMouseUp);
     canvas.addEventListener('click', onClick);
     canvas.addEventListener('dblclick', onDoubleClick);
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: true });
+    canvas.addEventListener('touchend', onTouchEnd, { passive: true });
 
     // Resize event
     const handleResize = () => {
@@ -1009,6 +1055,9 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       canvas.removeEventListener('mouseup', onMouseUp);
       canvas.removeEventListener('click', onClick);
       canvas.removeEventListener('dblclick', onDoubleClick);
+      canvas.removeEventListener('touchstart', onTouchStart);
+      canvas.removeEventListener('touchmove', onTouchMove);
+      canvas.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('resize', handleResize);
       resizeObserver.disconnect();
     };

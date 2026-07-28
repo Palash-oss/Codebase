@@ -1672,7 +1672,7 @@ body {
     padding: 0 16px;
   }
   .nav-middle {
-    max-width: 300px;
+    max-width: 240px;
     overflow-x: auto;
   }
   .tech-stack-columns {
@@ -1692,8 +1692,8 @@ body {
     padding-right: 16px !important;
   }
   .hero-line {
-    font-size: 32px !important;
-    line-height: 1.2 !important;
+    font-size: 30px !important;
+    line-height: 1.25 !important;
   }
   .hero-subtitle {
     font-size: 14px !important;
@@ -1701,44 +1701,98 @@ body {
   .option-container {
     min-height: auto;
   }
-  .dashboard-navbar {
-    height: auto !important;
-    padding: 10px 14px !important;
-    flex-wrap: wrap !important;
-    gap: 10px !important;
-  }
-  .nav-middle {
-    display: flex !important;
+
+  /* Mobile Bottom App Navigation Bar */
+  .sidebar {
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
     width: 100% !important;
-    max-width: 100% !important;
-    overflow-x: auto !important;
-    white-space: nowrap !important;
-    padding-bottom: 4px;
-    -webkit-overflow-scrolling: touch;
+    height: 56px !important;
+    border-right: none !important;
+    border-top: 1px solid var(--border) !important;
+    flex-direction: row !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    padding: 0 8px !important;
+    z-index: 1000 !important;
+    background-color: var(--black-2) !important;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
   }
-  .nav-right {
-    width: 100% !important;
-    justify-content: space-between !important;
-    flex-wrap: wrap !important;
-    gap: 8px !important;
+  .sidebar-btn {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 8px !important;
   }
+  .sidebar .tooltip {
+    display: none !important;
+  }
+
+  /* Dashboard Layout on Mobile */
+  .main-content {
+    left: 0 !important;
+    top: 52px !important;
+    bottom: 56px !important;
+    right: 0 !important;
+  }
+  .main-content.panel-open,
+  .main-content.chat-open,
+  .main-content.both-open {
+    right: 0 !important;
+    bottom: 56px !important;
+  }
+
+  /* Slide-up Mobile Drawer Panels */
   .detail-panel {
+    top: 52px !important;
+    bottom: 56px !important;
     width: 100vw !important;
     right: 0 !important;
+    left: 0 !important;
     border-left: none !important;
-  }
-  .explorer-layout, .codestory-layout, .blastradius-layout {
-    flex-direction: column !important;
+    z-index: 1100 !important;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.7);
   }
   .chat-panel {
     left: 0 !important;
-    width: 100% !important;
+    right: 0 !important;
+    width: 100vw !important;
+    bottom: 56px !important;
+    top: 52px !important;
+    height: auto !important;
+    z-index: 1100 !important;
+  }
+
+  /* Compact Dashboard Top Navbar */
+  .dashboard-navbar {
+    height: 52px !important;
+    padding: 0 12px !important;
+    gap: 8px !important;
+  }
+  .nav-middle {
+    display: none !important;
+  }
+  .file-count {
+    display: none !important;
+  }
+
+  /* Responsive Diagram Action Bars & Overlays */
+  .canvas-controls {
+    bottom: 12px !important;
+    left: 12px !important;
+    padding: 4px 8px !important;
+  }
+  .editor-toolbar {
+    top: 12px !important;
+    right: 12px !important;
+    flex-wrap: wrap !important;
   }
 }
 
 @media (max-width: 480px) {
   .hero-line {
-    font-size: 26px !important;
+    font-size: 24px !important;
   }
   .repo-input-wrapper {
     flex-direction: column !important;
@@ -1751,9 +1805,6 @@ body {
   .wordmark {
     font-size: 11px !important;
     letter-spacing: 0.1em !important;
-  }
-  .drawer-container {
-    width: 100vw !important;
   }
 }/* ========================================================
    MODERN SLEEK BUTTON MICRO-INTERACTIONS

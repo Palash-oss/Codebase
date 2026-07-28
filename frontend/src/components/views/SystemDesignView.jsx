@@ -799,6 +799,48 @@ function SystemDesignView({ DATA, isActive }) {
     dragState.current = { draggingCanvas: false, draggingNode: false, node: null };
   };
 
+  const touchStateRef = useRef(null);
+
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      clickStart.current = { x: touch.clientX, y: touch.clientY };
+      handleMouseDown({ clientX: touch.clientX, clientY: touch.clientY });
+    } else if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      touchStateRef.current = { initialDist: dist, initialScale: transformRef.current.scale };
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      handleMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
+    } else if (e.touches.length === 2 && touchStateRef.current) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const ratio = dist / touchStateRef.current.initialDist;
+      const newScale = Math.min(3, Math.max(0.2, touchStateRef.current.initialScale * ratio));
+      transformRef.current.scale = newScale;
+      setZoomText(`${Math.round(newScale * 100)}%`);
+      drawDiagram();
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    if (e.changedTouches.length === 1 && touchStateRef.current === null) {
+      const touch = e.changedTouches[0];
+      handleClick({ clientX: touch.clientX, clientY: touch.clientY });
+    }
+    handleMouseUp();
+    touchStateRef.current = null;
+  };
+
   const handleClick = (e) => {
     if (Math.abs(e.clientX - clickStart.current.x) > 5 || Math.abs(e.clientY - clickStart.current.y) > 5) return;
 
@@ -1306,7 +1348,14 @@ function SystemDesignView({ DATA, isActive }) {
         ))}
       </div>
 
-      <canvas ref={canvasRef} id="system-design-canvas" style={{ width: '100%', height: '100%', display: 'block' }} />
+      <canvas 
+        ref={canvasRef} 
+        id="system-design-canvas" 
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none' }} 
+      />
 
       {/* Top Action Bar */}
       <div style={{
