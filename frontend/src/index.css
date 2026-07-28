@@ -1,34 +1,34 @@
 :root {
-  /* Premium Dark Mode Obsidian Surfaces */
-  --black:      #080C14;
-  --black-2:    #0F172A;
-  --black-3:    #1E293B;
-  --black-4:    #334155;
+  /* Pure White Premium Light Surfaces */
+  --black:      #FFFFFF;
+  --black-2:    #FAFAFC;
+  --black-3:    #F4F4F8;
+  --black-4:    #EAEAEF;
 
   /* Modern Sunset Palette (Orange, Hot Pink / Magenta, Golden Yellow) */
   --orange:        #FF5E1A;
   --pink:          #FF2E93;
   --yellow:        #FFB800;
   
-  --orange-dim:    rgba(255, 94, 26, 0.12);
-  --orange-glow:   rgba(255, 94, 26, 0.25);
-  --pink-dim:      rgba(255, 46, 147, 0.12);
-  --pink-glow:     rgba(255, 46, 147, 0.25);
-  --yellow-dim:    rgba(255, 184, 0, 0.15);
-  --yellow-glow:   rgba(255, 184, 0, 0.30);
+  --orange-dim:    rgba(255, 94, 26, 0.08);
+  --orange-glow:   rgba(255, 94, 26, 0.16);
+  --pink-dim:      rgba(255, 46, 147, 0.08);
+  --pink-glow:     rgba(255, 46, 147, 0.16);
+  --yellow-dim:    rgba(255, 184, 0, 0.10);
+  --yellow-glow:   rgba(255, 184, 0, 0.20);
 
   --gradient-sunset: linear-gradient(135deg, #FF5E1A 0%, #FF2E93 50%, #FFB800 100%);
-  --gradient-sunset-soft: linear-gradient(135deg, rgba(255,94,26,0.15) 0%, rgba(255,46,147,0.15) 50%, rgba(255,184,0,0.15) 100%);
+  --gradient-sunset-soft: linear-gradient(135deg, rgba(255,94,26,0.12) 0%, rgba(255,46,147,0.12) 50%, rgba(255,184,0,0.12) 100%);
 
-  /* Text (Crisp Light Off-White & Soft Gray for High Contrast) */
-  --beige:      #F8FAFC;
-  --beige-2:    #CBD5E1;
-  --beige-3:    #94A3B8;
+  /* Text (Dark Charcoal & Slate for high contrast on white) */
+  --beige:      #111827;
+  --beige-2:    #374151;
+  --beige-3:    #6B7280;
 
-  /* Borders (Subtle dark glass outlines) */
-  --border:     rgba(255, 255, 255, 0.12);
-  --border-2:   rgba(255, 255, 255, 0.20);
-  --border-3:   rgba(255, 255, 255, 0.35);
+  /* Borders (Clean crisp glass outlines) */
+  --border:     #E5E7EB;
+  --border-2:   #D1D5DB;
+  --border-3:   #9CA3AF;
 
   /* Layer colors (Modern refreshed palette) */
   --layer-presentation: #FF5E1A;
@@ -1720,7 +1720,7 @@ html, body, #root {
     display: none !important;
   }
 
-  /* Sleek Pure Black & White Mobile Bottom Navigation Bar */
+  /* Crisp Pure White Mobile Bottom Navigation Bar */
   .sidebar {
     top: auto !important;
     bottom: 0 !important;
@@ -1729,15 +1729,15 @@ html, body, #root {
     width: 100% !important;
     height: 54px !important;
     border-right: none !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-top: 1px solid #E5E7EB !important;
     flex-direction: row !important;
     justify-content: space-around !important;
     align-items: center !important;
     padding: 0 4px !important;
     z-index: 1000 !important;
-    background: #090C12 !important;
+    background: #FFFFFF !important;
     backdrop-filter: blur(16px) !important;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08) !important;
   }
   .sidebar-btn {
     width: 40px !important;
@@ -1745,24 +1745,24 @@ html, body, #root {
     border-radius: 8px !important;
   }
   .sidebar-btn.active {
-    background-color: rgba(255, 94, 26, 0.15) !important;
-    border: 1px solid #FF5E1A !important;
-    box-shadow: 0 0 12px rgba(255, 94, 26, 0.3) !important;
+    background-color: #111827 !important;
+    border: 1px solid #111827 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
   }
   .sidebar-btn.active svg {
-    fill: #FF5E1A !important;
-    stroke: #FF5E1A !important;
-    color: #FF5E1A !important;
-  }
-  .sidebar-btn svg {
-    fill: #9CA3AF !important;
-    stroke: #9CA3AF !important;
-    color: #9CA3AF !important;
-  }
-  .sidebar-btn:hover svg {
     fill: #FFFFFF !important;
     stroke: #FFFFFF !important;
     color: #FFFFFF !important;
+  }
+  .sidebar-btn svg {
+    fill: #4B5563 !important;
+    stroke: #4B5563 !important;
+    color: #4B5563 !important;
+  }
+  .sidebar-btn:hover svg {
+    fill: #111827 !important;
+    stroke: #111827 !important;
+    color: #111827 !important;
   }
   .sidebar .tooltip {
     display: none !important;
