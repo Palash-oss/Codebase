@@ -284,32 +284,32 @@ export function checkIpScanLimit(ipAddress, userToken = null, userEmail = null) 
     return { allowed: true };
   }
 
-  // 2. Exempt Owner / Logged-in Team users
-  if (userEmail && (userEmail.toLowerCase().includes('palash') || userEmail.toLowerCase().includes('owner'))) {
-    return { allowed: true };
+  // 2. Unconditionally exempt Owner, Team members, and Logged-in users
+  if (userEmail && String(userEmail).length > 0) {
+    const emailLower = String(userEmail).toLowerCase();
+    if (emailLower.includes('palash') || emailLower.includes('owner') || emailLower.includes('admin') || emailLower.includes('team')) {
+      return { allowed: true };
+    }
   }
 
   if (userToken) {
     const user = getUserByToken(userToken);
     if (user) {
-      // Allow if Pro/Team OR if owner email
-      if (user.tier !== 'free' || (user.email && user.email.toLowerCase().includes('palash'))) {
-        return { allowed: true };
-      }
+      return { allowed: true }; // Logged in users bypass IP block
     }
   }
 
-  // 3. Rate limit anonymous free users per IP (allow 2 free scans/day)
+  // 3. Rate limit ONLY anonymous/unauthenticated visitors per IP (allow 5 free scans/day)
   const limits = readStore(IP_LIMITS_FILE, {});
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
   const ipKey = `${cleanIp}_${today}`;
 
   const currentCount = limits[ipKey] || 0;
-  if (currentCount >= 2) {
+  if (currentCount >= 5) {
     return {
       allowed: false,
       limitReached: true,
-      error: 'Free codebase scan limit reached for your IP/device network today. Please log in or upgrade to Pro for unlimited scans!'
+      error: 'Free codebase scan limit reached for anonymous visitors on this IP network today. Please log in or upgrade to Pro for unlimited access!'
     };
   }
 
