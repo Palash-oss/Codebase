@@ -1701,7 +1701,23 @@ html, body, #root {
     min-height: auto;
   }
 
-  /* Mobile Bottom Navigation Bar */
+  /* File Explorer Mobile Tabs & Auto-Scroll */
+  .explorer-mobile-bar {
+    display: flex !important;
+  }
+  .explorer-container {
+    flex-direction: column !important;
+  }
+  .explorer-left, .explorer-right {
+    width: 100% !important;
+    height: calc(100% - 44px) !important;
+    flex-grow: 1 !important;
+  }
+  .explorer-left.mobile-hidden, .explorer-right.mobile-hidden {
+    display: none !important;
+  }
+
+  /* Sleek Pure Black & White Mobile Bottom Navigation Bar */
   .sidebar {
     top: auto !important;
     bottom: 0 !important;
@@ -1710,13 +1726,13 @@ html, body, #root {
     width: 100% !important;
     height: 54px !important;
     border-right: none !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
     flex-direction: row !important;
     justify-content: space-around !important;
     align-items: center !important;
     padding: 0 4px !important;
     z-index: 1000 !important;
-    background: rgba(11, 14, 20, 0.95) !important;
+    background: #090C12 !important;
     backdrop-filter: blur(16px) !important;
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
   }
@@ -1725,8 +1741,40 @@ html, body, #root {
     height: 40px !important;
     border-radius: 8px !important;
   }
+  .sidebar-btn.active {
+    background-color: rgba(255, 255, 255, 0.14) !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.2) !important;
+  }
+  .sidebar-btn.active svg {
+    fill: #FFFFFF !important;
+    stroke: #FFFFFF !important;
+    color: #FFFFFF !important;
+  }
+  .sidebar-btn svg {
+    fill: rgba(255, 255, 255, 0.5) !important;
+    stroke: rgba(255, 255, 255, 0.5) !important;
+    color: rgba(255, 255, 255, 0.5) !important;
+  }
+  .sidebar-btn:hover svg {
+    fill: #FFFFFF !important;
+    stroke: #FFFFFF !important;
+    color: #FFFFFF !important;
+  }
   .sidebar .tooltip {
     display: none !important;
+  }
+
+  .nav-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    max-width: 75vw !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .nav-left select {
+    max-width: 110px !important;
   }
 
   /* Main Dashboard Panel Bounds on Mobile */
