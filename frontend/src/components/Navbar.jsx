@@ -306,17 +306,18 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWo
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           style={{
-            background: 'var(--black-3)',
-            border: '1px solid var(--border-2)',
-            color: 'var(--orange)',
-            padding: '6px 10px',
+            background: '#FFFFFF',
+            border: '1px solid var(--border)',
+            color: '#111827',
+            padding: '6px 12px',
             borderRadius: '6px',
             fontSize: '11px',
             fontWeight: '700',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '5px'
+            gap: '5px',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
           }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -347,9 +348,9 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWo
             </span>
             <button
               onClick={() => setIsMobileMenuOpen(false)}
-              style={{ background: 'transparent', border: 'none', color: 'var(--beige)', fontSize: '18px', cursor: 'pointer' }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--beige)', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
             >
-              ✕
+              Close
             </button>
           </div>
 
