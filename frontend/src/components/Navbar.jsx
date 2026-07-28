@@ -6,12 +6,12 @@ import AiArchitectDrawer from './AiArchitectDrawer';
 import BillingModal from './BillingModal';
 import FeedbackModal from './FeedbackModal';
 
-function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWorkspaceProject }) {
+function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack = [], files = [], data, onNewAnalysis, onSelectWorkspaceProject }) {
   // Count error/warning findings
   let errorCount = 0;
   let warningCount = 0;
 
-  files.forEach(f => {
+  (files || []).forEach(f => {
     if (f.findings) {
       f.findings.forEach(fin => {
         if (fin.type === 'error') errorCount++;
@@ -21,14 +21,15 @@ function Navbar({ project, detectedStack, files, data, onNewAnalysis, onSelectWo
   });
 
   const getTechLogoUrl = (logoKey) => {
-    if (logoKey.startsWith('inline-') || logoKey === 'inline') {
+    if (!logoKey || logoKey.startsWith('inline-') || logoKey === 'inline') {
       return '';
     }
     return `https://cdn.jsdelivr.net/gh/devicons/devicon/icons/${logoKey}/${logoKey}-original.svg`;
   };
 
-  const first3 = detectedStack.slice(0, 3);
-  const moreCount = detectedStack.length - 3;
+  const stackList = Array.isArray(detectedStack) ? detectedStack : [];
+  const first3 = stackList.slice(0, 3);
+  const moreCount = Math.max(0, stackList.length - 3);
 
   const handleReset = async () => {
     try {

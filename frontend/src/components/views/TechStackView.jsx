@@ -142,7 +142,7 @@ function TechStackView({ data, onSelectFile }) {
     }
   });
 
-  data.stack.detected.forEach(tech => {
+  (data?.stack?.detected || []).forEach(tech => {
     if (!activeTechList.some(t => t.key === tech.key)) {
       const known = knownTech.find(kt => kt.key === tech.key || (tech.key.includes(kt.key) && kt.key.length > 3));
       let cat = known ? known.category : classifyTech(tech.key);
