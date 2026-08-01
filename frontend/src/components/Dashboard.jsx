@@ -13,7 +13,7 @@ import TechStackView from './views/TechStackView';
 import BlastRadiusView from './views/BlastRadiusView';
 import CodeStoryView from './views/CodeStoryView';
 
-function Dashboard({ data, onNewAnalysis, onSelectWorkspaceProject }) {
+function Dashboard({ data, onNewAnalysis, onSelectWorkspaceProject, theme, toggleTheme }) {
   const [currentView, setCurrentView] = useState('architecture');
   const [selectedFile, setSelectedFile] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -58,9 +58,10 @@ function Dashboard({ data, onNewAnalysis, onSelectWorkspaceProject }) {
 
   // Determine main layout shift classes
   let mainContentClass = 'main-content';
-  const isSidebarOpen = selectedFile && currentView !== 'explorer' && currentView !== 'blast-radius' && currentView !== 'story';
+  const isSidebarOpen = Boolean(selectedFile);
+
   if (isSidebarOpen && isChatOpen) {
-    mainContentClass += ' both-open';
+    mainContentClass += ' panel-open chat-open';
   } else if (isSidebarOpen) {
     mainContentClass += ' panel-open';
   } else if (isChatOpen) {
@@ -76,6 +77,8 @@ function Dashboard({ data, onNewAnalysis, onSelectWorkspaceProject }) {
         data={data || { project: {}, files: [], graph: { nodes: [], edges: [] } }}
         onNewAnalysis={onNewAnalysis} 
         onSelectWorkspaceProject={onSelectWorkspaceProject}
+        theme={theme}
+        toggleTheme={toggleTheme}
       />
 
       <Sidebar 

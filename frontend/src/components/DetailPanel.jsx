@@ -53,11 +53,11 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
         setImpactLoading(false);
         
         const severityColors = {
-          safe: '#22C55E',
-          low: '#EAB308',
-          medium: '#F97316',
-          high: '#FF4D00',
-          critical: '#EF4444'
+          safe: '#10B981',
+          low: 'rgba(255,255,255,0.55)',
+          medium: 'rgba(255,255,255,0.75)',
+          high: '#FFFFFF',
+          critical: '#FFFFFF'
         };
         
         if (setImpactHighlight) {
@@ -83,15 +83,15 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
   }, [file.relativePath, isComponentZone, setImpactHighlight]);
 
   const layerColors = {
-    Presentation: '#FF4D00',
-    Interaction: '#A855F7',
-    Gateway: '#3B82F6',
-    Domain: '#06B6D4',
-    Persistence: '#22C55E',
-    Foundation: '#7A7268',
-    Infrastructure: '#4B5563',
-    Test: '#EAB308',
-    Unknown: '#3A3A3A'
+    Presentation: '#10B981',
+    Interaction: '#FFFFFF',
+    Gateway: 'rgba(255,255,255,0.8)',
+    Domain: 'rgba(255,255,255,0.65)',
+    Persistence: 'rgba(255,255,255,0.5)',
+    Foundation: 'rgba(255,255,255,0.4)',
+    Infrastructure: 'rgba(255,255,255,0.3)',
+    Test: 'rgba(255,255,255,0.25)',
+    Unknown: 'rgba(255,255,255,0.15)'
   };
 
   // If it is a zone component, collect files related to it
@@ -223,10 +223,10 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
                       height: '100%', 
                       width: `${100 - impactData.safetyScore}%`, 
                       backgroundColor: 
-                        impactData.severity === 'safe' ? '#22C55E' :
-                        impactData.severity === 'low' ? '#EAB308' :
-                        impactData.severity === 'medium' ? '#F97316' :
-                        impactData.severity === 'high' ? '#FF4D00' : '#EF4444',
+                        impactData.severity === 'safe' ? '#10B981' :
+                        impactData.severity === 'low' ? 'rgba(255,255,255,0.55)' :
+                        impactData.severity === 'medium' ? 'rgba(255,255,255,0.75)' :
+                        impactData.severity === 'high' ? '#FFFFFF' : '#FFFFFF',
                       borderRadius: '3px',
                       transition: 'width 0.4s ease'
                     }}></div>
@@ -240,10 +240,10 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
                       fontWeight: '700', 
                       letterSpacing: '0.04em',
                       color: 
-                        impactData.severity === 'safe' ? '#22C55E' :
-                        impactData.severity === 'low' ? '#EAB308' :
-                        impactData.severity === 'medium' ? '#F97316' :
-                        impactData.severity === 'high' ? '#FF4D00' : '#EF4444',
+                        impactData.severity === 'safe' ? '#10B981' :
+                        impactData.severity === 'low' ? 'rgba(255,255,255,0.55)' :
+                        impactData.severity === 'medium' ? 'rgba(255,255,255,0.75)' :
+                        impactData.severity === 'high' ? '#FFFFFF' : '#FFFFFF',
                     }}>
                       {impactData.severity.toUpperCase()}
                     </span>
@@ -349,13 +349,13 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
             {/* Findings/Issues */}
             {findings.length > 0 && (
               <>
-                <div className="detail-section-title" style={{ color: '#FF4D00' }}>ISSUES ({findings.length})</div>
+                <div className="detail-section-title" style={{ color: 'var(--orange)' }}>ISSUES ({findings.length})</div>
                 <div className="issues-list">
                   {findings.map((fin, idx) => (
                     <div className={`issue-item ${fin.type === 'warning' ? 'warning' : ''}`} key={idx}>
                       <div className="issue-header">
                         <span className="issue-rule">{fin.rule || 'issue'}</span>
-                        <span style={{ fontFamily: 'Space Mono', fontSize: '10px', color: fin.type === 'error' ? 'var(--orange)' : '#EAB308' }}>
+                        <span style={{ fontFamily: 'Space Mono', fontSize: '10px', color: fin.type === 'error' ? 'var(--orange)' : 'rgba(255,255,255,0.55)' }}>
                           {fin.type}
                         </span>
                       </div>
@@ -447,7 +447,7 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
                     <span style={{ fontFamily: 'Space Mono', fontSize: '9px', color: 'var(--beige-3)', background: 'var(--black-3)', border: '1px solid var(--border)', borderRadius: '3px', padding: '1px 5px', marginRight: '6px' }}>
                       {exp.kind || 'fn'}
                     </span>
-                    <span style={{ fontFamily: 'Space Mono', fontSize: '9px', color: usedBy === 0 ? '#EAB308' : 'var(--beige-3)' }}>
+                    <span style={{ fontFamily: 'Space Mono', fontSize: '9px', color: usedBy === 0 ? 'rgba(255,255,255,0.45)' : 'var(--beige-3)' }}>
                       used by {usedBy}
                     </span>
                   </div>
@@ -484,7 +484,7 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
                 <div className="detail-section-title">ENV VARIABLES ({envVars.length})</div>
                 {envVars.map((ev, idx) => (
                   <div className="list-item-row" key={idx}>
-                    <span style={{ fontFamily: 'Space Mono', fontSize: '11px', color: '#EAB308', flex: 1 }}>{ev}</span>
+                    <span style={{ fontFamily: 'Space Mono', fontSize: '11px', color: 'rgba(255,255,255,0.7)', flex: 1 }}>{ev}</span>
                   </div>
                 ))}
               </>

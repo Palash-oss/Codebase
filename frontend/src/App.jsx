@@ -6,6 +6,26 @@ function App() {
   const [latestResult, setLatestResult] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Global Theme Management (Dark by default, switches between Dark and Light)
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('theme') || 'dark';
+    } catch (e) {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem('theme', theme);
+    } catch (e) {}
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   // Check if there is an active analysis on mount
   useEffect(() => {
     async function checkLatestResult() {
@@ -59,8 +79,8 @@ function App() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#080808',
-        color: '#FF4D00',
+        backgroundColor: theme === 'light' ? '#ffffff' : '#080808',
+        color: theme === 'light' ? '#000000' : '#ffffff',
         fontFamily: 'Space Mono, monospace',
         letterSpacing: '0.25em',
         fontSize: '14px'
@@ -79,9 +99,15 @@ function App() {
           data={latestResult} 
           onNewAnalysis={handleNewAnalysis}
           onSelectWorkspaceProject={(newData) => setLatestResult(newData)} 
+          theme={theme}
+          toggleTheme={toggleTheme}
         />
       ) : (
-        <LandingPage onAnalysisSuccess={setLatestResult} />
+        <LandingPage 
+          onAnalysisSuccess={setLatestResult} 
+          theme={theme}
+          toggleTheme={toggleTheme}
+        />
       )}
     </>
   );

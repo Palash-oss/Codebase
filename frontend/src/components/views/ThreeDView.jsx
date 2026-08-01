@@ -46,12 +46,12 @@ function ThreeDView({ DATA, onSelectFile }) {
         return { color: '#00FF66', name: 'Backend / API' };
       }
       if (p.includes('db') || p.includes('model') || p.includes('prisma') || p.includes('schema')) {
-        return { color: '#FF9900', name: 'Database / Models' };
+        return { color: '#FFFFFF', name: 'Database / Models' };
       }
       if (p.includes('config') || p.includes('util') || p.includes('helper')) {
-        return { color: '#A855F7', name: 'Utils / Config' };
+        return { color: 'rgba(255,255,255,0.6)', name: 'Utils / Config' };
       }
-      return { color: '#FF5E1A', name: 'Core Module' };
+      return { color: '#10B981', name: 'Core Module' };
     };
 
     // Distribute nodes in a 3D Fibonacci Sphere for even spatial density
@@ -488,11 +488,11 @@ function ThreeDView({ DATA, onSelectFile }) {
           Backend / API
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#FF9900' }}></span>
+          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#FFFFFF' }}></span>
           Database / Models
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#A855F7' }}></span>
+          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'rgba(255,255,255,0.6)' }}></span>
           Utils / Config
         </div>
       </div>

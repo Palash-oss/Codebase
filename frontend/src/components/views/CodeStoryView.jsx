@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 const LAYER_COLORS = {
-  Presentation: '#FF4D00',
-  Interaction: '#A855F7',
-  Gateway: '#3B82F6',
-  Domain: '#06B6D4',
-  Persistence: '#22C55E',
-  Foundation: '#7A7268',
-  Infrastructure: '#4B5563',
-  Test: '#EAB308',
-  Unknown: '#3A3A3A'
+  Presentation: '#10B981',
+  Interaction: '#FFFFFF',
+  Gateway: 'rgba(255,255,255,0.8)',
+  Domain: 'rgba(255,255,255,0.65)',
+  Persistence: 'rgba(255,255,255,0.5)',
+  Foundation: 'rgba(255,255,255,0.4)',
+  Infrastructure: 'rgba(255,255,255,0.3)',
+  Test: 'rgba(255,255,255,0.25)',
+  Unknown: 'rgba(255,255,255,0.15)'
 };
 
 function CodeStoryView({ DATA, onFileSelect, currentStoryStep, onStoryStep }) {

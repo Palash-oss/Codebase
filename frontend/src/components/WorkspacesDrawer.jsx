@@ -142,7 +142,7 @@ export default function WorkspacesDrawer({ isOpen, onClose, onSelectProject, act
             width: '100%',
             padding: '12px',
             borderRadius: '10px',
-            background: 'linear-gradient(135deg, #FF5E1A 0%, #FF2A00 100%)',
+            background: 'linear-gradient(135deg, #10B981 0%, #FF2A00 100%)',
             color: '#FFFFFF',
             fontSize: '13px',
             fontWeight: '700',

@@ -103,7 +103,7 @@ export default function AiArchitectDrawer({ isOpen, onClose, activeAnalysisData 
               width: '36px',
               height: '36px',
               borderRadius: '10px',
-              background: 'linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)',
+              background: 'linear-gradient(135deg, #10B981 0%, #047857 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -153,7 +153,7 @@ export default function AiArchitectDrawer({ isOpen, onClose, activeAnalysisData 
                 maxWidth: '88%',
                 padding: '12px 16px',
                 borderRadius: '12px',
-                background: msg.sender === 'user' ? '#FF5E1A' : '#FFFFFF',
+                background: msg.sender === 'user' ? '#10B981' : '#FFFFFF',
                 color: msg.sender === 'user' ? '#FFFFFF' : '#1E293B',
                 fontSize: '13px',
                 lineHeight: '1.5',
@@ -167,7 +167,7 @@ export default function AiArchitectDrawer({ isOpen, onClose, activeAnalysisData 
                   <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B' }}>Relevant Source Files:</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
                     {msg.suggestedFiles.map((file, fIdx) => (
-                      <span key={fIdx} style={{ fontSize: '11px', fontFamily: 'Space Mono, monospace', color: '#2563EB' }}>
+                      <span key={fIdx} style={{ fontSize: '11px', fontFamily: 'Space Mono, monospace', color: '#10B981' }}>
                         📄 {file}
                       </span>
                     ))}
@@ -205,7 +205,7 @@ export default function AiArchitectDrawer({ isOpen, onClose, activeAnalysisData 
             style={{
               padding: '10px 18px',
               borderRadius: '8px',
-              background: 'linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)',
+              background: 'linear-gradient(135deg, #10B981 0%, #047857 100%)',
               color: '#FFFFFF',
               border: 'none',
               fontWeight: '700',

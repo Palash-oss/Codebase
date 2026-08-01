@@ -17,7 +17,7 @@ function Toast({ message, onClose }) {
       top: '24px',
       right: '24px',
       background: '#FFFFFF',
-      border: '1.5px solid #FF5E1A',
+      border: '1.5px solid #10B981',
       color: '#111827',
       padding: '12px 20px',
       borderRadius: '10px',
@@ -31,7 +31,7 @@ function Toast({ message, onClose }) {
       fontFamily: '"Space Grotesk", sans-serif',
       letterSpacing: '0.01em'
     }}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF4D00" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       <span>{message}</span>
     </div>
   );
