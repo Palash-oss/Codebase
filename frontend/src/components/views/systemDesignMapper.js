@@ -92,7 +92,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
         sublabel: hasGitHubApi ? 'GitHub Webhook Cloud Entrypoint' : 'HTTP/S Edge Traffic Router',
         tier: 'client',
         provider: 'Cloud Ingress',
-        badgeColor: '#FF5E1A',
+        badgeColor: '#10B981',
         icon: 'network',
         techKey: hasUi ? 'react' : 'github',
         isDetected: true
@@ -107,7 +107,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
         sublabel: 'AWS Managed Compute Runtime',
         tier: 'gateway',
         provider: 'AWS Compute',
-        badgeColor: '#FF9900',
+        badgeColor: '#10B981',
         icon: 'service',
         techKey: 'aws',
         isDetected: true
@@ -120,7 +120,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
         sublabel: hasTech('nextjs') ? 'Next.js App Compute Runtime' : `${mainLang === 'node' ? 'Node.js' : mainLang} Application Process`,
         tier: 'gateway',
         provider: 'Application Host',
-        badgeColor: '#68A063',
+        badgeColor: '#FFFFFF',
         icon: 'service',
         techKey: mainLang,
         isDetected: true
@@ -148,7 +148,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
         sublabel: 'Octokit Integration SDK Endpoint',
         tier: 'service',
         provider: 'External Cloud API',
-        badgeColor: '#24292E',
+        badgeColor: '#000000',
         icon: 'network',
         techKey: 'github',
         isDetected: true
@@ -163,7 +163,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
         sublabel: 'Cloud Asset Storage Bucket',
         tier: 'data',
         provider: 'AWS Storage',
-        badgeColor: '#FF9900',
+        badgeColor: '#10B981',
         icon: 'cloud',
         techKey: 'aws',
         isDetected: true
@@ -178,7 +178,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
         sublabel: hasTech('postgresql') ? 'PostgreSQL Database Store' : 'Cloud Database Instance',
         tier: 'data',
         provider: 'Cloud Database',
-        badgeColor: '#336791',
+        badgeColor: '#10B981',
         icon: 'database',
         techKey: 'postgres',
         isDetected: true
@@ -193,7 +193,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
         sublabel: 'In-Memory Key/Value Store',
         tier: 'data',
         provider: 'Redis Cache',
-        badgeColor: '#DC382D',
+        badgeColor: '#FFFFFF',
         icon: 'cache',
         techKey: 'redis',
         isDetected: true
@@ -225,11 +225,11 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
     connections.push({ from: 'cloud-hosting', to: 'cloud-compute', label: 'Monitors Process Health', style: 'dashed' });
 
     zones.push(
-      { id: 'client-zone', label: 'CLOUD INGRESS & TRAFFIC EDGE TIER', color: '#FF5E1A', x: 0, y: 0, w: 0, h: 0 },
-      { id: 'gateway-zone', label: 'APPLICATION COMPUTE RUNTIME TIER', color: '#68A063', x: 0, y: 0, w: 0, h: 0 },
-      { id: 'service-zone', label: 'DOMAIN SERVICES & EXTERNAL APIS', color: '#10B981', x: 0, y: 0, w: 0, h: 0 },
-      { id: 'data-zone', label: 'PERSISTENCE & CLOUD STORAGE TIER', color: '#336791', x: 0, y: 0, w: 0, h: 0 },
-      { id: 'devops-zone', label: 'PRODUCTION CLOUD HOSTING TIER', color: '#2088FF', x: 0, y: 0, w: 0, h: 0 }
+      { id: 'client-zone', label: 'CLOUD INGRESS & TRAFFIC EDGE TIER', color: '#10B981', x: 0, y: 0, w: 0, h: 0 },
+      { id: 'gateway-zone', label: 'APPLICATION COMPUTE RUNTIME TIER', color: '#3B82F6', x: 0, y: 0, w: 0, h: 0 },
+      { id: 'service-zone', label: 'DOMAIN SERVICES & EXTERNAL APIS', color: '#8B5CF6', x: 0, y: 0, w: 0, h: 0 },
+      { id: 'data-zone', label: 'PERSISTENCE & CLOUD STORAGE TIER', color: '#EC4899', x: 0, y: 0, w: 0, h: 0 },
+      { id: 'devops-zone', label: 'PRODUCTION CLOUD HOSTING TIER', color: '#F59E0B', x: 0, y: 0, w: 0, h: 0 }
     );
   }
 
@@ -258,7 +258,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
         sublabel: 'Automated CI Test & Build Pipeline',
         tier: 'gateway',
         provider: 'GitHub Actions',
-        badgeColor: '#2088FF',
+        badgeColor: '#FFFFFF',
         icon: 'service',
         techKey: 'github',
         isDetected: true
@@ -334,11 +334,11 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
     }
 
     zones.push(
-      { id: 'client-zone', label: 'SOURCE CONTROL & REPOSITORY TIER', color: '#24292E', x: 0, y: 0, w: 0, h: 0 },
-      { id: 'gateway-zone', label: 'CONTINUOUS INTEGRATION (CI) BUILD TIER', color: '#2088FF', x: 0, y: 0, w: 0, h: 0 },
-      ...(hasDocker ? [{ id: 'service-zone', label: 'CONTAINER REGISTRY TIER', color: '#2496ED', x: 0, y: 0, w: 0, h: 0 }] : []),
-      ...(hasK8s ? [{ id: 'data-zone', label: 'KUBERNETES CONTAINER CLUSTER TIER', color: '#326CE5', x: 0, y: 0, w: 0, h: 0 }] : []),
-      { id: 'devops-zone', label: 'CONTINUOUS DEPLOYMENT (CD) TARGET TIER', color: '#000000', x: 0, y: 0, w: 0, h: 0 }
+      { id: 'client-zone', label: 'SOURCE CONTROL & REPOSITORY TIER', color: '#10B981', x: 0, y: 0, w: 0, h: 0 },
+      { id: 'gateway-zone', label: 'CONTINUOUS INTEGRATION (CI) BUILD TIER', color: '#3B82F6', x: 0, y: 0, w: 0, h: 0 },
+      ...(hasDocker ? [{ id: 'service-zone', label: 'CONTAINER REGISTRY TIER', color: '#8B5CF6', x: 0, y: 0, w: 0, h: 0 }] : []),
+      ...(hasK8s ? [{ id: 'data-zone', label: 'KUBERNETES CONTAINER CLUSTER TIER', color: '#EC4899', x: 0, y: 0, w: 0, h: 0 }] : []),
+      { id: 'devops-zone', label: 'CONTINUOUS DEPLOYMENT (CD) TARGET TIER', color: '#F59E0B', x: 0, y: 0, w: 0, h: 0 }
     );
   }
 
@@ -354,7 +354,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
         sublabel: 'React Single Page App View',
         tier: 'client',
         provider: 'Frontend Client',
-        badgeColor: '#FF5E1A',
+        badgeColor: '#10B981',
         icon: 'browser',
         techKey: 'react',
         isDetected: true
@@ -368,7 +368,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
       sublabel: 'GitHub Event Ingestion Gateway',
       tier: 'client',
       provider: 'Event Entrypoint',
-      badgeColor: '#8B5CF6',
+      badgeColor: '#10B981',
       icon: 'browser',
       techKey: 'github',
       isDetected: true
@@ -381,7 +381,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
       sublabel: 'Express REST Router Controller',
       tier: 'gateway',
       provider: 'Gateway Layer',
-      badgeColor: '#3B82F6',
+      badgeColor: '#FFFFFF',
       icon: 'service',
       techKey: mainLang,
       isDetected: true
@@ -408,7 +408,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
         sublabel: 'Octokit Integration SDK Client',
         tier: 'service',
         provider: 'External Integration',
-        badgeColor: '#24292E',
+        badgeColor: '#000000',
         icon: 'network',
         techKey: 'github',
         isDetected: true
@@ -423,7 +423,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
         sublabel: 'PostgreSQL Database Engine',
         tier: 'data',
         provider: 'Database Tier',
-        badgeColor: '#336791',
+        badgeColor: '#10B981',
         icon: 'database',
         techKey: 'postgres',
         isDetected: true
@@ -438,7 +438,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
         sublabel: 'In-Memory Cache & Message Queue',
         tier: 'data',
         provider: 'Cache Tier',
-        badgeColor: '#DC382D',
+        badgeColor: '#FFFFFF',
         icon: 'cache',
         techKey: 'redis',
         isDetected: true
@@ -456,10 +456,10 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
     if (hasRedis) connections.push({ from: 'sys-processor', to: 'sys-cache', label: 'Cache Hits / Queues' });
 
     zones.push(
-      { id: 'client-zone', label: 'ENTRYPOINT & EVENT INGESTION TIER', color: '#FF5E1A', x: 0, y: 0, w: 0, h: 0 },
+      { id: 'client-zone', label: 'ENTRYPOINT & EVENT INGESTION TIER', color: '#10B981', x: 0, y: 0, w: 0, h: 0 },
       { id: 'gateway-zone', label: 'ROUTER & GATEWAY CONTROLLER TIER', color: '#3B82F6', x: 0, y: 0, w: 0, h: 0 },
-      { id: 'service-zone', label: 'DOMAIN & BUSINESS LOGIC SERVICES', color: '#10B981', x: 0, y: 0, w: 0, h: 0 },
-      ...(hasDb || hasRedis ? [{ id: 'data-zone', label: 'PERSISTENCE & INTEGRATIONS TIER', color: '#336791', x: 0, y: 0, w: 0, h: 0 }] : [])
+      { id: 'service-zone', label: 'DOMAIN & BUSINESS LOGIC SERVICES', color: '#8B5CF6', x: 0, y: 0, w: 0, h: 0 },
+      ...(hasDb || hasRedis ? [{ id: 'data-zone', label: 'PERSISTENCE & INTEGRATIONS TIER', color: '#EC4899', x: 0, y: 0, w: 0, h: 0 }] : [])
     );
   }
 
@@ -474,7 +474,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
       sublabel: 'UI Components & Custom Hooks',
       tier: 'client',
       provider: 'React UI Layer',
-      badgeColor: '#61DAFB',
+      badgeColor: '#10B981',
       icon: 'browser',
       techKey: 'react',
       isDetected: true
@@ -487,7 +487,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
       sublabel: 'Endpoint Handlers & Middleware',
       tier: 'gateway',
       provider: 'Express Controllers',
-      badgeColor: '#68A063',
+      badgeColor: '#FFFFFF',
       icon: 'service',
       techKey: mainLang,
       isDetected: true
@@ -500,7 +500,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
       sublabel: 'Business Processors & Modules',
       tier: 'service',
       provider: 'Service Modules',
-      badgeColor: '#8B5CF6',
+      badgeColor: 'rgba(255,255,255,0.7)',
       icon: 'service',
       techKey: mainLang,
       isDetected: true
@@ -514,7 +514,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
         sublabel: 'GitHub API REST Client Instance',
         tier: 'service',
         provider: 'API SDK Client',
-        badgeColor: '#24292E',
+        badgeColor: '#000000',
         icon: 'network',
         techKey: 'github',
         isDetected: true
@@ -529,7 +529,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
         sublabel: 'Database Entities & Schemas',
         tier: 'data',
         provider: 'Data Models',
-        badgeColor: '#2D3748',
+        badgeColor: 'rgba(255,255,255,0.7)',
         icon: 'database',
         techKey: 'postgres',
         isDetected: true
@@ -543,7 +543,7 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
       sublabel: 'Helper Functions & Types',
       tier: 'devops',
       provider: 'Utilities Module',
-      badgeColor: '#EAB308',
+      badgeColor: 'rgba(255,255,255,0.5)',
       icon: 'monitor',
       techKey: mainLang,
       isDetected: true
@@ -559,11 +559,11 @@ export function buildSystemDesign(DATA, fileList = [], perspective = 'cloud') {
     connections.push({ from: 'sw-handlers', to: 'sw-utils', label: 'Imports Helper Functions', style: 'dashed' });
 
     zones.push(
-      { id: 'client-zone', label: 'PRESENTATION & UI COMPONENTS LAYER', color: '#61DAFB', x: 0, y: 0, w: 0, h: 0 },
-      { id: 'gateway-zone', label: 'ROUTING & API CONTROLLER LAYER', color: '#68A063', x: 0, y: 0, w: 0, h: 0 },
+      { id: 'client-zone', label: 'PRESENTATION & UI COMPONENTS LAYER', color: '#10B981', x: 0, y: 0, w: 0, h: 0 },
+      { id: 'gateway-zone', label: 'ROUTING & API CONTROLLER LAYER', color: '#3B82F6', x: 0, y: 0, w: 0, h: 0 },
       { id: 'service-zone', label: 'DOMAIN & SERVICE MODULES LAYER', color: '#8B5CF6', x: 0, y: 0, w: 0, h: 0 },
-      ...(hasDb ? [{ id: 'data-zone', label: 'DATA MODELS & ORM LAYER', color: '#2D3748', x: 0, y: 0, w: 0, h: 0 }] : []),
-      { id: 'devops-zone', label: 'UTILITY & SHARED HELPERS LAYER', color: '#EAB308', x: 0, y: 0, w: 0, h: 0 }
+      ...(hasDb ? [{ id: 'data-zone', label: 'DATA MODELS & ORM LAYER', color: '#EC4899', x: 0, y: 0, w: 0, h: 0 }] : []),
+      { id: 'devops-zone', label: 'UTILITY & SHARED HELPERS LAYER', color: '#F59E0B', x: 0, y: 0, w: 0, h: 0 }
     );
   }
 

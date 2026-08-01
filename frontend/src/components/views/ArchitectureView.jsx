@@ -14,7 +14,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
   const [editingComp, setEditingComp] = useState(null);
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
-  const [editColor, setEditColor] = useState('#FF4D00');
+  const [editColor, setEditColor] = useState('#10B981');
 
   // State for Architecture Diffing & Time-Travel History
   const [isDiffMode, setIsDiffMode] = useState(false);
@@ -220,15 +220,15 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     const connections = [];
 
     const LAYER_COLOR = { 
-      Presentation: '#FF4D00', 
-      Interaction: '#A855F7', 
-      Gateway: '#3B82F6', 
-      Domain: '#06B6D4', 
-      Persistence: '#22C55E', 
-      Foundation: '#7A7268', 
-      Infrastructure: '#4B5563', 
-      Test: '#EAB308', 
-      Unknown: '#3A3A3A' 
+      Presentation: '#10B981', 
+      Interaction: '#FFFFFF', 
+      Gateway: 'rgba(255,255,255,0.8)', 
+      Domain: 'rgba(255,255,255,0.65)', 
+      Persistence: 'rgba(255,255,255,0.5)', 
+      Foundation: 'rgba(255,255,255,0.4)', 
+      Infrastructure: 'rgba(255,255,255,0.3)', 
+      Test: 'rgba(255,255,255,0.25)', 
+      Unknown: 'rgba(255,255,255,0.2)' 
     };
     const MAX_CANVAS_FILES_PER_LAYER = 60;
     
@@ -265,15 +265,15 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
 
     const activeLayers = ['Presentation', 'Interaction', 'Gateway', 'Domain', 'Persistence', 'Foundation', 'Infrastructure', 'Test', 'Unknown'];
     const zoneConfig = {
-      Presentation: { label: "Presentation (UI)", color: "#FF4D00", bgOpacity: 0.04 },
-      Interaction: { label: "Interaction", color: "#A855F7", bgOpacity: 0.04 },
-      Gateway: { label: "Gateway (APIs)", color: "#3B82F6", bgOpacity: 0.04 },
-      Domain: { label: "Domain (Core Logic)", color: "#06B6D4", bgOpacity: 0.04 },
-      Persistence: { label: "Persistence (Data)", color: "#22C55E", bgOpacity: 0.04 },
-      Foundation: { label: "Foundation", color: "#7A7268", bgOpacity: 0.04 },
-      Infrastructure: { label: "Infrastructure", color: "#4B5563", bgOpacity: 0.04 },
-      Test: { label: "Test", color: "#EAB308", bgOpacity: 0.04 },
-      Unknown: { label: "Other / Unknown", color: "#3A3A3A", bgOpacity: 0.04 }
+      Presentation: { label: "Presentation (UI)", color: "#10B981", bgOpacity: 0.04 },
+      Interaction: { label: "Interaction", color: "#10B981", bgOpacity: 0.04 },
+      Gateway: { label: "Gateway (APIs)", color: "#10B981", bgOpacity: 0.04 },
+      Domain: { label: "Domain (Core Logic)", color: "#10B981", bgOpacity: 0.04 },
+      Persistence: { label: "Persistence (Data)", color: "#10B981", bgOpacity: 0.04 },
+      Foundation: { label: "Foundation", color: "#10B981", bgOpacity: 0.04 },
+      Infrastructure: { label: "Infrastructure", color: "#10B981", bgOpacity: 0.04 },
+      Test: { label: "Test", color: "#10B981", bgOpacity: 0.04 },
+      Unknown: { label: "Other / Unknown", color: "#10B981", bgOpacity: 0.04 }
     };
 
     activeLayers.forEach(layerName => {
@@ -373,33 +373,61 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     const canvas = canvasRef.current;
     if (!canvas || !archDataRef.current) return;
     const ctx = canvas.getContext('2d');
-    const W = canvas.offsetWidth;
-    const H = canvas.offsetHeight;
+    const W = canvas.offsetWidth || 1200;
+    const H = canvas.offsetHeight || 800;
+    const dpr = Math.max(window.devicePixelRatio || 1, 2);
+
+    if (canvas.width !== Math.floor(W * dpr) || canvas.height !== Math.floor(H * dpr)) {
+      canvas.width = Math.floor(W * dpr);
+      canvas.height = Math.floor(H * dpr);
+    }
+    canvas.style.width = W + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
     const transform = transformRef.current;
-    
     ctx.clearRect(0, 0, W, H);
     ctx.save();
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.scale, transform.scale);
 
-    ctx.fillStyle = '#FFFFFF';
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    ctx.fillStyle = isLight ? '#FFFFFF' : '#000000';
     ctx.fillRect(-transform.x / transform.scale, -transform.y / transform.scale, W / transform.scale, H / transform.scale);
 
+    // Subtle Dot Grid (Soft Grey Dots in Light Mode, Glowing White in Dark Mode)
+    ctx.fillStyle = isLight ? 'rgba(203, 213, 225, 0.45)' : 'rgba(255, 255, 255, 0.12)';
+    const gridStep = 40;
+    const worldW = W / transform.scale;
+    const worldH = H / transform.scale;
+    const worldX = -transform.x / transform.scale;
+    const worldY = -transform.y / transform.scale;
+    const startX = Math.floor(worldX / gridStep) * gridStep;
+    const startY = Math.floor(worldY / gridStep) * gridStep;
+    for (let gx = startX; gx < worldX + worldW; gx += gridStep) {
+      for (let gy = startY; gy < worldY + worldH; gy += gridStep) {
+        ctx.beginPath();
+        ctx.arc(gx, gy, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
     // Title
-    ctx.fillStyle = '#FF5E1A';
+    ctx.fillStyle = '#10B981';
     ctx.fillRect(32, 24, 4, 28);
     ctx.font = '700 18px "Space Grotesk", sans-serif';
-    ctx.fillStyle = '#111827';
+    ctx.fillStyle = isLight ? '#0F172A' : '#FFFFFF';
     ctx.fillText(data.project.name + ' — System Architecture', 44, 44);
 
     // Zones
     archDataRef.current.zones.forEach(zone => {
       ctx.save();
-      ctx.fillStyle = zone.color + Math.round(zone.bgOpacity * 50).toString(16).padStart(2, '0');
+      ctx.fillStyle = isLight ? 'rgba(245, 245, 245, 0.90)' : 'rgba(10, 10, 10, 0.88)';
       roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 12);
       ctx.fill();
 
-      ctx.strokeStyle = zone.color + 'aa';
+      ctx.strokeStyle = '#10B981';
       ctx.lineWidth = 1.2;
       ctx.setLineDash([8, 6]);
       roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 12);
@@ -407,7 +435,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       ctx.setLineDash([]);
 
       ctx.font = '700 10px "Space Mono", monospace';
-      ctx.fillStyle = zone.color;
+      ctx.fillStyle = '#10B981';
       ctx.letterSpacing = '0.08em';
       ctx.fillText(zone.label.toUpperCase(), zone.x + 12, zone.y + 16);
       ctx.restore();
@@ -462,7 +490,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
 
       let isHighlighted = false;
       let opacity = 0.5;
-      let color = '#A29B8F';
+      let color = isLight ? '#475569' : '#A29B8F';
       let lineWidth = 1.0;
       let isStoryTransition = false;
 
@@ -471,23 +499,23 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
         if (conn.from === connectionFocusId || conn.to === connectionFocusId) {
           isHighlighted = true;
           opacity = 1.0;
-          color = '#1E1B18';
-          lineWidth = 2.0;
+          color = '#10B981';
+          lineWidth = 2.5;
         } else {
-          opacity = 0.10;
-          color = '#E5E0D5';
-          lineWidth = 0.5;
+          opacity = 0.15;
+          color = isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)';
+          lineWidth = 0.8;
         }
       } else if (storyStep) {
         isStoryTransition = conn.from === previousStoryStep && conn.to === storyStep;
         if (isStoryTransition) {
           isHighlighted = true;
           opacity = 1.0;
-          color = '#FF4D00';
+          color = '#10B981';
           lineWidth = 2.5;
         } else {
           opacity = 0.10;
-          color = '#E5E0D5';
+          color = isLight ? '#94A3B8' : '#E5E0D5';
           lineWidth = 0.5;
         }
       } else {
@@ -497,12 +525,12 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
             isHighlighted = true;
             opacity = 1.0;
             const isImpactTargetConn = impactHighlight && connectionFocusId === impactHighlight.targetId;
-            color = isImpactTargetConn ? impactHighlight.severityColor : '#1E1B18';
-            lineWidth = 2.0;
+            color = isImpactTargetConn ? impactHighlight.severityColor : '#10B981';
+            lineWidth = 2.5;
           } else {
-            opacity = 0.10;
-            color = '#E5E0D5';
-            lineWidth = 0.5;
+            opacity = 0.15;
+            color = isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)';
+            lineWidth = 0.8;
           }
         }
       }
@@ -581,15 +609,15 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
         const mx = (x1 + x2) / 2;
         const my = (y1 + y2) / 2;
         ctx.font = '400 8px "Space Mono", monospace';
-        ctx.fillStyle = '#FAF7F2';
+        ctx.fillStyle = isLight ? '#FFFFFF' : '#0F172A';
         const tw = ctx.measureText(conn.label).width;
         ctx.fillRect(mx - tw / 2 - 4, my - 6, tw + 8, 12);
         
-        ctx.strokeStyle = '#D5CFC5';
-        ctx.lineWidth = 0.6;
+        ctx.strokeStyle = '#10B981';
+        ctx.lineWidth = 0.8;
         ctx.strokeRect(mx - tw / 2 - 4, my - 6, tw + 8, 12);
 
-        ctx.fillStyle = isHighlighted ? '#1E1B18' : '#8E8578';
+        ctx.fillStyle = isHighlighted ? '#10B981' : (isLight ? '#334155' : '#E2E8F0');
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(conn.label, mx, my);
@@ -606,8 +634,8 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
  
       ctx.save();
       let opacity = 1.0;
-      let borderColor = comp.borderColor + '66';
-      let lineWidth = 1;
+      let borderColor = isLight ? '#334155' : (comp.borderColor + 'A0');
+      let lineWidth = isLight ? 1.2 : 1.0;
       
       let isTarget = impactHighlight && comp.id === impactHighlight.targetId;
       let isAffected = impactHighlight && impactHighlight.affectedIds.has(comp.id);
@@ -622,10 +650,10 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
         const isHoverConnected = comp.id === hoveredCompIdRef.current || isConnectedToFocus(comp.id);
         if (isHoverConnected) {
           opacity = 1.0;
-          borderColor = comp.borderColor;
-          lineWidth = 1.5;
+          borderColor = isHovered ? (isLight ? '#000000' : '#10B981') : (isLight ? '#0F172A' : comp.borderColor);
+          lineWidth = isHovered ? 2.2 : 1.8;
         } else {
-          opacity = 0.15;
+          opacity = isLight ? 0.25 : 0.15;
         }
       } else if (blastRadiusData) {
         isBlastTarget = comp.id === blastRadiusData.targetPath;
@@ -643,15 +671,15 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
 
         if (isBlastTarget) {
           opacity = 1.0;
-          borderColor = '#ffffff';
+          borderColor = isLight ? '#000000' : '#ffffff';
           lineWidth = 2.5;
         } else if (isBlastDirect || zoneContainsDirect) {
           opacity = 1.0;
-          borderColor = '#FF4D00';
-          lineWidth = 1.5;
+          borderColor = '#10B981';
+          lineWidth = 1.8;
         } else if (isBlastIndirect || zoneContainsIndirect) {
           opacity = 1.0;
-          borderColor = '#EAB308';
+          borderColor = isLight ? '#475569' : 'rgba(255,255,255,0.65)';
           lineWidth = 1.5;
         } else {
           opacity = 0.25;
@@ -660,7 +688,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
         isCurrentStoryNode = comp.id === storyStep;
         if (isCurrentStoryNode) {
           opacity = 1.0;
-          borderColor = comp.borderColor;
+          borderColor = isLight ? '#000000' : comp.borderColor;
           lineWidth = 2.5;
           cardScale = 1.2 + Math.abs(Math.sin(Date.now() / 250)) * 0.15;
         } else {
@@ -669,7 +697,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       } else if (impactHighlight) {
         if (isTarget) {
           opacity = 1.0;
-          borderColor = '#ffffff';
+          borderColor = isLight ? '#000000' : '#ffffff';
           lineWidth = 2.5;
         } else if (isAffected) {
           opacity = 1.0;
@@ -680,11 +708,11 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
         }
       } else {
         if (activeFocusId && !isConnected) {
-          opacity = 0.15;
+          opacity = isLight ? 0.25 : 0.15;
         }
         if (isSelected) {
-          borderColor = '#1E1B18';
-          lineWidth = 1.8;
+          borderColor = isLight ? '#000000' : '#10B981';
+          lineWidth = 2.2;
         }
       }
 
@@ -698,18 +726,18 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
 
       // Determine shadow color
       let shadowColor = comp.borderColor;
-      if (isBlastTarget) shadowColor = '#EF4444';
-      else if (isBlastDirect) shadowColor = '#FF4D00';
-      else if (isBlastIndirect) shadowColor = '#EAB308';
+      if (isBlastTarget) shadowColor = '#FFFFFF';
+      else if (isBlastDirect) shadowColor = '#10B981';
+      else if (isBlastIndirect) shadowColor = 'rgba(255,255,255,0.65)';
       else if (isCurrentStoryNode) shadowColor = comp.borderColor;
-      else if (isTarget) shadowColor = '#EF4444';
+      else if (isTarget) shadowColor = '#FFFFFF';
       else if (isAffected) shadowColor = impactHighlight.severityColor;
 
       ctx.shadowColor = shadowColor;
       ctx.shadowBlur = (isHovered || isCurrentStoryNode) ? 15 : 2;
       ctx.shadowOffsetY = isHovered ? 3 : 1;
  
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = isLight ? '#FFFFFF' : '#0A0A0A';
       roundRect(ctx, drawX, drawY, drawW, drawH, 6);
       ctx.fill();
  
@@ -724,10 +752,9 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       ctx.beginPath();
       ctx.arc(drawX + 12 * cardScale, drawY + drawH / 2, 4 * cardScale, 0, Math.PI * 2);
       ctx.fill();
- 
-      // File Name
+       // File Name
       ctx.font = `600 ${Math.round(11 * cardScale)}px "Space Grotesk", sans-serif`;
-      ctx.fillStyle = '#1E1B18';
+      ctx.fillStyle = isLight ? '#0F172A' : '#FFFFFF';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       
@@ -742,10 +769,10 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
         displayName += '...';
       }
       ctx.fillText(displayName, drawX + 24 * cardScale, drawY + 16 * cardScale);
- 
+
       // Subtitle
       ctx.font = `400 ${Math.round(8 * cardScale)}px "Space Mono", monospace`;
-      ctx.fillStyle = 'rgba(30,27,24,0.5)';
+      ctx.fillStyle = isLight ? '#475569' : 'rgba(255, 255, 255, 0.75)';
       let displaySub = comp.subtitle;
       let subWidth = ctx.measureText(displaySub).width;
       if (subWidth > maxTextWidth) {
@@ -756,14 +783,14 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       }
       ctx.fillText(displaySub, drawX + 24 * cardScale, drawY + 32 * cardScale);
 
-      // Warning exclamation mark (!) for target component of Impact Radar selection
+      // Warning badge for target component of Impact Radar selection
       if (isTarget) {
         ctx.save();
-        ctx.fillStyle = '#EF4444';
+        ctx.fillStyle = '#10B981';
         ctx.beginPath();
         ctx.arc(drawX + drawW, drawY, 7 * cardScale, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = '#000000';
         ctx.font = `bold ${Math.round(9 * cardScale)}px "Space Grotesk", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -771,10 +798,10 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
         ctx.restore();
       }
 
-      // Pulsing red dot warning for Blast Radius target component
+      // Pulsing dot for Blast Radius target component
       if (isBlastTarget) {
         ctx.save();
-        ctx.fillStyle = '#EF4444';
+        ctx.fillStyle = '#10B981';
         ctx.beginPath();
         const pulse = (4 + Math.abs(Math.sin(Date.now() / 250)) * 3) * cardScale;
         ctx.arc(drawX + drawW, drawY, pulse, 0, Math.PI * 2);
@@ -788,8 +815,8 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     // Custom Pencil / Box drawings
     customDrawingsRef.current.forEach(shape => {
       ctx.save();
-      ctx.strokeStyle = '#FF4D00';
-      ctx.shadowColor = '#FF4D00';
+      ctx.strokeStyle = '#10B981';
+      ctx.shadowColor = '#10B981';
       ctx.shadowBlur = 8;
       ctx.lineWidth = 2;
       if (shape.type === 'pencil') {
@@ -1336,7 +1363,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
                   <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Commit Timeline ({commits.length - commitIndex} of {commits.length})
                   </span>
-                  <span style={{ fontFamily: '"Space Mono", monospace', color: '#FF5E1A', fontWeight: '700', shrink: 0, marginLeft: '8px' }}>
+                  <span style={{ fontFamily: '"Space Mono", monospace', color: '#10B981', fontWeight: '700', shrink: 0, marginLeft: '8px' }}>
                     Commit {commits[commitIndex]?.shortSha || ''}
                   </span>
                 </div>
@@ -1347,7 +1374,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
                   max={commits.length - 1} 
                   value={commitIndex} 
                   onChange={(e) => setCommitIndex(Number(e.target.value))}
-                  style={{ width: '100%', accentColor: '#FF5E1A', cursor: 'pointer', margin: '2px 0' }}
+                  style={{ width: '100%', accentColor: '#10B981', cursor: 'pointer', margin: '2px 0' }}
                 />
 
                 {/* Truncated Developer Commit Info */}
@@ -1439,11 +1466,11 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
             <span>Target file</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#FAF7F2' }}>
-            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#FF4D00' }} />
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981' }} />
             <span>Direct impact</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#FAF7F2' }}>
-            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#EAB308' }} />
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.5)' }} />
             <span>Indirect impact</span>
           </div>
         </div>
