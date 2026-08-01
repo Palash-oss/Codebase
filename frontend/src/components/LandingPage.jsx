@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import LocomotiveScroll from 'locomotive-scroll';
 import Toast from './Toast';
-import BillingModal from './BillingModal';
 import AuthModal from './AuthModal';
 import IsometricStackVisualizer from './IsometricStackVisualizer';
 
@@ -14,7 +13,6 @@ function LandingPage({ onAnalysisSuccess, theme, toggleTheme }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [progressWidth, setProgressWidth] = useState('0%');
   const [toastMsg, setToastMsg] = useState('');
-  const [showPricingModal, setShowPricingModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [currentUser, setCurrentUser] = useState(() => {
@@ -680,10 +678,6 @@ func main() {
               </>
             )}
           </button>
-          
-          <button className="fleek-outline-btn" onClick={() => setShowPricingModal(true)}>
-            Pricing & Plans
-          </button>
 
           {currentUser ? (
             <button className="fleek-solid-btn" onClick={() => setShowUserModal(true)}>
@@ -866,7 +860,7 @@ func main() {
           <div style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', borderRadius: '16px', padding: '32px' }}>
             <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px', color: '#10B981', fontWeight: '700', marginBottom: '8px' }}>ENTERPRISES</div>
             <p style={{ fontSize: '14px', color: 'var(--beige-3)', lineHeight: 1.6, marginBottom: '24px' }}>Deploy team architecture hubs with security limits, unlimited repos, and priority AST parsing.</p>
-            <button className="fleek-solid-btn" style={{ width: '100%' }} onClick={() => setShowPricingModal(true)}>Upgrade Plan</button>
+            <button className="fleek-solid-btn" style={{ width: '100%' }} onClick={scrollToUpload}>Explore Platform</button>
           </div>
         </div>
       </section>
@@ -926,17 +920,6 @@ func main() {
           <a href="#sec-06">// Security</a>
         </div>
       </footer>
-
-      {/* SaaS Pricing & Plans Modal */}
-      <BillingModal
-        isOpen={showPricingModal}
-        onClose={() => setShowPricingModal(false)}
-        currentUser={currentUser}
-        onUpgradeSuccess={(user) => {
-          setCurrentUser(user);
-          setToastMsg(`Upgraded account to ${user.tier.toUpperCase()} Plan!`);
-        }}
-      />
 
       {/* Developer Sign In & Registration Modal */}
       <AuthModal
@@ -1005,25 +988,6 @@ func main() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button
-                onClick={() => {
-                  setShowUserModal(false);
-                  setShowPricingModal(true);
-                }}
-                style={{
-                  padding: '11px',
-                  borderRadius: '8px',
-                  background: '#F8FAFC',
-                  border: '1px solid #CBD5E1',
-                  color: '#334155',
-                  fontSize: '13px',
-                  fontWeight: '700',
-                  cursor: 'pointer'
-                }}
-              >
-                Manage Subscription & Plans
-              </button>
-
               <button
                 onClick={() => {
                   localStorage.removeItem('xray_auth_token');
