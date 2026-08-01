@@ -2747,72 +2747,117 @@ body,
 }
 
 /* ========================================================
-   COMPREHENSIVE RESPONSIVE DESIGN (ALL DEVICES 320px - 1440px)
-   ======================================================== */
+/* =========================================================================
+   COMPREHENSIVE MASTER RESPONSIVE DESIGN SYSTEM (ALL DEVICES 320px - 1920px+)
+   ========================================================================= */
 
+/* --- 1024px Tablet / Laptop Breakpoint --- */
 @media (max-width: 1024px) {
   .fleek-sidebar-nav {
     display: none !important;
   }
   
   header {
-    padding: 0 24px !important;
+    padding: 0 20px !important;
   }
   
   section {
-    padding-left: 24px !important;
-    padding-right: 24px !important;
+    padding-left: 20px !important;
+    padding-right: 20px !important;
   }
   
   .fleek-card-matrix {
     grid-template-columns: repeat(2, 1fr) !important;
+    gap: 20px !important;
   }
   
   .fleek-wireframe-grid {
     grid-template-columns: repeat(2, 1fr) !important;
+    gap: 20px !important;
   }
-  
-  /* Exploded 3D Stack Widget Responsive Layout */
-  .fleek-master-container [style*="gridTemplateColumns: '180px 1fr 300px'"],
-  [style*="grid-template-columns: 180px 1fr 300px"] {
+
+  .fleek-master-container [style*="gridTemplateColumns"],
+  [style*="grid-template-columns: 180px 1fr 300px"],
+  [style*="gridTemplateColumns: '180px 1fr 300px'"] {
     grid-template-columns: 1fr !important;
     gap: 20px !important;
   }
+
+  /* Drawers width adaptation for tablets */
+  .ai-architect-drawer,
+  .workspaces-drawer,
+  [style*="width: 520px"],
+  [style*="width: 440px"] {
+    width: 420px !important;
+    max-width: 90vw !important;
+  }
 }
 
+/* --- 768px Tablet / Mobile Breakpoint --- */
 @media (max-width: 768px) {
+  /* Navbar Header */
   header {
     height: auto !important;
-    padding: 12px 16px !important;
+    padding: 10px 14px !important;
     flex-direction: column !important;
-    gap: 12px !important;
+    gap: 10px !important;
   }
   
   header > div {
     width: 100% !important;
     justify-content: space-between !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  header .nav-actions,
+  header [style*="display: 'flex'"] {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
   }
   
   /* Landing Hero Section */
   #sec-01 {
-    padding: 110px 16px 40px 16px !important;
+    padding: 100px 16px 40px 16px !important;
     min-height: auto !important;
   }
   
   #sec-01 h1 {
-    font-size: 36px !important;
+    font-size: clamp(28px, 7vw, 48px) !important;
     line-height: 1.15 !important;
+    letter-spacing: -0.02em !important;
   }
   
   #sec-01 p {
     font-size: 15px !important;
   }
+
+  /* Hero Input Bar on Mobile */
+  #sec-01 form,
+  #sec-01 [style*="display: 'flex'"] {
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 10px !important;
+  }
+
+  #sec-01 form input,
+  #sec-01 form button {
+    width: 100% !important;
+    border-radius: 8px !important;
+  }
   
   #sec-01 [style*="marginTop: '72px'"],
   #sec-01 [style*="gridTemplateColumns: 'repeat(4, 1fr)'"] {
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: 16px !important;
-    margin-top: 36px !important;
+    gap: 14px !important;
+    margin-top: 32px !important;
+  }
+
+  /* Pricing Cards Grid */
+  [style*="gridTemplateColumns: 'repeat(3, 1fr)'"],
+  .pricing-grid {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
   }
   
   /* Dashboard Responsive Layout */
@@ -2825,32 +2870,74 @@ body,
     height: auto !important;
     flex-direction: row !important;
     overflow-x: auto !important;
-    padding: 8px 12px !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 6px 10px !important;
     border-right: none !important;
     border-bottom: 1px solid var(--border) !important;
+    gap: 4px !important;
   }
   
   .sidebar-btn {
     padding: 8px 12px !important;
+    white-space: nowrap !important;
+    font-size: 12px !important;
   }
   
   .main-content {
     width: 100% !important;
-    height: calc(100vh - 60px) !important;
+    height: calc(100vh - 100px) !important;
+  }
+
+  /* Detail Panel on Mobile */
+  .detail-panel,
+  [style*="width: '380px'"] {
+    position: fixed !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 60vh !important;
+    z-index: 1000 !important;
+    border-top: 2px solid var(--orange) !important;
+    box-shadow: 0 -10px 30px rgba(0,0,0,0.5) !important;
+  }
+
+  /* Drawers Full Mobile Width */
+  .ai-architect-drawer,
+  .workspaces-drawer,
+  [style*="width: 520px"],
+  [style*="width: 440px"] {
+    width: 100vw !important;
+    max-width: 100vw !important;
   }
 
   /* Modals Responsiveness */
+  .modal-overlay > div,
   [style*="width: '760px'"],
+  [style*="width: '560px'"],
   [style*="width: '420px'"] {
-    width: 95vw !important;
+    width: 94vw !important;
     padding: 16px !important;
-    max-height: 92vh !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+    margin: 0 10px !important;
+  }
+
+  /* Controls Overlay in Views */
+  .view-controls,
+  [style*="position: 'absolute'"][style*="bottom: '20px'"] {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    bottom: 10px !important;
+    left: 10px !important;
+    max-width: calc(100vw - 20px) !important;
   }
 }
 
+/* --- 480px Small Mobile Phones Breakpoint --- */
 @media (max-width: 480px) {
   #sec-01 h1 {
-    font-size: 28px !important;
+    font-size: 26px !important;
   }
   
   #sec-01 [style*="marginTop: '72px'"],
@@ -2867,9 +2954,20 @@ body,
   }
   
   .fleek-solid-btn,
-  .fleek-outline-btn {
+  .fleek-outline-btn,
+  button[type="submit"] {
     width: 100% !important;
     text-align: center !important;
     justify-content: center !important;
+  }
+
+  /* Compact padding for buttons and cards */
+  .fleek-card {
+    padding: 16px !important;
+  }
+
+  .file-card {
+    padding: 10px !important;
+    font-size: 12px !important;
   }
 }
