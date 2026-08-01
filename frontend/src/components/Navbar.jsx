@@ -6,7 +6,7 @@ import AiArchitectDrawer from './AiArchitectDrawer';
 import BillingModal from './BillingModal';
 import FeedbackModal from './FeedbackModal';
 
-function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack = [], files = [], data, onNewAnalysis, onSelectWorkspaceProject }) {
+function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack = [], files = [], data, onNewAnalysis, onSelectWorkspaceProject, theme, toggleTheme }) {
   // Count error/warning findings
   let errorCount = 0;
   let warningCount = 0;
@@ -245,7 +245,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
         {/* AI Architect Assistant Button */}
         <button
           className="btn-liquid"
-          style={{ background: '#8B5CF622', border: '1px solid #8B5CF688', color: '#A78BFA', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
+          style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.4)', color: '#10B981', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
           onClick={() => setShowAiDrawer(true)}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12A10 10 0 0 1 12 2z"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
@@ -265,7 +265,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
         {/* Support & Feedback Button */}
         <button
           className="btn-liquid"
-          style={{ background: '#FF2E9322', border: '1px solid #FF2E9388', color: '#FF2E93', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
+          style={{ background: '#10B98122', border: '1px solid #10B98188', color: '#10B981', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
           onClick={() => setShowFeedbackModal(true)}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -284,7 +284,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
         ) : (
           <button
             className="btn-liquid"
-            style={{ background: '#FF5E1A', border: '1px solid #FF5E1A', color: '#FFFFFF', padding: '6px 14px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(255,94,26,0.3)' }}
+            style={{ background: '#10B981', border: '1px solid #10B981', color: '#FFFFFF', padding: '6px 14px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(255,94,26,0.3)' }}
             onClick={() => setShowAuthModal(true)}
           >
             <span>Sign In</span>
@@ -309,6 +309,26 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
           <span>PR Guard</span>
         </button>
 
+        {/* Theme Toggle Button */}
+        <button 
+          className="btn-liquid"
+          style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--beige)', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          onClick={toggleTheme}
+          title="Toggle Dark/Light Mode"
+        >
+          {theme === 'light' ? (
+            <>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              <span>Light</span>
+            </>
+          ) : (
+            <>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+              <span>Dark</span>
+            </>
+          )}
+        </button>
+
         <button className="btn-action btn-liquid" onClick={handleReset}><span>New analysis</span></button>
       </div>
 
@@ -319,7 +339,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
           style={{
             background: '#FFFFFF',
             border: '1px solid #E5E7EB',
-            color: '#FF5E1A',
+            color: '#10B981',
             padding: '6px 12px',
             borderRadius: '6px',
             fontSize: '11px',
@@ -387,7 +407,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
           {/* Grid of Action Buttons */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <button
-              style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', color: '#8B5CF6', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
+              style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', color: '#10B981', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
               onClick={() => { setShowAiDrawer(true); setIsMobileMenuOpen(false); }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12A10 10 0 0 1 12 2z"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
@@ -395,7 +415,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
             </button>
 
             <button
-              style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', color: '#FF5E1A', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
+              style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', color: '#10B981', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
               onClick={() => { setShowWorkspacesDrawer(true); setIsMobileMenuOpen(false); }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -403,7 +423,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
             </button>
 
             <button
-              style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', color: '#FF2E93', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
+              style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', color: '#10B981', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
               onClick={() => { setShowFeedbackModal(true); setIsMobileMenuOpen(false); }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -435,7 +455,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
               </button>
             ) : (
               <button
-                style={{ background: '#FF5E1A', border: '1px solid #FF5E1A', color: '#FFFFFF', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
+                style={{ background: '#10B981', border: '1px solid #10B981', color: '#FFFFFF', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
                 onClick={() => { setShowAuthModal(true); setIsMobileMenuOpen(false); }}
               >
                 <span>Sign In</span>
@@ -617,7 +637,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
             </button>
 
             <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#FF5E1A', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: '700', marginBottom: '10px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#10B981', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: '700', marginBottom: '10px' }}>
                 {(currentUser.name || currentUser.email)[0].toUpperCase()}
               </div>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#111827' }}>
@@ -641,7 +661,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
                   width: '100%',
                   padding: '10px',
                   borderRadius: '8px',
-                  background: 'linear-gradient(135deg, #FF5E1A 0%, #FF2A00 100%)',
+                  background: 'linear-gradient(135deg, #10B981 0%, #FF2A00 100%)',
                   color: '#FFFFFF',
                   fontWeight: '700',
                   fontSize: '13px',

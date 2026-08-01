@@ -51,6 +51,12 @@ if (!fs.existsSync(tempDir)) {
 const upload = multer({ dest: uploadsDir });
 
 app.use(cors());
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+});
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -261,7 +267,7 @@ app.post(['/upload', '/api/upload'], upload.single('project'), async (req, res) 
     latestAnalysisResult = result;
     lastScanResult = result;
     saveAnalysisCache(result);
-    recordIpScan(clientIp);
+    recordIpScan(clientIp, userEmail);
     // Send result as JSON
     res.json({ success: true });
   } catch (error) {
@@ -322,7 +328,7 @@ app.get(['/github/branches', '/api/github/branches'], async (req, res) => {
       if (branchNames.length > 0) {
         return res.json({ branches: branchNames });
       }
-    } catch (e) {}
+    } catch (e) { }
 
     res.json({ branches: ['main', 'dev', 'staging'] });
   } catch (err) {
@@ -383,7 +389,7 @@ app.get(['/github/commits', '/api/github/commits'], async (req, res) => {
         if (commits.length > 0) {
           return res.json({ commits });
         }
-      } catch (e2) {}
+      } catch (e2) { }
     }
 
     res.json({ commits: [] });
@@ -497,7 +503,7 @@ app.post(['/github', '/api/github'], async (req, res) => {
     latestAnalysisResult = result;
     lastScanResult = result;
     saveAnalysisCache(result);
-    recordIpScan(clientIp);
+    recordIpScan(clientIp, userEmail);
     res.json({ success: true, branch: result.project?.activeBranch || branch });
   } catch (error) {
     console.error('[X-RAY] Error during GitHub analysis:', error);
@@ -672,8 +678,8 @@ app.post('/api/story', async (req, res) => {
   }
 
   const scan = getLastScanResult() || latestAnalysisResult || {};
-  const nodes = (clientNodes && clientNodes.length > 0) 
-    ? clientNodes 
+  const nodes = (clientNodes && clientNodes.length > 0)
+    ? clientNodes
     : (scan.graph?.nodes && scan.graph.nodes.length > 0)
       ? scan.graph.nodes
       : (clientFiles ? clientFiles.map(f => ({ id: f.relativePath || f.path, layer: f.layer || 'Interaction' })) : []);
@@ -942,7 +948,7 @@ app.post('/api/export-mermaid', (req, res) => {
         const tgtName = (edge.target || '').split('/').pop();
         const srcId = srcName.replace(/[^a-zA-Z0-9]/g, '');
         const tgtId = tgtName.replace(/[^a-zA-Z0-9]/g, '');
-        
+
         if (srcId && tgtId && srcId !== tgtId && !addedEdges.has(`${srcId}->${tgtId}`)) {
           addedEdges.add(`${srcId}->${tgtId}`);
           mermaidLines.push(`  ${srcId}["${srcName}"] --> ${tgtId}["${tgtName}"]`);
@@ -1128,7 +1134,7 @@ app.post('/api/webhooks/github', async (req, res) => {
 
       if (repoUrl) {
         console.log(`[X-RAY Webhook] Triggering automated re-scan for ${repoUrl} (Branch: ${branch})`);
-        
+
         // Trigger automated background scan
         fetch(`http://localhost:${PORT}/api/github`, {
           method: 'POST',
@@ -1286,38 +1292,32 @@ app.post('/api/billing/create-checkout', async (req, res) => {
     };
 
     // Razorpay Integration
-    if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
-      try {
-        const razorpay = new Razorpay({
-          key_id: process.env.RAZORPAY_KEY_ID,
-          key_secret: process.env.RAZORPAY_KEY_SECRET,
-        });
+    const razorpayKeyId = process.env.RAZORPAY_KEY_ID || 'rzp_live_TI16AQg7NWgItP';
+    const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || 'rzp_live_secret_default';
 
-        const { currency: clientCurrency } = req.body;
-        const targetCurrency = String(clientCurrency || '').toUpperCase();
+    try {
+      const razorpay = new Razorpay({
+        key_id: razorpayKeyId,
+        key_secret: razorpayKeySecret,
+      });
 
-        const amountsUSD = { pro: 1900, team: 4900 };    // $19 & $49 (cents) -> PayPal & International Cards
-        const amountsINR = { pro: 149900, team: 399900 }; // ₹1,499 & ₹3,999 (paise) -> UPI & Domestic Indian Cards
+      const { currency: clientCurrency } = req.body;
+      const targetCurrency = String(clientCurrency || '').toUpperCase();
 
-        let order;
-        if (targetCurrency === 'USD') {
-          try {
-            order = await razorpay.orders.create({
-              amount: amountsUSD[plan] || amountsUSD.pro,
-              currency: 'USD',
-              receipt: `rcpt_usd_${Date.now()}_${String(user.id).slice(-8)}`,
-              notes: { plan_name: plan, user_email: user.email || 'developer@codebasexray.com' }
-            });
-          } catch (usdErr) {
-            console.warn('[Razorpay USD fallback to INR]:', usdErr?.error?.description || usdErr?.message);
-            order = await razorpay.orders.create({
-              amount: amountsINR[plan] || amountsINR.pro,
-              currency: 'INR',
-              receipt: `rcpt_inr_${Date.now()}_${String(user.id).slice(-8)}`,
-              notes: { plan_name: plan, user_email: user.email || 'developer@codebasexray.com' }
-            });
-          }
-        } else {
+      const amountsUSD = { pro: 1900, team: 4900 };    // $19 & $49 (cents) -> PayPal & International Cards
+      const amountsINR = { pro: 149900, team: 399900 }; // ₹1,499 & ₹3,999 (paise) -> UPI & Domestic Indian Cards
+
+      let order;
+      if (targetCurrency === 'USD') {
+        try {
+          order = await razorpay.orders.create({
+            amount: amountsUSD[plan] || amountsUSD.pro,
+            currency: 'USD',
+            receipt: `rcpt_usd_${Date.now()}_${String(user.id).slice(-8)}`,
+            notes: { plan_name: plan, user_email: user.email || 'developer@codebasexray.com' }
+          });
+        } catch (usdErr) {
+          console.warn('[Razorpay USD fallback to INR]:', usdErr?.error?.description || usdErr?.message);
           order = await razorpay.orders.create({
             amount: amountsINR[plan] || amountsINR.pro,
             currency: 'INR',
@@ -1325,37 +1325,29 @@ app.post('/api/billing/create-checkout', async (req, res) => {
             notes: { plan_name: plan, user_email: user.email || 'developer@codebasexray.com' }
           });
         }
-
-        return res.json({ 
-          success: true, 
-          provider: 'razorpay',
-          order_id: order.id, 
-          amount: order.amount, 
-          currency: order.currency,
-          key_id: process.env.RAZORPAY_KEY_ID,
-          user: user
+      } else {
+        order = await razorpay.orders.create({
+          amount: amountsINR[plan] || amountsINR.pro,
+          currency: 'INR',
+          receipt: `rcpt_inr_${Date.now()}_${String(user.id).slice(-8)}`,
+          notes: { plan_name: plan, user_email: user.email || 'developer@codebasexray.com' }
         });
-      } catch (rzpErr) {
-        console.error('[Razorpay API Error]:', rzpErr);
-        const detailMsg = rzpErr?.error?.description || rzpErr?.message || 'Failed to create payment order';
-        return res.status(400).json({ error: `Razorpay Error: ${detailMsg}` });
       }
+
+      return res.json({
+        success: true,
+        provider: 'razorpay',
+        order_id: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        key_id: razorpayKeyId,
+        user: user
+      });
+    } catch (rzpErr) {
+      console.error('[Razorpay API Error]:', rzpErr);
+      const detailMsg = rzpErr?.error?.description || rzpErr?.message || 'Failed to create payment order';
+      return res.status(400).json({ error: `Razorpay Error: ${detailMsg}` });
     }
-
-    // Local / Dev Fallback: Instant tier upgrade for testing (30 days)
-    const targetTier = plan || 'pro';
-    const upgradedUser = updateUserTierByEmail(user.email || 'developer@codebasexray.com', targetTier, 30) || {
-      ...user,
-      tier: targetTier,
-      subscriptionExpiresAt: new Date(Date.now() + 30 * 86400000).toISOString()
-    };
-
-    res.json({
-      success: true,
-      provider: 'local',
-      message: `Subscription successfully updated to ${targetTier.toUpperCase()} for 30 days`,
-      user: upgradedUser
-    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1374,7 +1366,7 @@ app.post('/api/billing/verify-payment', (req, res) => {
     };
 
     const secret = process.env.RAZORPAY_KEY_SECRET || 'rzp_secret_dummy';
-    
+
     // Verify signature
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto

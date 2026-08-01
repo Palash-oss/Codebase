@@ -227,25 +227,36 @@ function SystemDesignView({ DATA, isActive }) {
 
     try {
       const ctx = canvas.getContext('2d');
-      const W = canvas.offsetWidth;
-      const H = canvas.offsetHeight;
+      const W = canvas.offsetWidth || 1200;
+      const H = canvas.offsetHeight || 800;
+      const dpr = Math.max(window.devicePixelRatio || 1, 2);
+
+      if (canvas.width !== Math.floor(W * dpr) || canvas.height !== Math.floor(H * dpr)) {
+        canvas.width = Math.floor(W * dpr);
+        canvas.height = Math.floor(H * dpr);
+      }
+      canvas.style.width = W + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
       const transform = transformRef.current;
-      const dpr = window.devicePixelRatio || 1;
-      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+      ctx.clearRect(0, 0, W, H);
       ctx.save();
       ctx.translate(transform.x, transform.y);
       ctx.scale(transform.scale, transform.scale);
 
-      // Background - Crisp White Base #FFFFFF
-      ctx.fillStyle = '#FFFFFF';
+      // Background
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+      ctx.fillStyle = isLight ? '#FFFFFF' : '#000000';
       const worldW = W / transform.scale;
       const worldH = H / transform.scale;
       const worldX = -transform.x / transform.scale;
       const worldY = -transform.y / transform.scale;
       ctx.fillRect(worldX, worldY, worldW, worldH);
 
-      // Subtle Dot Grid
-      ctx.fillStyle = '#E2E8F0';
+      // Subtle Glass Dot Grid (Soft Grey Dots in Light Mode, Glowing White in Dark Mode)
+      ctx.fillStyle = isLight ? 'rgba(203, 213, 225, 0.45)' : 'rgba(255, 255, 255, 0.12)';
       const gridStep = 40;
       const startX = Math.floor(worldX / gridStep) * gridStep;
       const startY = Math.floor(worldY / gridStep) * gridStep;
@@ -265,30 +276,34 @@ function SystemDesignView({ DATA, isActive }) {
         software: 'Software & Code Module Flow (Software Engineer Perspective)'
       };
       const projName = DATA?.project?.name || DATA?.name || 'System Architecture';
-      ctx.fillStyle = '#FF5E1A';
+      ctx.fillStyle = '#10B981';
       ctx.fillRect(32, 60, 4, 28);
       ctx.font = '700 18px "Space Grotesk", sans-serif';
-      ctx.fillStyle = '#111827';
+      ctx.fillStyle = isLight ? '#0F172A' : '#FFFFFF';
       ctx.fillText(`${projName} — ${perspectiveTitles[perspective] || 'System Architecture'}`, 44, 80);
 
     // Draw zones (dashed rectangles with labels)
     sysDataRef.current.zones.forEach(zone => {
       ctx.save();
-      ctx.strokeStyle = zone.color;
+      const zoneAccentColor = isLight 
+        ? (zone.color && zone.color !== '#FFFFFF' && !zone.color.includes('255,255,255') ? zone.color : '#059669') 
+        : (zone.color && zone.color !== '#000000' && !zone.color.includes('255,255,255') ? zone.color : '#10B981');
+
+      ctx.strokeStyle = zoneAccentColor;
       ctx.lineWidth = 1.5;
       ctx.setLineDash([8, 5]);
       roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 12);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Light zone background fill
-      ctx.fillStyle = zone.color + '0B';
+      // Zone background fill
+      ctx.fillStyle = isLight ? 'rgba(248, 250, 252, 0.92)' : 'rgba(10, 10, 10, 0.88)';
       roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 12);
       ctx.fill();
 
       // Zone label
       ctx.font = '800 11px "Space Grotesk", sans-serif';
-      ctx.fillStyle = zone.color;
+      ctx.fillStyle = zoneAccentColor;
       ctx.fillText(zone.label.toUpperCase(), zone.x + 12, zone.y + 16);
       ctx.restore();
     });
@@ -325,7 +340,7 @@ function SystemDesignView({ DATA, isActive }) {
         cy2 = y2 - (y2 - y1) * 0.45;
       }
 
-      const lineColor = conn.style === 'dashed' ? '#FF2E93' : '#FF5E1A';
+      const lineColor = conn.style === 'dashed' ? '#10B981' : '#10B981';
       ctx.strokeStyle = lineColor;
       ctx.lineWidth = 2.5;
       if (conn.style === 'dashed') ctx.setLineDash([6, 4]);
@@ -364,14 +379,14 @@ function SystemDesignView({ DATA, isActive }) {
         const my = (y1 + y2) / 2;
         
         ctx.save();
-        ctx.fillStyle = '#FFFFFF';
-        ctx.strokeStyle = '#CBD5E1';
-        ctx.lineWidth = 1;
+        ctx.fillStyle = isLight ? '#FFFFFF' : '#0F172A';
+        ctx.strokeStyle = '#10B981';
+        ctx.lineWidth = 1.2;
         roundRect(ctx, mx - tw / 2 - 8, my - 10, tw + 16, 20, 6);
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = '#0F172A';
+        ctx.fillStyle = isLight ? '#0F172A' : '#F8FAFC';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(conn.label, mx, my + 1);
@@ -403,13 +418,13 @@ function SystemDesignView({ DATA, isActive }) {
         ctx.shadowBlur = 6;
       }
 
-      // Box Card background (Crisp White)
-      ctx.fillStyle = '#FFFFFF';
+      // Box Card background
+      ctx.fillStyle = isLight ? '#FFFFFF' : '#0A0A0A';
       roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 10);
       ctx.fill();
 
       // Top Provider Accent Banner Bar (4px height)
-      ctx.fillStyle = comp.badgeColor || '#FF5E1A';
+      ctx.fillStyle = '#10B981';
       ctx.beginPath();
       ctx.moveTo(comp.x + 10, comp.y);
       ctx.lineTo(comp.x + comp.w - 10, comp.y);
@@ -422,17 +437,17 @@ function SystemDesignView({ DATA, isActive }) {
       ctx.shadowBlur = 0;
 
       // Card Border
-      ctx.strokeStyle = isSelected ? '#FF5E1A' : isHovered ? '#FF2E93' : '#E2E8F0';
+      ctx.strokeStyle = isSelected ? '#10B981' : isHovered ? '#10B981' : (isLight ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.18)');
       ctx.lineWidth = isSelected || isHovered ? 2 : 1;
       roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 10);
       ctx.stroke();
 
       // Number badge - top left
-      ctx.fillStyle = comp.badgeColor || '#111827';
+      ctx.fillStyle = '#10B981';
       ctx.beginPath();
       ctx.arc(comp.x + 16, comp.y + 18, 9, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = '#000000';
       ctx.font = '700 9px "Space Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -441,34 +456,34 @@ function SystemDesignView({ DATA, isActive }) {
       // Component icon with official colorful logo
       drawComponentIcon(ctx, comp, comp.x + comp.w / 2, comp.y + 24);
 
-      // Component title (Dark Obsidian #111827)
+      // Component title
       ctx.font = '700 12px "Space Grotesk", sans-serif';
-      ctx.fillStyle = '#111827';
+      ctx.fillStyle = isLight ? '#0F172A' : '#FFFFFF';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       const label = truncate(comp.label, comp.w - 16, ctx);
       ctx.fillText(label, comp.x + comp.w / 2, comp.y + 44);
 
-      // Sub-label (Slate #475569)
+      // Sub-label
       ctx.font = '500 10px "Space Grotesk", sans-serif';
-      ctx.fillStyle = '#475569';
+      ctx.fillStyle = isLight ? '#475569' : '#9CA3AF';
       const sub = truncate(comp.sublabel, comp.w - 12, ctx);
       ctx.fillText(sub, comp.x + comp.w / 2, comp.y + 58);
 
-      // Provider Tag Pill (Solid Vibrant Badge with White Bold Text)
+      // Provider Tag Pill (Solid Emerald Green Badge with Black Bold Text)
       if (comp.provider) {
         ctx.font = '700 9px "Space Mono", monospace';
-        ctx.fillStyle = comp.badgeColor || '#FF5E1A';
+        ctx.fillStyle = '#10B981';
         roundRect(ctx, comp.x + comp.w / 2 - 48, comp.y + 72, 96, 16, 4);
         ctx.fill();
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = '#000000';
         ctx.fillText(comp.provider, comp.x + comp.w / 2, comp.y + 75);
       }
 
-      // File names count (Sharp Dark Slate #1E293B)
+      // File names count (High contrast in Light & Dark mode)
       if (comp.files && comp.files.length > 0) {
         ctx.font = `600 10px "Space Mono", monospace`;
-        ctx.fillStyle = '#334155';
+        ctx.fillStyle = isLight ? '#334155' : '#94A3B8';
         ctx.textAlign = 'center';
         ctx.fillText(`${comp.files.length} source file${comp.files.length > 1 ? 's' : ''}`, comp.x + comp.w / 2, comp.y + 91);
       }
@@ -1048,18 +1063,20 @@ function SystemDesignView({ DATA, isActive }) {
     const diagramW = maxX - minX;
     const diagramH = maxY - minY;
 
-    // HD Scale factor (1.8x for crisp vector export)
-    const scale = 1.8;
-    const PADDING_X = 100;
-    const PADDING_Y = 140; // Title bar space
+    // Ultra-HD 4K Scale factor (3.2x for ultra-sharp crisp vector export)
+    const scale = 3.2;
+    const PADDING_X = 120;
+    const PADDING_Y = 160; // Title bar space
 
-    const EXPORT_W = Math.max(1600, Math.ceil(diagramW * scale + PADDING_X * 2));
-    const EXPORT_H = Math.max(1000, Math.ceil(diagramH * scale + PADDING_Y + 160));
+    const EXPORT_W = Math.max(3840, Math.ceil(diagramW * scale + PADDING_X * 2));
+    const EXPORT_H = Math.max(2160, Math.ceil(diagramH * scale + PADDING_Y + 200));
 
     const exportCanvas = document.createElement('canvas');
     exportCanvas.width = EXPORT_W;
     exportCanvas.height = EXPORT_H;
     const ctx = exportCanvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     const toCanvasX = (wx) => PADDING_X + (wx - minX) * scale;
     const toCanvasY = (wy) => PADDING_Y + (wy - minY) * scale;
@@ -1087,7 +1104,7 @@ function SystemDesignView({ DATA, isActive }) {
     };
     const projName = DATA?.project?.name || DATA?.name || 'System Architecture';
 
-    ctx.fillStyle = '#FF5E1A';
+    ctx.fillStyle = '#10B981';
     ctx.fillRect(40, 36, 6, 36);
     ctx.font = '700 24px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#111827';
@@ -1196,7 +1213,7 @@ function SystemDesignView({ DATA, isActive }) {
 
       // Provider Badge
       ctx.font = '700 11px "Space Mono", monospace';
-      ctx.fillStyle = comp.badgeColor || '#FF5E1A';
+      ctx.fillStyle = comp.badgeColor || '#10B981';
       roundRect(ctx, cx + cw / 2 - 65, cy + ch - 40, 130, 24, 6);
       ctx.fill();
       ctx.fillStyle = '#FFFFFF';
@@ -1266,13 +1283,13 @@ function SystemDesignView({ DATA, isActive }) {
         left: '16px',
         display: 'flex',
         alignItems: 'center',
-        gap: '4px',
-        background: '#FFFFFF',
-        backdropFilter: 'blur(8px)',
-        border: '1px solid var(--border)',
+        gap: '6px',
+        background: '#000000',
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255, 255, 255, 0.18)',
         borderRadius: '10px',
-        padding: '4px',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+        padding: '6px',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.85)',
         maxWidth: 'calc(100% - 480px)',
         overflowX: 'auto',
         whiteSpace: 'nowrap',
@@ -1327,19 +1344,20 @@ function SystemDesignView({ DATA, isActive }) {
               setZoomText('95%');
             }}
             style={{
-              padding: '6px 12px',
-              borderRadius: '6px',
+              padding: '7px 14px',
+              borderRadius: '8px',
               border: 'none',
-              background: perspective === p.id ? 'var(--gradient-sunset)' : 'transparent',
-              color: perspective === p.id ? '#FFFFFF' : 'var(--beige-2)',
+              background: perspective === p.id ? '#10B981' : 'transparent',
+              color: perspective === p.id ? '#000000' : '#9CA3AF',
               fontSize: '11px',
-              fontWeight: perspective === p.id ? '700' : '500',
+              fontWeight: perspective === p.id ? '800' : '600',
+              fontFamily: 'Space Mono, monospace',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
               transition: 'all 0.2s ease',
-              boxShadow: perspective === p.id ? '0 2px 8px rgba(255,94,26,0.3)' : 'none'
+              boxShadow: perspective === p.id ? '0 0 16px rgba(16,185,129,0.4)' : 'none'
             }}
           >
             {p.icon}
@@ -1452,7 +1470,7 @@ function SystemDesignView({ DATA, isActive }) {
           top: '64px',
           right: '16px',
           background: '#0F172A',
-          border: '1px solid #FF5E1A',
+          border: '1px solid #10B981',
           boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
           borderRadius: '12px',
           padding: '14px 18px',
@@ -1461,7 +1479,7 @@ function SystemDesignView({ DATA, isActive }) {
           color: '#F8FAFC',
           fontSize: '12px'
         }}>
-          <div style={{ fontWeight: '700', color: '#FF5E1A', marginBottom: '6px', fontSize: '13px' }}>
+          <div style={{ fontWeight: '700', color: '#10B981', marginBottom: '6px', fontSize: '13px' }}>
             Refactoring Impact Simulation
           </div>
           <div style={{ color: '#94A3B8', marginBottom: '10px', fontSize: '11px', lineHeight: '1.4' }}>
@@ -1542,26 +1560,12 @@ function SystemDesignView({ DATA, isActive }) {
       )}
 
       {/* Zoom & Layout Controls - bottom left */}
-      <div className="canvas-controls" style={{
-        position: 'absolute',
-        bottom: '16px',
-        left: '16px',
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(8px)',
-        border: '1px solid var(--border)',
-        borderRadius: '8px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: '6px 14px',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-        zIndex: 10
-      }}>
-        <button onClick={zoomOut} style={{ background: 'transparent', border: 'none', color: '#111827', fontSize: '16px', cursor: 'pointer', fontFamily: '"Space Mono", monospace', fontWeight: '700' }}>−</button>
-        <span style={{ fontFamily: '"Space Mono", monospace', fontSize: '11px', color: '#64748B', fontWeight: '600' }}>{zoomText}</span>
-        <button onClick={zoomIn} style={{ background: 'transparent', border: 'none', color: '#111827', fontSize: '16px', cursor: 'pointer', fontFamily: '"Space Mono", monospace', fontWeight: '700' }}>+</button>
+      <div className="canvas-controls">
+        <button onClick={zoomOut}>−</button>
+        <span style={{ fontFamily: '"Space Mono", monospace', fontSize: '11px', fontWeight: '600', color: 'var(--pink)' }}>{zoomText}</span>
+        <button onClick={zoomIn}>+</button>
         <div style={{ width: '1px', height: '14px', background: 'var(--border)', margin: '0 4px' }} />
-        <button onClick={resetZoom} style={{ background: 'transparent', border: 'none', color: '#475569', fontSize: '11px', cursor: 'pointer', fontFamily: '"Space Grotesk", sans-serif', fontWeight: '600' }}>Reset View</button>
+        <button onClick={resetZoom} style={{ background: 'transparent', border: 'none', color: 'var(--beige-3)', fontSize: '11px', cursor: 'pointer', fontFamily: '"Space Grotesk", sans-serif', fontWeight: '600' }}>Reset View</button>
         <button 
           onClick={() => {
             if (sysDataRef.current) {
@@ -1671,9 +1675,9 @@ function SystemDesignView({ DATA, isActive }) {
                   style={{
                     padding: '12px',
                     borderRadius: '10px',
-                    border: exportTarget === 'current' ? '2px solid #FF5E1A' : '1px solid #E2E8F0',
+                    border: exportTarget === 'current' ? '2px solid #10B981' : '1px solid #E2E8F0',
                     background: exportTarget === 'current' ? '#FFF7ED' : '#F8FAFC',
-                    color: exportTarget === 'current' ? '#FF5E1A' : '#475569',
+                    color: exportTarget === 'current' ? '#10B981' : '#475569',
                     fontSize: '12px',
                     fontWeight: '700',
                     cursor: 'pointer',
@@ -1688,9 +1692,9 @@ function SystemDesignView({ DATA, isActive }) {
                   style={{
                     padding: '12px',
                     borderRadius: '10px',
-                    border: exportTarget === 'all' ? '2px solid #FF5E1A' : '1px solid #E2E8F0',
+                    border: exportTarget === 'all' ? '2px solid #10B981' : '1px solid #E2E8F0',
                     background: exportTarget === 'all' ? '#FFF7ED' : '#F8FAFC',
-                    color: exportTarget === 'all' ? '#FF5E1A' : '#475569',
+                    color: exportTarget === 'all' ? '#10B981' : '#475569',
                     fontSize: '12px',
                     fontWeight: '700',
                     cursor: 'pointer',
@@ -1717,9 +1721,9 @@ function SystemDesignView({ DATA, isActive }) {
                     style={{
                       padding: '10px',
                       borderRadius: '8px',
-                      border: exportFormat === fmt.id ? '2px solid #FF5E1A' : '1px solid #E2E8F0',
+                      border: exportFormat === fmt.id ? '2px solid #10B981' : '1px solid #E2E8F0',
                       background: exportFormat === fmt.id ? '#FFF7ED' : '#FFFFFF',
-                      color: exportFormat === fmt.id ? '#FF5E1A' : '#475569',
+                      color: exportFormat === fmt.id ? '#10B981' : '#475569',
                       fontSize: '11px',
                       fontWeight: '700',
                       cursor: 'pointer'

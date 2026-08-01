@@ -4,8 +4,9 @@ import LocomotiveScroll from 'locomotive-scroll';
 import Toast from './Toast';
 import BillingModal from './BillingModal';
 import AuthModal from './AuthModal';
+import IsometricStackVisualizer from './IsometricStackVisualizer';
 
-function LandingPage({ onAnalysisSuccess }) {
+function LandingPage({ onAnalysisSuccess, theme, toggleTheme }) {
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [githubUrl, setGithubUrl] = useState('');
@@ -25,6 +26,63 @@ function LandingPage({ onAnalysisSuccess }) {
     }
   });
 
+  // Interactive Fleek Network-Style Topology & Terminal Showcase State
+  const [selectedNode, setSelectedNode] = useState({
+    id: 'gateway',
+    name: 'API Gateway & Router',
+    layer: 'Gateway',
+    status: 'Operational (99.99%)',
+    latency: '8.4 ms',
+    throughput: '4.2k req/s',
+    imports: ['authService.js', 'rateLimiter.js', 'redisCache.js'],
+    color: 'rgba(255,255,255,0.75)'
+  });
+  const [isTrafficActive, setIsTrafficActive] = useState(false);
+  const [isOutageActive, setIsOutageActive] = useState(false);
+  const [codeTab, setCodeTab] = useState('ts');
+  const [activeSection, setActiveSection] = useState('01');
+  const [serviceTab, setServiceTab] = useState('all');
+
+  const nodesList = [
+    { id: 'browser', name: 'Web Browser SPA', layer: 'Presentation', status: 'Operational', latency: '4.1 ms', throughput: '1.2k req/s', imports: ['App.jsx', 'Navbar.jsx'], color: '#10B981' },
+    { id: 'cdn', name: 'Edge CDN Mesh', layer: 'Infrastructure', status: 'Operational', latency: '2.8 ms', throughput: '12.4k req/s', imports: ['staticAssets', 'viteBundle'], color: '#FFFFFF' },
+    { id: 'gateway', name: 'API Gateway & Router', layer: 'Gateway', status: 'Operational (99.99%)', latency: '8.4 ms', throughput: '4.2k req/s', imports: ['authService.js', 'rateLimiter.js'], color: 'rgba(255,255,255,0.75)' },
+    { id: 'auth', name: 'Auth & Security Node', layer: 'Domain', status: 'Operational', latency: '11.2 ms', throughput: '890 req/s', imports: ['jwtVerifier.js', 'sessionStore.js'], color: 'rgba(255,255,255,0.6)' },
+    { id: 'db', name: 'Postgres DB Storage', layer: 'Persistence', status: 'Operational', latency: '14.5 ms', throughput: '2.1k op/s', imports: ['prismaSchema.prisma'], color: '#10B981' },
+    { id: 'ai', name: 'AI Inference Gateway', layer: 'Domain', status: 'Operational', latency: '18.2 ms', throughput: '320 req/s', imports: ['groqService.js', 'astParser.js'], color: '#10B981' }
+  ];
+
+  const codeExamples = {
+    ts: `import { analyzeCodebase, computeDiff } from '@codebase-xray/core';
+
+// 1. Initialize AST Engine
+const ast = await analyzeCodebase('./src', { parseComments: true });
+
+// 2. Compute Branch Architecture Delta
+const delta = computeDiff(ast.baseBranch, ast.targetBranch);
+
+console.log(\`[X-Ray AST] Added: \${delta.added}, Cycles: \${delta.cycles}\`);`,
+    js: `const { analyzeCodebase } = require('@codebase-xray/core');
+
+// Parse repository AST in sub-15ms
+analyzeCodebase('https://github.com/facebook/react').then(report => {
+  console.log('Topology Nodes:', report.graph.nodes.length);
+  console.log('Safety Score:', report.safetyScore);
+});`,
+    python: `from codebase_xray import ASTScanner
+
+scanner = ASTScanner(path="./backend")
+topology = scanner.build_topology()
+print(f"Mapped {len(topology.nodes)} services across {len(topology.edges)} links")`,
+    go: `package main
+import "github.com/codebase-xray/ast"
+
+func main() {
+    graph := ast.ScanDirectory("./cmd/server")
+    println("AST Engine online. Total files mapped:", len(graph.Files))
+}`
+  };
+
   useEffect(() => {
     const handleStorageChange = () => {
       try {
@@ -36,7 +94,7 @@ function LandingPage({ onAnalysisSuccess }) {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Interactive Canvas Background
+  // Interactive Canvas Background (Strictly Monochrome Black & White with subtle green accents)
   const canvasRef = useRef(null);
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -45,7 +103,7 @@ function LandingPage({ onAnalysisSuccess }) {
     
     let animationFrameId;
     let particles = [];
-    const maxParticles = 110;
+    const maxParticles = 100;
     const mouse = { x: null, y: null, radius: 160 };
 
     const handleResize = () => {
@@ -70,10 +128,10 @@ function LandingPage({ onAnalysisSuccess }) {
       constructor() {
         this.x = Math.random() * canvas.width;
         this.y = Math.random() * canvas.height;
-        this.size = Math.random() * 2.2 + 2.0; // Slightly larger, clear dots (2.0px to 4.2px)
-        this.vx = (Math.random() - 0.5) * 0.45;
-        this.vy = (Math.random() - 0.5) * 0.45;
-        this.isPulseNode = Math.random() < 0.25; // 25% key architecture nodes
+        this.size = Math.random() * 2.0 + 1.8;
+        this.vx = (Math.random() - 0.5) * 0.4;
+        this.vy = (Math.random() - 0.5) * 0.4;
+        this.isPulseNode = Math.random() < 0.2;
         this.pulsePhase = Math.random() * Math.PI * 2;
       }
       update() {
@@ -81,49 +139,44 @@ function LandingPage({ onAnalysisSuccess }) {
         this.y += this.vy;
         this.pulsePhase += 0.03;
 
-        // Bounce off edges
         if (this.x < 0 || this.x > canvas.width) this.vx = -this.vx;
         if (this.y < 0 || this.y > canvas.height) this.vy = -this.vy;
 
-        // Mouse attraction (subtle drift towards mouse if close)
         if (mouse.x !== null && mouse.y !== null) {
           const dx = mouse.x - this.x;
           const dy = mouse.y - this.y;
           const dist = Math.hypot(dx, dy);
           if (dist < mouse.radius) {
             const force = (mouse.radius - dist) / mouse.radius;
-            this.x += (dx / dist) * force * 0.4;
-            this.y += (dy / dist) * force * 0.4;
+            this.x += (dx / dist) * force * 0.35;
+            this.y += (dy / dist) * force * 0.35;
           }
         }
       }
       draw() {
-        const pulseSize = this.isPulseNode ? Math.sin(this.pulsePhase) * 1.2 : 0;
-        const currentSize = Math.max(1.8, this.size + pulseSize);
+        const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+        const pulseSize = this.isPulseNode ? Math.sin(this.pulsePhase) * 0.8 : 0;
+        const currentSize = Math.max(1.5, this.size + pulseSize);
 
-        // Subtle Outer Glow Halo
-        ctx.fillStyle = 'rgba(255, 94, 26, 0.15)';
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, currentSize * 2.2, 0, Math.PI * 2);
-        ctx.fill();
+        // White / Green in Dark mode, Dark Slate / Emerald Green in Light mode
+        ctx.fillStyle = this.isPulseNode 
+          ? '#10B981' 
+          : (isLight ? 'rgba(15, 23, 42, 0.45)' : 'rgba(255, 255, 255, 0.45)');
 
-        // Core Solid Node Dot
-        ctx.fillStyle = 'rgba(255, 80, 15, 0.85)';
         ctx.beginPath();
         ctx.arc(this.x, this.y, currentSize, 0, Math.PI * 2);
         ctx.fill();
       }
     }
 
-    // Initialize particles
     for (let i = 0; i < maxParticles; i++) {
       particles.push(new Particle());
     }
 
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
 
-      // Draw connections
       for (let i = 0; i < particles.length; i++) {
         particles[i].update();
         particles[i].draw();
@@ -133,29 +186,13 @@ function LandingPage({ onAnalysisSuccess }) {
           const dy = particles[i].y - particles[j].y;
           const dist = Math.hypot(dx, dy);
 
-          if (dist < 135) {
-            const alpha = ((135 - dist) / 135) * 0.48; // Clear, rich subtle lines
-            ctx.strokeStyle = `rgba(255, 80, 15, ${alpha})`;
-            ctx.lineWidth = 1.0;
+          if (dist < 130) {
+            const alpha = ((130 - dist) / 130) * (isLight ? 0.28 : 0.32);
+            ctx.strokeStyle = isLight ? `rgba(15, 23, 42, ${alpha})` : `rgba(255, 255, 255, ${alpha})`;
+            ctx.lineWidth = 0.8;
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.stroke();
-          }
-        }
-
-        // Connect to mouse
-        if (mouse.x !== null && mouse.y !== null) {
-          const dx = particles[i].x - mouse.x;
-          const dy = particles[i].y - mouse.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist < mouse.radius) {
-            const alpha = ((mouse.radius - dist) / mouse.radius) * 0.65;
-            ctx.strokeStyle = `rgba(255, 70, 10, ${alpha})`;
-            ctx.lineWidth = 1.25;
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(mouse.x, mouse.y);
             ctx.stroke();
           }
         }
@@ -180,30 +217,36 @@ function LandingPage({ onAnalysisSuccess }) {
     const blobs3 = document.querySelectorAll('.blob-3a, .blob-3b');
     
     // Continuous floating idle animation
-    gsap.to('.blob-1a, .blob-2b', {
-      x: '+=30',
-      y: '-=45',
-      duration: 12,
-      repeat: -1,
-      yoyo: true,
-      ease: 'sine.inOut'
-    });
-    gsap.to('.blob-1b, .blob-3a', {
-      x: '-=40',
-      y: '+=30',
-      duration: 14,
-      repeat: -1,
-      yoyo: true,
-      ease: 'sine.inOut'
-    });
-    gsap.to('.blob-2a, .blob-3b', {
-      x: '+=25',
-      y: '+=35',
-      duration: 13,
-      repeat: -1,
-      yoyo: true,
-      ease: 'sine.inOut'
-    });
+    if (document.querySelector('.blob-1a')) {
+      gsap.to('.blob-1a, .blob-2b', {
+        x: '+=30',
+        y: '-=45',
+        duration: 12,
+        repeat: -1,
+        yoyo: true,
+        ease: 'sine.inOut'
+      });
+    }
+    if (document.querySelector('.blob-1b')) {
+      gsap.to('.blob-1b, .blob-3a', {
+        x: '-=40',
+        y: '+=30',
+        duration: 14,
+        repeat: -1,
+        yoyo: true,
+        ease: 'sine.inOut'
+      });
+    }
+    if (document.querySelector('.blob-2a')) {
+      gsap.to('.blob-2a, .blob-3b', {
+        x: '+=25',
+        y: '+=35',
+        duration: 13,
+        repeat: -1,
+        yoyo: true,
+        ease: 'sine.inOut'
+      });
+    }
 
     const handleMouseMove = (e) => {
       const { clientX, clientY } = e;
@@ -211,29 +254,35 @@ function LandingPage({ onAnalysisSuccess }) {
       const ny = (clientY / window.innerHeight) - 0.5;
 
       // Animate each pair with a slightly different shift amplitude and direction
-      gsap.to(blobs1, {
-        x: nx * 50,
-        y: ny * 50,
-        duration: 2.0,
-        overwrite: 'auto',
-        ease: 'power3.out'
-      });
+      if (blobs1 && blobs1.length > 0) {
+        gsap.to(blobs1, {
+          x: nx * 50,
+          y: ny * 50,
+          duration: 2.0,
+          overwrite: 'auto',
+          ease: 'power3.out'
+        });
+      }
       
-      gsap.to(blobs2, {
-        x: -nx * 40,
-        y: -ny * 40,
-        duration: 2.2,
-        overwrite: 'auto',
-        ease: 'power3.out'
-      });
+      if (blobs2 && blobs2.length > 0) {
+        gsap.to(blobs2, {
+          x: -nx * 40,
+          y: -ny * 40,
+          duration: 2.2,
+          overwrite: 'auto',
+          ease: 'power3.out'
+        });
+      }
 
-      gsap.to(blobs3, {
-        x: nx * 25,
-        y: ny * 60,
-        duration: 2.5,
-        overwrite: 'auto',
-        ease: 'power3.out'
-      });
+      if (blobs3 && blobs3.length > 0) {
+        gsap.to(blobs3, {
+          x: nx * 25,
+          y: ny * 60,
+          duration: 2.5,
+          overwrite: 'auto',
+          ease: 'power3.out'
+        });
+      }
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -246,18 +295,24 @@ function LandingPage({ onAnalysisSuccess }) {
   useEffect(() => {
     const scroll = new LocomotiveScroll();
 
-    gsap.fromTo('.hero-line', 
-      { y: 60, opacity: 0, skewY: 3 },
-      { y: 0, opacity: 1, skewY: 0, duration: 0.9, ease: 'power4.out', stagger: 0.12 }
-    );
-    gsap.fromTo('.hero-sub', 
-      { y: 30, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.8, delay: 0.5 }
-    );
-    gsap.fromTo('.hero-ctas', 
-      { y: 20, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.7, delay: 0.7 }
-    );
+    if (document.querySelector('.hero-line')) {
+      gsap.fromTo('.hero-line', 
+        { y: 60, opacity: 0, skewY: 3 },
+        { y: 0, opacity: 1, skewY: 0, duration: 0.9, ease: 'power4.out', stagger: 0.12 }
+      );
+    }
+    if (document.querySelector('.hero-sub')) {
+      gsap.fromTo('.hero-sub', 
+        { y: 30, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.8, delay: 0.5 }
+      );
+    }
+    if (document.querySelector('.hero-ctas')) {
+      gsap.fromTo('.hero-ctas', 
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.7, delay: 0.7 }
+      );
+    }
 
     return () => {
       if (scroll) scroll.destroy();
@@ -336,18 +391,18 @@ function LandingPage({ onAnalysisSuccess }) {
     setProgressWidth('0%');
     setStatusText(statuses[0]);
 
-    // Status word cycler
+    // Status word cycler for AST analysis feedback
     let index = 0;
     cycleIntervalRef.current = setInterval(() => {
       index = (index + 1) % statuses.length;
       setStatusText(statuses[index]);
-    }, 4000);
+    }, 400);
 
-    // Progress bar tween mock (0% to 90% over 25 seconds)
+    // Smooth progress bar tween (0% to 92% over 30 seconds while scan runs)
     const progressObj = { value: 0 };
     progressTweenRef.current = gsap.to(progressObj, {
-      value: 90,
-      duration: 25,
+      value: 92,
+      duration: 30,
       ease: 'power1.out',
       onUpdate: () => {
         setProgressWidth(`${Math.round(progressObj.value)}%`);
@@ -360,10 +415,10 @@ function LandingPage({ onAnalysisSuccess }) {
     if (progressTweenRef.current) progressTweenRef.current.kill();
   };
 
-  const handleSuccess = async () => {
+  const handleSuccess = async (scannedData) => {
     stopLoading();
     // Finish progress bar to 100%
-    const progressObj = { value: parseFloat(progressWidth) };
+    const progressObj = { value: parseFloat(progressWidth) || 90 };
     gsap.to(progressObj, {
       value: 100,
       duration: 0.3,
@@ -377,16 +432,20 @@ function LandingPage({ onAnalysisSuccess }) {
           duration: 0.4,
           onComplete: async () => {
             try {
-              const res = await fetch('/api/latest-result');
-              if (res.ok) {
-                const data = await res.json();
-                onAnalysisSuccess(data);
-                // Bring body opacity back for Dashboard view
+              if (scannedData && scannedData.files) {
+                onAnalysisSuccess(scannedData);
                 gsap.set('body', { opacity: 1 });
               } else {
-                setLoading(false);
-                setErrorMessage('Failed to fetch the scan report.');
-                gsap.set('body', { opacity: 1 });
+                const res = await fetch('/api/latest-result');
+                if (res.ok) {
+                  const data = await res.json();
+                  onAnalysisSuccess(data);
+                  gsap.set('body', { opacity: 1 });
+                } else {
+                  setLoading(false);
+                  setErrorMessage('Failed to fetch the scan report.');
+                  gsap.set('body', { opacity: 1 });
+                }
               }
             } catch (err) {
               setLoading(false);
@@ -406,8 +465,9 @@ function LandingPage({ onAnalysisSuccess }) {
       const tier = user?.tier || 'free';
       const count = parseInt(localStorage.getItem('xray_analysis_count') || '0', 10);
 
-      // Always exempt owner / team members
-      if (user?.email && (user.email.toLowerCase().includes('palash') || user.email.toLowerCase().includes('owner'))) {
+      // Always exempt exact primary owner account
+      const OWNER_EMAIL = 'palash.pathare005@gmail.com';
+      if (user?.email && user.email.toLowerCase().trim() === OWNER_EMAIL) {
         return true;
       }
 
@@ -433,7 +493,7 @@ function LandingPage({ onAnalysisSuccess }) {
     startLoading();
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s safety timeout
+    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s safety timeout for large repos
 
     const formData = new FormData();
     formData.append('project', selectedFile);
@@ -463,7 +523,7 @@ function LandingPage({ onAnalysisSuccess }) {
 
       if (response.ok) {
         incrementAnalysisCount();
-        handleSuccess();
+        handleSuccess(data);
       } else {
         stopLoading();
         setLoading(false);
@@ -495,7 +555,7 @@ function LandingPage({ onAnalysisSuccess }) {
     startLoading();
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s safety timeout
+    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s safety timeout
 
     try {
       const userStr = localStorage.getItem('xray_user');
@@ -524,7 +584,7 @@ function LandingPage({ onAnalysisSuccess }) {
 
       if (response.ok) {
         incrementAnalysisCount();
-        handleSuccess();
+        handleSuccess(data);
       } else {
         stopLoading();
         setLoading(false);
@@ -543,198 +603,339 @@ function LandingPage({ onAnalysisSuccess }) {
       setLoading(false);
       gsap.set('body', { opacity: 1 });
       if (err.name === 'AbortError') {
-        setErrorMessage('Scan timed out (60s). The repository may be too large, private, or experiencing network latency.');
+        setErrorMessage('Scan timed out (90s). The repository may be too large, private, or experiencing network latency.');
       } else {
         setErrorMessage('Network error or server unavailable.');
       }
     }
   };
 
+  // Section Scroll Tracking Effect for 01-06 Sidebar
+  useEffect(() => {
+    const handleSectionScroll = () => {
+      const sections = ['sec-01', 'sec-02', 'sec-03', 'sec-04', 'sec-05', 'sec-06'];
+      const scrollPos = window.scrollY + 300;
+
+      for (let i = sections.length - 1; i >= 0; i--) {
+        const el = document.getElementById(sections[i]);
+        if (el && el.offsetTop <= scrollPos) {
+          setActiveSection(`0${i + 1}`);
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleSectionScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleSectionScroll);
+  }, []);
+
   const gitUrlValid = githubUrl.trim().includes('github.com');
 
   return (
-    <div className="landing-container">
+    <div className="fleek-master-container">
       <Toast message={toastMsg} onClose={() => setToastMsg('')} />
-      <canvas ref={canvasRef} className="landing-canvas-bg" />
-      {/* Background Glowing Blobs (3 pairs) */}
-      <div className="glow-blobs-container">
-        <div className="glow-blob blob-1a"></div>
-        <div className="glow-blob blob-1b"></div>
-        <div className="glow-blob blob-2a"></div>
-        <div className="glow-blob blob-2b"></div>
-        <div className="glow-blob blob-3a"></div>
-        <div className="glow-blob blob-3b"></div>
+      <canvas ref={canvasRef} className="landing-canvas-bg" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: 0.35 }} />
+      
+      {/* Left Vertical Navigation Index Bar (01 to 06) with Scroll Tracking */}
+      <div className="fleek-sidebar-nav">
+        {[
+          { id: '01', label: 'OVERVIEW' },
+          { id: '02', label: 'AST ENGINE' },
+          { id: '03', label: 'ARCHITECTURE' },
+          { id: '04', label: 'SERVICES' },
+          { id: '05', label: 'CONTRIBUTE' },
+          { id: '06', label: 'ANALYZE' }
+        ].map(item => (
+          <div 
+            key={item.id}
+            className={`fleek-sidebar-item ${activeSection === item.id ? 'active' : ''}`}
+            onClick={() => {
+              setActiveSection(item.id);
+              const el = document.getElementById(`sec-${item.id}`);
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
+            <span>{item.id}</span>
+          </div>
+        ))}
       </div>
-      {/* Navbar */}
-      <header className="navbar">
-        <div className="wordmark">
-          <span className="first">CODEBASE</span> <span className="second">X-RAY</span>
+
+      {/* Monospace Header Navigation */}
+      <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '64px', background: 'var(--black-2)', backdropFilter: 'blur(16px)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 48px', zIndex: 100 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#10B981', boxShadow: '0 0 12px #10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '900', color: '#000000' }}>⚡</div>
+          <span style={{ fontFamily: 'Space Mono, monospace', fontSize: '16px', fontWeight: '800', letterSpacing: '0.12em', color: 'var(--pink)' }}>codebasexray</span>
         </div>
-        <div className="nav-right" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <span className="version">v3.0</span>
-          <button className="btn-outline" onClick={() => setShowPricingModal(true)} style={{ padding: '6px 14px', borderRadius: '6px', cursor: 'pointer' }}>Pricing & Plans</button>
+
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <button className="fleek-outline-btn" onClick={() => {
+            const el = document.getElementById('sec-03');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }}>Architecture Stack</button>
+
+          {/* Theme Toggle Button */}
+          <button 
+            className="fleek-outline-btn"
+            onClick={toggleTheme}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+            title="Toggle Dark/Light Mode"
+          >
+            {theme === 'light' ? (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <span>Light</span>
+              </>
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                <span>Dark</span>
+              </>
+            )}
+          </button>
+          
+          <button className="fleek-outline-btn" onClick={() => setShowPricingModal(true)}>
+            Pricing & Plans
+          </button>
 
           {currentUser ? (
-            <button 
-              style={{ background: 'rgba(255,94,26,0.15)', border: '1px solid #FF5E1A', color: '#FF5E1A', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
-              onClick={() => setShowUserModal(true)}
-            >
-              {currentUser.name || currentUser.email.split('@')[0]} ({(currentUser.tier || 'free').toUpperCase()})
+            <button className="fleek-solid-btn" onClick={() => setShowUserModal(true)}>
+              Account ({(currentUser.tier || 'free').toUpperCase()})
             </button>
           ) : (
-            <button style={{ background: '#FF5E1A', border: '1px solid #FF5E1A', color: '#FFFFFF', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }} onClick={() => setShowAuthModal(true)}>Sign In</button>
+            <button className="fleek-solid-btn" onClick={() => setShowAuthModal(true)}>
+              Sign In / Register
+            </button>
           )}
-
-          <button className="btn-outline" onClick={scrollToUpload} style={{ padding: '6px 14px', borderRadius: '6px', cursor: 'pointer' }}>Start analyzing →</button>
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="hero">
-        <div className="hero-bg-text">X-RAY</div>
-        <div className="hero-foreground">
-          <div className="badge">open source · static analysis</div>
-          <div className="hero-line-container">
-            <div className="hero-line beige">Your codebase</div>
+      {/* SECTION 01: HERO / OVERVIEW */}
+      <section id="sec-01" style={{ position: 'relative', zIndex: 10, padding: '160px 48px 80px 80px', maxWidth: '1200px', margin: '0 auto', minHeight: '90vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px', color: '#10B981', letterSpacing: '0.15em', marginBottom: '16px' }}>
+          // AST-DRIVEN STATIC ANALYSIS ENGINE //
+        </div>
+
+        <h1 style={{ fontSize: '64px', fontWeight: '900', color: 'var(--pink)', letterSpacing: '-0.03em', lineHeight: 1.05, marginBottom: '24px', maxWidth: '850px' }}>
+          VISUAL ARCHITECTURE FOR MODERN CODEBASES.
+        </h1>
+
+        <p style={{ fontSize: '18px', color: 'var(--beige-3)', maxWidth: '640px', lineHeight: 1.6, marginBottom: '40px' }}>
+          Drop any JavaScript or TypeScript repository. Parse AST dependencies, simulate refactoring blast radius, and generate Mermaid.js diagrams in sub-seconds.
+        </p>
+
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <button className="fleek-solid-btn" style={{ padding: '14px 28px', fontSize: '13px' }} onClick={scrollToUpload}>
+            Analyze Repository
+          </button>
+          <button className="fleek-outline-btn" style={{ padding: '14px 28px', fontSize: '13px' }} onClick={focusGithub}>
+            Try Live Demo →
+          </button>
+        </div>
+
+        {/* Stats Strip */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginTop: '72px', borderTop: '1px solid var(--border)', paddingTop: '32px' }}>
+          <div>
+            <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--pink)' }}>1,420<span style={{ color: '#10B981' }}>+</span></div>
+            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '11px', color: 'var(--beige-3)', textTransform: 'uppercase', marginTop: '4px' }}>Repos Mapped</div>
           </div>
-          <div className="hero-line-container">
-            <div className="hero-line orange">has secrets.</div>
+          <div>
+            <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--pink)' }}>&lt; 12<span style={{ color: '#10B981' }}>ms</span></div>
+            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '11px', color: 'var(--beige-3)', textTransform: 'uppercase', marginTop: '4px' }}>AST Parse Speed</div>
           </div>
-          <div className="hero-line-container">
-            <div className="hero-line light-beige">We find them.</div>
+          <div>
+            <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--pink)' }}>100<span style={{ color: '#10B981' }}>%</span></div>
+            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '11px', color: 'var(--beige-3)', textTransform: 'uppercase', marginTop: '4px' }}>Private & Offline</div>
           </div>
-          <p className="hero-sub">
-            Drop any JavaScript or TypeScript project. Get a complete architecture map in seconds. No config. No setup. No bullshit.
-          </p>
-          <div className="hero-ctas">
-            <button className="btn-primary" onClick={scrollToUpload}>Upload your project</button>
-            <button className="btn-outline" onClick={focusGithub}>Try with GitHub →</button>
+          <div>
+            <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--pink)' }}>99.9<span style={{ color: '#10B981' }}>%</span></div>
+            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '11px', color: 'var(--beige-3)', textTransform: 'uppercase', marginTop: '4px' }}>Refactor Accuracy</div>
           </div>
         </div>
       </section>
 
-      {/* Marquee */}
-      <div className="marquee-strip">
-        <div className="marquee-content">
-          {Array(2).fill([
-            'Next.js', 'React', 'TypeScript', 'Prisma', 'Express',
-            'AWS', 'Supabase', 'NestJS', 'Vue', 'Drizzle',
-            'Docker', 'PostgreSQL', 'Redis', 'Tailwind', 'Firebase'
-          ]).flat().map((tech, i) => (
-            <div key={i} className="marquee-item">
-              {tech} <span>◆</span>
+      {/* SECTION 03: "SUPERCHARGE YOUR REFACTORING STACK" */}
+      <section id="sec-03" style={{ position: 'relative', zIndex: 10, padding: '10px 48px 0px 80px', maxWidth: '1440px', margin: '0 auto', borderTop: '1px solid var(--border)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '36px', alignItems: 'center', marginBottom: '16px' }}>
+          <div>
+            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '11px', color: '#10B981', letterSpacing: '0.12em', marginBottom: '8px' }}>
+              // MODERN AST INFRASTRUCTURE //
             </div>
-          ))}
-        </div>
-      </div>
+            <h2 style={{ fontSize: '38px', fontWeight: '900', color: 'var(--pink)', letterSpacing: '-0.02em', lineHeight: 1.1, marginBottom: '12px' }}>
+              SUPERCHARGE YOUR REFACTORING STACK
+            </h2>
+            <p style={{ fontSize: '14px', color: 'var(--beige-3)', lineHeight: 1.6 }}>
+              CodeBase X-Ray is an open-source AST parsing and architecture visualization engine built for accelerating codebase comprehension and dependency auditing.
+            </p>
+          </div>
 
-      {/* How it works */}
-      <section className="how-it-works">
-        <span className="section-label">how it works</span>
-        <h2 className="section-title">Three steps. <br /><span>That's it.</span></h2>
-        
-        <div className="steps-grid">
-          <div className="step-card">
-            <div className="step-num">01</div>
-            <div className="step-line"></div>
-            <h3 className="step-heading">Drop it.</h3>
-            <p className="step-desc">ZIP or GitHub URL. We handle the rest. No local setup or keys required.</p>
+          <div>
+            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px', fontWeight: '700', color: 'var(--pink)', marginBottom: '12px', letterSpacing: '0.08em' }}>
+              GIVING CODE AN EDGE
+            </div>
+            <div className="fleek-slash-list">
+              <div className="fleek-slash-item"><span>/</span> HIGH PERFORMANCE AST PARSING</div>
+              <div className="fleek-slash-item"><span>/</span> SUB-12MS DEPENDENCY LATENCY</div>
+              <div className="fleek-slash-item"><span>/</span> REFACTORING BLAST RADIUS RADAR</div>
+              <div className="fleek-slash-item"><span>/</span> ARCHITECTURE BRANCH DIFFING</div>
+              <div className="fleek-slash-item"><span>/</span> 1-CLICK MERMAID.JS EXPORTER</div>
+              <div className="fleek-slash-item"><span>/</span> ZERO NOISE AUTOMATED PRUNING</div>
+            </div>
           </div>
-          
-          <div className="step-card">
-            <div className="step-num">02</div>
-            <div className="step-line"></div>
-            <h3 className="step-heading">We dissect it.</h3>
-            <p className="step-desc">Every file. Every import. Every connection. Mapped with AST parsing.</p>
+        </div>
+
+        {/* 3D Isometric Exploded Architecture Layer Visualizer Widget */}
+        <IsometricStackVisualizer />
+      </section>
+
+      {/* SECTION 04: "DON'T JUST WRITE CODE, ARCHITECT IT." */}
+      <section id="sec-04" style={{ position: 'relative', zIndex: 10, padding: '10px 48px 40px 80px', maxWidth: '1440px', margin: '0 auto', borderTop: '1px solid var(--border)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '48px', alignItems: 'center', marginBottom: '40px' }}>
+          <div>
+            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '48px', fontWeight: '300', color: 'var(--beige-3)', marginBottom: '8px' }}>04</div>
+            <h2 style={{ fontSize: '40px', fontWeight: '900', color: 'var(--pink)', letterSpacing: '-0.02em', lineHeight: 1.1, marginBottom: '16px' }}>
+              DON'T JUST WRITE CODE, ARCHITECT IT.
+            </h2>
           </div>
-          
-          <div className="step-card">
-            <div className="step-num">03</div>
-            <div className="step-line"></div>
-            <h3 className="step-heading">You understand it.</h3>
-            <p className="step-desc">Six views. Real logos. Click anything. Ask questions. Actually know your code.</p>
+          <div>
+            <p style={{ fontSize: '15px', color: 'var(--beige-3)', lineHeight: 1.7, marginBottom: '20px' }}>
+              Dissect imports, map AST dependencies, and export Mermaid.js documentation across every service layer in sub-seconds.
+            </p>
+            <button className="fleek-outline-btn" onClick={scrollToUpload}>Examples & Documentation</button>
+          </div>
+        </div>
+
+        {/* Tabbed Service Matrix Grid */}
+        <div className="fleek-service-tabs">
+          <div className={`fleek-service-tab ${serviceTab === 'all' ? 'active' : ''}`} onClick={() => setServiceTab('all')}>ALL SERVICES</div>
+          <div className={`fleek-service-tab ${serviceTab === 'architecture' ? 'active' : ''}`} onClick={() => setServiceTab('architecture')}>ARCHITECTURE SERVICES</div>
+          <div className={`fleek-service-tab ${serviceTab === 'analysis' ? 'active' : ''}`} onClick={() => setServiceTab('analysis')}>ANALYSIS SERVICES</div>
+        </div>
+
+        <div className="fleek-card-matrix">
+          <div className="fleek-matrix-card" style={{ background: 'var(--black-3)', borderColor: 'var(--border-2)' }}>
+            <div className="fleek-matrix-card-header">// TOPOLOGY</div>
+            <div className="fleek-matrix-card-title">Dynamic System Design</div>
+            <div className="fleek-matrix-card-desc">Automatically maps SPAs, API Gateways, Auth, and Databases into clean visual layers.</div>
+          </div>
+
+          <div className="fleek-matrix-card" style={{ background: 'var(--black-3)', borderColor: '#10B981' }}>
+            <div className="fleek-matrix-card-header" style={{ background: '#10B981', color: '#FFFFFF' }}>// BLAST RADIUS</div>
+            <div className="fleek-matrix-card-title">Ripple-Effect Radar</div>
+            <div className="fleek-matrix-card-desc">Predict broken imports and cascade failures before making code edits.</div>
+          </div>
+
+          <div className="fleek-matrix-card" style={{ background: 'var(--black-3)', borderColor: 'var(--border-2)' }}>
+            <div className="fleek-matrix-card-header">// DIFFING</div>
+            <div className="fleek-matrix-card-title">Branch Architecture Diff</div>
+            <div className="fleek-matrix-card-desc">Compare diagrams between commits and branches with +Added, -Removed, and ~Modified delta highlights.</div>
+          </div>
+
+          <div className="fleek-matrix-card" style={{ background: 'var(--black-3)', borderColor: 'var(--border-2)' }}>
+            <div className="fleek-matrix-card-header">// EXPORTER</div>
+            <div className="fleek-matrix-card-title">Mermaid.js Documentation</div>
+            <div className="fleek-matrix-card-desc">Generate 1-click Markdown Mermaid architecture diagrams for PRs and team docs.</div>
+          </div>
+
+          <div className="fleek-matrix-card" style={{ background: 'var(--black-3)', borderColor: 'var(--border-2)' }}>
+            <div className="fleek-matrix-card-header">// SECURITY</div>
+            <div className="fleek-matrix-card-title">Rate Limiting & Tier Guard</div>
+            <div className="fleek-matrix-card-desc">IP + Device Fingerprint rate limiting and automated SaaS tier permission enforcement.</div>
+          </div>
+
+          <div className="fleek-matrix-card" style={{ background: 'var(--black-3)', borderColor: 'var(--border-2)' }}>
+            <div className="fleek-matrix-card-header">// AST FIXER</div>
+            <div className="fleek-matrix-card-title">1-Click Auto-Fixer Engine</div>
+            <div className="fleek-matrix-card-desc">Detect missing process.env references and append keys to .env.example with a single click.</div>
           </div>
         </div>
       </section>
 
-      {/* Upload/GitHub Input Section */}
-      <section className="upload-section" id="upload">
-        <span className="section-label">get started</span>
-        <h2 className="section-title" style={{ marginBottom: '12px' }}>Drop your codebase.</h2>
-        <p className="step-desc" style={{ marginBottom: '56px' }}>Under 30 seconds.</p>
+      {/* SECTION 06: "WANT TO CONTRIBUTE TO CODEBASE X-RAY?" */}
+      <section id="sec-06" style={{ position: 'relative', zIndex: 10, padding: '120px 48px 120px 80px', maxWidth: '1100px', margin: '0 auto', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+        <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px', color: 'var(--beige-3)', maxWidth: '600px', margin: '0 auto 32px auto', lineHeight: 1.6 }}>
+          "Understanding code is critical. Our mission is to bring visual architecture clarity to every engineering team."
+        </div>
 
+        <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#10B981', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: '900', marginBottom: '24px', boxShadow: '0 0 20px #10B981' }}>
+          ⚡
+        </div>
+
+        <h2 style={{ fontSize: '44px', fontWeight: '900', color: 'var(--pink)', letterSpacing: '-0.02em', marginBottom: '12px' }}>
+          WANT TO BUILD WITH CODEBASE X-RAY?
+        </h2>
+
+        <p style={{ fontSize: '16px', color: 'var(--beige-3)', marginBottom: '48px' }}>
+          Become an early contributor, or analyze your codebase today.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', textAlign: 'left', maxWidth: '800px', margin: '0 auto' }}>
+          <div style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', borderRadius: '16px', padding: '32px' }}>
+            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px', color: '#10B981', fontWeight: '700', marginBottom: '8px' }}>DEVELOPERS</div>
+            <p style={{ fontSize: '14px', color: 'var(--beige-3)', lineHeight: 1.6, marginBottom: '24px' }}>Run AST analysis locally or integrate CI/CD PR guards to block circular dependency cycles.</p>
+            <button className="fleek-outline-btn" style={{ width: '100%' }} onClick={scrollToUpload}>Get Started</button>
+          </div>
+
+          <div style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', borderRadius: '16px', padding: '32px' }}>
+            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px', color: '#10B981', fontWeight: '700', marginBottom: '8px' }}>ENTERPRISES</div>
+            <p style={{ fontSize: '14px', color: 'var(--beige-3)', lineHeight: 1.6, marginBottom: '24px' }}>Deploy team architecture hubs with security limits, unlimited repos, and priority AST parsing.</p>
+            <button className="fleek-solid-btn" style={{ width: '100%' }} onClick={() => setShowPricingModal(true)}>Upgrade Plan</button>
+          </div>
+        </div>
+      </section>
+
+      {/* GitHub URL / Repository Scanner Form */}
+      <section id="upload" style={{ position: 'relative', zIndex: 10, padding: '80px 48px 100px 80px', maxWidth: '700px', margin: '0 auto' }}>
         {!loading ? (
-          <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }} id="controls-grid">
-            {/* GitHub URL */}
-            <div className="option-container" style={{ padding: '32px', borderRadius: '16px', background: 'var(--black-2)', border: '1px solid var(--border)' }}>
-              <div>
-                <div className="option-title" style={{ textAlign: 'center', fontSize: '14px', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '20px', color: 'var(--orange)' }}>
-                  Analyze Any GitHub Repository
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '24px' }}>
-                  <svg className="git-icon" style={{ width: '40px', height: '40px', fill: 'var(--beige)', marginBottom: '16px' }} viewBox="0 0 24 24">
-                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.11.82-.26.82-.577v-2.234c-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.43.372.82 1.102.82 2.222v3.293c0 .319.22.694.825.576C20.565 21.795 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
-                  </svg>
-                  <label className="version" style={{ letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '12px', color: 'var(--beige-2)' }}>Paste GitHub repository URL</label>
-                  <input 
-                    type="text" 
-                    className="input-text" 
-                    id="github-url-input" 
-                    placeholder="https://github.com/owner/repository" 
-                    value={githubUrl}
-                    onChange={(e) => setGithubUrl(e.target.value)}
-                    style={{ width: '100%', padding: '14px', fontSize: '14px', borderRadius: '8px', border: '1.5px solid #D1D5DB', background: '#FFFFFF', color: '#111827', fontWeight: '600', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}
-                  />
-                </div>
-                
-                <div className="chips-container" style={{ justifyContent: 'center' }}>
-                  <div className="chip" onClick={() => fillGithub('https://github.com/t3-oss/create-t3-app')}>t3-oss/create-t3-app</div>
-                  <div className="chip" onClick={() => fillGithub('https://github.com/expressjs/express')}>expressjs/express</div>
-                  <div className="chip" onClick={() => fillGithub('https://github.com/vuejs/vue')}>vuejs/vue</div>
-                </div>
-              </div>
-              <button 
-                className="submit-btn" 
-                disabled={!gitUrlValid}
-                onClick={submitGithub}
-                style={{ marginTop: '20px' }}
-              >
-                Analyze GitHub Architecture →
-              </button>
+          <div style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', borderRadius: '20px', padding: '40px', boxShadow: 'var(--shadow-lg)' }}>
+            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px', color: '#10B981', fontWeight: '700', letterSpacing: '0.12em', textAlign: 'center', marginBottom: '20px' }}>
+              // ANALYZE GITHUB REPOSITORY //
             </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <input 
+                type="text" 
+                className="input-text" 
+                id="github-url-input" 
+                placeholder="https://github.com/owner/repository" 
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+                style={{ width: '100%', padding: '16px', fontSize: '14px', borderRadius: '10px', border: '1.5px solid var(--border-2)', background: 'var(--black-2)', color: 'var(--pink)', fontFamily: 'Space Mono, monospace' }}
+              />
+            </div>
+
+            <div className="chips-container" style={{ justifyContent: 'center', marginBottom: '28px' }}>
+              <div className="chip" style={{ background: 'var(--black-2)', borderColor: 'var(--border)', color: 'var(--beige-2)' }} onClick={() => fillGithub('https://github.com/facebook/react')}>facebook/react</div>
+              <div className="chip" style={{ background: 'var(--black-2)', borderColor: 'var(--border)', color: 'var(--beige-2)' }} onClick={() => fillGithub('https://github.com/expressjs/express')}>expressjs/express</div>
+              <div className="chip" style={{ background: 'var(--black-2)', borderColor: 'var(--border)', color: 'var(--beige-2)' }} onClick={() => fillGithub('https://github.com/palash-oss/codebase')}>palash-oss/codebase</div>
+            </div>
+
+            <button className="fleek-solid-btn" style={{ width: '100%', padding: '16px', fontSize: '14px' }} disabled={!gitUrlValid} onClick={submitGithub}>
+              Analyze Architecture →
+            </button>
           </div>
         ) : (
-          <div className="loading-container" id="loading-container" style={{ padding: '40px 24px', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E5E7EB', boxShadow: '0 10px 30px rgba(0,0,0,0.06)', maxWidth: '500px', margin: '0 auto', textAlign: 'center' }}>
-            <div className="loading-wordmark" style={{ color: '#FF5E1A', fontWeight: '800', letterSpacing: '0.15em', fontSize: '20px', marginBottom: '16px' }}>CODEBASE X-RAY</div>
-            <div className="loading-status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
-              <div style={{ color: '#111827', fontSize: '16px', fontWeight: '700', textTransform: 'lowercase' }}>{statusText}</div>
+          <div style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', borderRadius: '20px', padding: '48px 32px', textAlign: 'center' }}>
+            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '18px', fontWeight: '800', color: '#10B981', marginBottom: '16px' }}>CODEBASE X-RAY</div>
+            <div style={{ fontSize: '15px', color: 'var(--pink)', marginBottom: '20px', fontFamily: 'Space Mono, monospace' }}>{statusText}</div>
+            <div style={{ background: 'var(--black-2)', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ width: progressWidth, background: 'var(--gradient-sunset)', height: '100%', borderRadius: '4px', transition: 'width 0.3s ease' }}></div>
             </div>
-            <div className="progress-bar-container" style={{ background: '#EAEAEF', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
-              <div className="progress-bar-fill" style={{ width: progressWidth, background: 'var(--gradient-sunset)', height: '100%', borderRadius: '4px' }}></div>
-            </div>
-          </div>
-        )}
-
-        {errorMessage && (
-          <div className="error-display" style={{ display: 'block', textAlign: 'center', marginTop: '20px' }}>
-            {errorMessage}
           </div>
         )}
       </section>
 
       {/* Footer */}
-      <footer className="footer">
-        <div className="footer-top">
-          <div className="wordmark">
-            <span className="first">CODEBASE</span> <span className="second">X-RAY</span>
-          </div>
-          <div className="footer-links">
-            <a href="#" className="footer-link">GitHub</a>
-            <a href="#" className="footer-link">Report an issue</a>
-          </div>
+      <footer style={{ position: 'relative', zIndex: 10, background: 'var(--black-2)', borderTop: '1px solid var(--border)', padding: '48px 80px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: '#10B981' }}></div>
+          <span style={{ fontFamily: 'Space Mono, monospace', fontSize: '14px', fontWeight: '800', color: 'var(--pink)' }}>codebasexray</span>
         </div>
-        <div className="footer-bottom-text">
-          Built for developers who want to understand their code, not just write it.
+
+        <div className="fleek-mono-nav">
+          <a href="#sec-01">// Whitepaper</a>
+          <a href="#sec-03">// Architecture</a>
+          <a href="#sec-04">// Services</a>
+          <a href="#sec-06">// Security</a>
         </div>
       </footer>
 
@@ -742,8 +943,9 @@ function LandingPage({ onAnalysisSuccess }) {
       <BillingModal
         isOpen={showPricingModal}
         onClose={() => setShowPricingModal(false)}
-        currentUser={null}
+        currentUser={currentUser}
         onUpgradeSuccess={(user) => {
+          setCurrentUser(user);
           setToastMsg(`Upgraded account to ${user.tier.toUpperCase()} Plan!`);
         }}
       />
@@ -800,7 +1002,7 @@ function LandingPage({ onAnalysisSuccess }) {
             </button>
 
             <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-              <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#FF5E1A', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: '700', marginBottom: '12px' }}>
+              <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#10B981', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: '700', marginBottom: '12px' }}>
                 {(currentUser.name || currentUser.email)[0].toUpperCase()}
               </div>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#111827' }}>
@@ -809,7 +1011,7 @@ function LandingPage({ onAnalysisSuccess }) {
               <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
                 {currentUser.email}
               </p>
-              <div style={{ display: 'inline-block', marginTop: '10px', padding: '4px 12px', borderRadius: '12px', background: '#FFF7ED', border: '1px solid #FF5E1A', color: '#FF5E1A', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase' }}>
+              <div style={{ display: 'inline-block', marginTop: '10px', padding: '4px 12px', borderRadius: '12px', background: '#FFF7ED', border: '1px solid #10B981', color: '#10B981', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase' }}>
                 {(currentUser.tier || 'free').toUpperCase()} PLAN
               </div>
             </div>

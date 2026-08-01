@@ -1,17 +1,19 @@
 import React from 'react';
 
 function LayersView({ data, onSelectFile }) {
+  const isLight = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light';
+
   const orderedLayers = ['Presentation', 'Interaction', 'Gateway', 'Domain', 'Persistence', 'Foundation', 'Infrastructure', 'Test', 'Unknown'];
   const layerColors = {
-    Presentation: '#FF4D00',
-    Interaction: '#A855F7',
-    Gateway: '#3B82F6',
-    Domain: '#06B6D4',
-    Persistence: '#22C55E',
-    Foundation: '#7A7268',
-    Infrastructure: '#4B5563',
-    Test: '#EAB308',
-    Unknown: '#3A3A3A'
+    Presentation: '#10B981',
+    Interaction: '#3B82F6',
+    Gateway: '#8B5CF6',
+    Domain: '#EC4899',
+    Persistence: '#F59E0B',
+    Foundation: '#14B8A6',
+    Infrastructure: '#6366F1',
+    Test: '#84CC16',
+    Unknown: isLight ? '#475569' : '#94A3B8'
   };
 
   // Helper to count cross-layer imports down
@@ -62,7 +64,15 @@ function LayersView({ data, onSelectFile }) {
   });
 
   return (
-    <div id="view-layers">
+    <div 
+      id="view-layers" 
+      style={{ 
+        background: isLight ? '#FFFFFF' : 'transparent',
+        minHeight: '100%',
+        padding: '24px',
+        borderRadius: '12px'
+      }}
+    >
       {layersToRender.map((layer, idx) => {
         const hasIncomingArrows = idx > 0;
         const arrowImportsCount = hasIncomingArrows ? getImportsCountBetween(layer.name, layer.filePaths) : 0;
@@ -72,29 +82,29 @@ function LayersView({ data, onSelectFile }) {
             {/* Vertical connector arrow */}
             {hasIncomingArrows && (
               <div className="layer-connector">
-                <div className="layer-connector-label">↓ {arrowImportsCount} imports</div>
+                <div className="layer-connector-label" style={{ background: isLight ? '#FFFFFF' : '#0F172A', color: isLight ? '#334155' : '#94A3B8', border: '1px solid #10B981' }}>↓ {arrowImportsCount} imports</div>
               </div>
             )}
 
             {/* Horizontal layer band */}
-            <div className="layer-band">
+            <div className="layer-band" style={{ background: isLight ? '#FFFFFF' : 'var(--bg-card)', borderColor: isLight ? '#E2E8F0' : 'var(--border)' }}>
               <div 
                 className="layer-label-col" 
                 style={{ 
-                  backgroundColor: 'rgba(255, 77, 0, 0.03)',
-                  borderRight: '1px solid var(--border)'
+                  backgroundColor: isLight ? '#F8FAFC' : 'rgba(255, 77, 0, 0.03)',
+                  borderRight: `1px solid ${isLight ? '#E2E8F0' : 'var(--border)'}`
                 }}
               >
                 <div className="layer-title-row">
                   <span className="layer-dot" style={{ backgroundColor: layer.color }}></span>
                   <span className="layer-name" style={{ color: layer.color }}>{layer.name}</span>
                 </div>
-                <span className="layer-count">
+                <span className="layer-count" style={{ color: isLight ? '#64748B' : 'var(--beige-3)' }}>
                   {layer.filesData.length} file{layer.filesData.length > 1 ? 's' : ''}
                 </span>
               </div>
 
-              <div className="layer-files-col">
+              <div className="layer-files-col" style={{ background: isLight ? '#FFFFFF' : 'transparent' }}>
                 {layer.visibleFiles.map((file) => {
                   const hasErrors = file.findings?.some(f => f.type === 'error');
                   const hasWarnings = file.findings?.some(f => f.type === 'warning');
@@ -109,10 +119,10 @@ function LayersView({ data, onSelectFile }) {
                         e.currentTarget.style.transform = 'translateY(-2px)';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-2)';
+                        e.currentTarget.style.borderColor = isLight ? '#E2E8F0' : 'var(--border-2)';
                         e.currentTarget.style.transform = 'translateY(0)';
                       }}
-                      style={{ transition: 'all 0.2s ease' }}
+                      style={{ transition: 'all 0.2s ease', background: isLight ? '#FFFFFF' : 'var(--bg-card)', color: isLight ? '#0F172A' : '#F8FAFC', borderColor: isLight ? '#E2E8F0' : 'var(--border-2)' }}
                     >
                       {hasErrors && <span className="finding-dot error"></span>}
                       {!hasErrors && hasWarnings && <span className="finding-dot warning"></span>}

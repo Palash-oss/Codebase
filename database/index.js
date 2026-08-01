@@ -13,6 +13,7 @@ const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const TICKETS_FILE = path.join(DATA_DIR, 'tickets.json');
+const IP_LIMITS_FILE = path.join(DATA_DIR, 'ip_limits.json');
 
 // Helper to safely read JSON store
 function readStore(filePath, fallback = []) {
@@ -69,7 +70,8 @@ export function registerUser(email, password, name = '') {
     name: name || normalizedEmail.split('@')[0],
     hash,
     salt,
-    tier: 'free', // 'free' | 'pro' | 'team'
+    tier: normalizedEmail === 'palash.pathare005@gmail.com' ? 'owner' : 'free',
+    scanCount: 0,
     createdAt: new Date().toISOString()
   };
 
@@ -112,7 +114,7 @@ export function createSession(userId) {
   return newSession;
 }
 
-export function getUserByToken(token) {
+export function getUserByToken(token, userEmail = null) {
   if (!token) return null;
   const sessions = readStore(SESSIONS_FILE, []);
   const session = sessions.find(s => s.token === token);
@@ -126,20 +128,22 @@ export function getUserByToken(token) {
     if (user) return sanitizeUser(user);
   }
 
-  // Support for Google OAuth & Client-generated Auth Tokens
-  if (typeof token === 'string' && (token.startsWith('goog_token_') || token.startsWith('token_') || token.length > 5)) {
-    if (users.length > 0) {
-      return sanitizeUser(users[0]);
-    }
-    return {
-      id: `usr_${token.slice(-8)}`,
-      name: 'Developer Account',
-      email: 'user@codebasexray.com',
-      tier: 'free'
-    };
+  if (userEmail) {
+    const normEmail = String(userEmail).toLowerCase().trim();
+    const user = users.find(u => u.email === normEmail);
+    if (user) return sanitizeUser(user);
   }
 
-  return null;
+  const tokenUser = users.find(u => u.token === token);
+  if (tokenUser) return sanitizeUser(tokenUser);
+
+  return {
+    id: `usr_${token.slice(-8)}`,
+    name: userEmail ? String(userEmail).split('@')[0] : 'Free User Account',
+    email: userEmail || `user_${token.slice(-6)}@codebasexray.com`,
+    tier: 'free',
+    scanCount: 0
+  };
 }
 
 export function updateUserTier(userId, tier, durationDays = 30) {
@@ -165,14 +169,14 @@ export function updateUserTierByEmail(email, tier, durationDays = 30) {
   const users = readStore(USERS_FILE, []);
   const normEmail = String(email).toLowerCase().trim();
   let userIndex = users.findIndex(u => u.email === normEmail);
-  
+
   if (userIndex === -1) {
-    // Register paid user on the fly if not existing
     const newUser = {
       id: `usr_${crypto.randomBytes(8).toString('hex')}`,
       email: normEmail,
       name: normEmail.split('@')[0],
       tier: tier,
+      scanCount: 0,
       createdAt: new Date().toISOString()
     };
     users.push(newUser);
@@ -196,19 +200,21 @@ function sanitizeUser(user) {
   if (!user) return null;
   const { hash, salt, ...sanitized } = user;
 
-  // Unconditional Owner Access Rule
-  if (sanitized.email && (sanitized.email.toLowerCase().includes('palash') || sanitized.email.toLowerCase().includes('owner'))) {
+  sanitized.scanCount = user.scanCount || 0;
+
+  // Strict Owner Access Rule: ONLY exact primary owner email address
+  const OWNER_EMAIL = 'palash.pathare005@gmail.com';
+  if (sanitized.email && sanitized.email.toLowerCase().trim() === OWNER_EMAIL) {
     sanitized.tier = 'owner';
     sanitized.isUnlimited = true;
     return sanitized;
   }
 
-  // Subscription Expiration Check: Auto-revert to free tier after durationDays
+  // 30-Day Subscription Expiration Check: Auto-downgrade to free tier after durationDays
   if (sanitized.tier && sanitized.tier !== 'free' && sanitized.subscriptionExpiresAt) {
     if (new Date(sanitized.subscriptionExpiresAt) < new Date()) {
       sanitized.tier = 'free';
       sanitized.subscriptionExpiresAt = null;
-      // Persist downgrade in store
       try {
         const users = readStore(USERS_FILE, []);
         const uIdx = users.findIndex(u => u.id === user.id || u.email === user.email);
@@ -232,7 +238,6 @@ export function saveProjectWorkspace(userId, projectData) {
   const projects = readStore(PROJECTS_FILE, []);
   const projName = projectData.name || projectData.project?.name || 'Untitled Architecture';
 
-  // Check if project already exists for user
   const existingIdx = projects.findIndex(p => p.userId === userId && p.name === projName);
 
   const newProject = {
@@ -313,53 +318,70 @@ export function getAllSupportTickets() {
 // IP & ANTI-BYPASS RATE LIMITING CONTROLLERS
 // =========================================================================
 
-const IP_LIMITS_FILE = path.join(DATA_DIR, 'ip_limits.json');
-
 export function checkIpScanLimit(ipAddress, userToken = null, userEmail = null) {
   const cleanIp = String(ipAddress || '127.0.0.1').replace(/^::ffff:/, '').trim();
+  const emailLower = userEmail ? String(userEmail).toLowerCase().trim() : '';
 
-  // 1. Always allow localhost & local development
-  if (cleanIp === '127.0.0.1' || cleanIp === '::1' || cleanIp === 'localhost') {
+  // 1. Owner Account Exemption: ONLY exact primary owner email address
+  const OWNER_EMAIL = 'palash.pathare005@gmail.com';
+  if (emailLower && emailLower === OWNER_EMAIL) {
     return { allowed: true };
   }
 
-  // 2. Unconditionally exempt Owner, Team members, and Logged-in users
-  if (userEmail && String(userEmail).length > 0) {
-    const emailLower = String(userEmail).toLowerCase();
-    if (emailLower.includes('palash') || emailLower.includes('owner') || emailLower.includes('admin') || emailLower.includes('team')) {
-      return { allowed: true };
-    }
-  }
-
+  // 2. Check Database User Account
+  let user = null;
   if (userToken) {
-    const user = getUserByToken(userToken);
-    if (user) {
-      return { allowed: true }; // Logged in users bypass IP block
-    }
+    user = getUserByToken(userToken, emailLower);
+  }
+  if (!user && emailLower) {
+    const users = readStore(USERS_FILE, []);
+    user = users.find(u => u.email === emailLower);
   }
 
-  // 3. Rate limit ONLY anonymous/unauthenticated visitors per IP (allow 5 free scans/day)
-  const limits = readStore(IP_LIMITS_FILE, {});
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-  const ipKey = `${cleanIp}_${today}`;
+  // Pro, Team, Owner tiers have unlimited scans (if subscription active & unexpired)
+  if (user && (user.tier === 'pro' || user.tier === 'team' || user.tier === 'owner' || user.isUnlimited)) {
+    return { allowed: true };
+  }
 
-  const currentCount = limits[ipKey] || 0;
-  if (currentCount >= 5) {
+  // 3. Anti-Bypass Check: Track BOTH User Email and IP Address Network
+  const limits = readStore(IP_LIMITS_FILE, {});
+  const userKey = emailLower ? `user_${emailLower}` : `ip_${cleanIp}`;
+  const ipKey = `ip_${cleanIp}`;
+
+  const userScans = user ? (user.scanCount || 0) : (limits[userKey] || 0);
+  const ipScans = limits[ipKey] || 0;
+  const totalScans = Math.max(userScans, ipScans);
+
+  if (totalScans >= 2) {
     return {
       allowed: false,
       limitReached: true,
-      error: 'Free codebase scan limit reached for anonymous visitors on this IP network today. Please log in or upgrade to Pro for unlimited access!'
+      error: 'Free Plan Quota Exceeded! You have used your 2 free codebase scans. Please upgrade to Pro or Team Plan for Unlimited Access!'
     };
   }
 
   return { allowed: true };
 }
 
-export function recordIpScan(ipAddress) {
+export function recordIpScan(ipAddress, userEmail = null) {
   const cleanIp = String(ipAddress || '127.0.0.1').replace(/^::ffff:/, '').trim();
+  const emailLower = userEmail ? String(userEmail).toLowerCase().trim() : '';
+
   const limits = readStore(IP_LIMITS_FILE, {});
-  const today = new Date().toISOString().split('T')[0];
-  const ipKey = `${cleanIp}_${today}`;
+  const ipKey = `ip_${cleanIp}`;
   limits[ipKey] = (limits[ipKey] || 0) + 1;
+
+  if (emailLower) {
+    const userKey = `user_${emailLower}`;
+    limits[userKey] = (limits[userKey] || 0) + 1;
+
+    const users = readStore(USERS_FILE, []);
+    const uIdx = users.findIndex(u => u.email === emailLower);
+    if (uIdx !== -1) {
+      users[uIdx].scanCount = (users[uIdx].scanCount || 0) + 1;
+      writeStore(USERS_FILE, users);
+    }
+  }
+
   writeStore(IP_LIMITS_FILE, limits);
 }
