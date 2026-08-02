@@ -59,6 +59,14 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+app.use('/assets', (req, res, next) => {
+  const assetPath = path.join(__dirname, 'public', 'assets', req.path);
+  if (!fs.existsSync(assetPath)) {
+    return res.status(404).type('text/plain').send('Asset not found');
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Setup cache directory with read-only filesystem fallbacks

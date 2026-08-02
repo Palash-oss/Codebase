@@ -7,3 +7,9 @@ uploads/
 .env
 .env.local
 .env.production
+
+# Playwright Test Files & Reports
+playwright-report/
+test-results/
+playwright.config.cjs
+tests/

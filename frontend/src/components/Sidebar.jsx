@@ -49,12 +49,13 @@ function Sidebar({ currentView, onViewChange }) {
           onClick={() => onViewChange(item.id)}
         >
           {item.svg}
+          <span className="sidebar-label">{item.tooltip}</span>
           <div className="tooltip">{item.tooltip}</div>
         </div>
       ))}
 
       {/* Feature Divider */}
-      <div style={{ width: '28px', height: '1px', backgroundColor: 'var(--border-2)', margin: '8px 0' }} />
+      <div className="sidebar-divider" style={{ width: '28px', height: '1px', backgroundColor: 'var(--border-2)', margin: '8px 0' }} />
 
       {/* Button 1 — Blast Radius */}
       <div 
@@ -68,6 +69,7 @@ function Sidebar({ currentView, onViewChange }) {
           <line x1="12" y1="6" x2="12" y2="2" />
           <line x1="12" y1="22" x2="12" y2="18" />
         </svg>
+        <span className="sidebar-label">Blast Radius</span>
         <div className="tooltip">Blast Radius</div>
       </div>
 
@@ -79,6 +81,7 @@ function Sidebar({ currentView, onViewChange }) {
         <svg viewBox="0 0 24 24">
           <path d="M8 5v14l11-7z" />
         </svg>
+        <span className="sidebar-label">Code Story</span>
         <div className="tooltip">Code Story</div>
       </div>
 
@@ -93,6 +96,7 @@ function Sidebar({ currentView, onViewChange }) {
           <path d="M7.5 13.5h2a2 2 0 012 2v4h-6a2 2 0 012-2h0"/>
           <path d="M15.5 9l1.5-1.5L15.5 6"/>
         </svg>
+        <span className="sidebar-label">System Design</span>
         <div className="tooltip">System Design</div>
       </div>
     </aside>

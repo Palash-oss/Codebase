@@ -2746,7 +2746,39 @@ body,
   line-height: 1.6;
 }
 
-/* ========================================================
+/* Navbar Brand Wordmark Logo */
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.15em;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.wordmark:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+
+.wordmark .first {
+  color: var(--beige);
+}
+
+.wordmark .second {
+  color: #10B981;
+  text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
+/* Sidebar Mobile Label Default Reset on Desktop */
+.sidebar-label {
+  display: none !important;
+}
+
 /* =========================================================================
    COMPREHENSIVE MASTER RESPONSIVE DESIGN SYSTEM (ALL DEVICES 320px - 1920px+)
    ========================================================================= */
@@ -2795,25 +2827,47 @@ body,
 
 /* --- 768px Tablet / Mobile Breakpoint --- */
 @media (max-width: 768px) {
-  /* Navbar Header */
-  header {
-    height: auto !important;
-    padding: 10px 14px !important;
-    flex-direction: column !important;
-    gap: 10px !important;
+  /* Navbar Header on Mobile (Ultra-Clean 100% Fit Single Row) */
+  header,
+  .dashboard-navbar {
+    height: 52px !important;
+    padding: 0 10px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 4px !important;
+    position: relative !important;
+    overflow: hidden !important;
   }
   
-  header > div {
-    width: 100% !important;
-    justify-content: space-between !important;
-    flex-wrap: wrap !important;
-    gap: 8px !important;
+  header .nav-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    max-width: 60% !important;
+    overflow: hidden !important;
   }
 
-  header .nav-actions,
-  header [style*="display: 'flex'"] {
-    flex-wrap: wrap !important;
-    gap: 6px !important;
+  header .nav-left .separator,
+  header .nav-left .project-name,
+  header .nav-left .file-count {
+    display: none !important;
+  }
+
+  header .desktop-only-nav {
+    display: none !important;
+  }
+
+  .mobile-only-nav {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .mobile-only-nav button {
+    padding: 5px 8px !important;
+    font-size: 11px !important;
   }
   
   /* Landing Hero Section */
@@ -2867,20 +2921,50 @@ body,
   
   .sidebar {
     width: 100% !important;
+    min-width: 100% !important;
     height: auto !important;
     flex-direction: row !important;
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
-    padding: 6px 10px !important;
+    scrollbar-width: none !important;
+    padding: 8px 12px !important;
     border-right: none !important;
     border-bottom: 1px solid var(--border) !important;
-    gap: 4px !important;
+    gap: 8px !important;
+    background: var(--bg-secondary) !important;
   }
-  
+
+  .sidebar::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .sidebar-divider {
+    display: none !important;
+  }
+
   .sidebar-btn {
-    padding: 8px 12px !important;
-    white-space: nowrap !important;
+    width: auto !important;
+    height: 36px !important;
+    padding: 0 14px !important;
+    border-radius: 20px !important;
+    flex-shrink: 0 !important;
+    gap: 6px !important;
+    border: 1px solid var(--border-2) !important;
+    background: var(--bg-card) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+  }
+
+  .sidebar-btn .tooltip {
+    display: none !important;
+  }
+
+  .sidebar-label {
+    display: inline-block !important;
     font-size: 12px !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    color: inherit !important;
   }
   
   .main-content {
