@@ -332,14 +332,33 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
         <button className="btn-action btn-liquid" onClick={handleReset}><span>New analysis</span></button>
       </div>
 
-      {/* Mobile Menu Toggle Button */}
-      <div className="mobile-only-nav">
+      {/* Mobile Menu & Theme Toggle Actions */}
+      <div className="mobile-only-nav" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <button 
+          className="btn-liquid"
+          style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--beige)', padding: '6px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          onClick={toggleTheme}
+          title="Toggle Dark/Light Mode"
+        >
+          {theme === 'light' ? (
+            <>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              <span>Light</span>
+            </>
+          ) : (
+            <>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+              <span>Dark</span>
+            </>
+          )}
+        </button>
+
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           style={{
-            background: '#FFFFFF',
-            border: '1px solid #E5E7EB',
-            color: '#10B981',
+            background: 'var(--orange)',
+            border: 'none',
+            color: '#FFFFFF',
             padding: '6px 12px',
             borderRadius: '6px',
             fontSize: '11px',
@@ -348,7 +367,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
             display: 'flex',
             alignItems: 'center',
             gap: '5px',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+            boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
           }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -356,30 +375,32 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
         </button>
       </div>
 
-      {/* Mobile Actions Drawer Overlay */}
+      {/* Mobile Actions Drawer Overlay (Theme-Aware Dark / Light) */}
       {isMobileMenuOpen && (
         <div style={{
           position: 'fixed',
-          top: '50px',
+          top: '52px',
           left: 0,
           right: 0,
           bottom: 0,
-          background: '#FFFFFF',
+          background: 'var(--bg-card)',
+          color: 'var(--beige)',
           backdropFilter: 'blur(20px)',
           zIndex: 1200,
           padding: '20px',
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px'
+          gap: '16px',
+          borderTop: '1px solid var(--border)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E5E7EB', paddingBottom: '12px' }}>
-            <span style={{ fontFamily: 'Space Mono', fontSize: '11px', color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-2)', paddingBottom: '12px' }}>
+            <span style={{ fontFamily: 'Space Mono, monospace', fontSize: '11px', color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
               DASHBOARD OPTIONS
             </span>
             <button
               onClick={() => setIsMobileMenuOpen(false)}
-              style={{ background: 'transparent', border: 'none', color: '#111827', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--beige)', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
             >
               Close
             </button>
@@ -404,7 +425,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
             )}
           </div>
 
-          {/* Grid of Action Buttons */}
+          {/* Grid of Action Buttons (Theme Aware) */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <button
               style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', color: '#10B981', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
@@ -415,7 +436,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
             </button>
 
             <button
-              style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', color: '#10B981', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
+              style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: '#10B981', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
               onClick={() => { setShowWorkspacesDrawer(true); setIsMobileMenuOpen(false); }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -423,7 +444,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
             </button>
 
             <button
-              style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', color: '#10B981', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
+              style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: '#10B981', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
               onClick={() => { setShowFeedbackModal(true); setIsMobileMenuOpen(false); }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -431,7 +452,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
             </button>
 
             <button
-              style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', color: '#111827', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
+              style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--beige)', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
               onClick={() => { handleExportMermaid(); setIsMobileMenuOpen(false); }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -439,7 +460,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
             </button>
 
             <button
-              style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', color: '#111827', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
+              style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--beige)', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
               onClick={() => { handleFetchGhAction(); setIsMobileMenuOpen(false); }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -448,7 +469,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
 
             {currentUser ? (
               <button
-                style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', color: '#10B981', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
+                style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: '#10B981', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
                 onClick={() => { setShowUserModal(true); setIsMobileMenuOpen(false); }}
               >
                 <span>Profile ({(currentUser.tier || 'free').toUpperCase()})</span>
@@ -464,7 +485,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
           </div>
 
           <button
-            style={{ background: 'var(--gradient-sunset)', border: 'none', color: '#FFFFFF', padding: '12px', borderRadius: '8px', fontSize: '13px', fontWeight: '700', width: '100%', marginTop: '8px', boxShadow: '0 4px 12px rgba(255,94,26,0.3)' }}
+            style={{ background: 'var(--gradient-sunset)', border: 'none', color: '#FFFFFF', padding: '12px', borderRadius: '8px', fontSize: '13px', fontWeight: '700', width: '100%', marginTop: '8px', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}
             onClick={() => { handleReset(); setIsMobileMenuOpen(false); }}
           >
             New analysis
