@@ -20,7 +20,8 @@ export async function analyzeProject(projectRoot) {
 
   // Phase 3: Parse imports
   console.log('[X-RAY] Phase 4: Parsing imports & AST structure...');
-  const parsedFiles = parseImports(files, tsconfigPaths || {}, projectRoot);
+  const parsedFiles = parseImports(files, projectRoot, tsconfigPaths || null);
+
 
   // Phase 2: Detect stack
   console.log('[X-RAY] Phase 3: Detecting stack...');
@@ -40,6 +41,49 @@ export async function analyzeProject(projectRoot) {
 
   console.log('[X-RAY] Analysis complete. Building response payload...');
 
+  // Compute real language breakdown by total bytes (like GitHub's language bar)
+  const langExtMap = {
+    '.ts': 'TypeScript', '.tsx': 'TypeScript',
+    '.js': 'JavaScript', '.jsx': 'JavaScript', '.mjs': 'JavaScript', '.cjs': 'JavaScript',
+    '.css': 'CSS', '.scss': 'CSS', '.sass': 'CSS', '.less': 'CSS',
+    '.html': 'HTML', '.htm': 'HTML',
+    '.py': 'Python',
+    '.sh': 'Shell', '.bash': 'Shell', '.zsh': 'Shell',
+    '.go': 'Go',
+    '.rb': 'Ruby',
+    '.java': 'Java',
+    '.rs': 'Rust',
+    '.c': 'C', '.h': 'C',
+    '.cpp': 'C++', '.cc': 'C++', '.cxx': 'C++', '.hpp': 'C++',
+    '.cs': 'C#',
+    '.php': 'PHP',
+    '.swift': 'Swift',
+    '.kt': 'Kotlin',
+    '.md': 'Markdown',
+    '.json': 'JSON',
+    '.yaml': 'YAML', '.yml': 'YAML',
+    '.prisma': 'Prisma',
+    '.graphql': 'GraphQL', '.gql': 'GraphQL',
+    '.sql': 'SQL'
+  };
+  const langBytes = {};
+  let totalLangBytes = 0;
+  for (const f of files) {
+    const lang = langExtMap[f.extension] || null;
+    if (lang && f.size > 0) {
+      langBytes[lang] = (langBytes[lang] || 0) + f.size;
+      totalLangBytes += f.size;
+    }
+  }
+  const languageBreakdown = Object.entries(langBytes)
+    .filter(([, b]) => b > 0)
+    .sort(([, a], [, b]) => b - a)
+    .map(([lang, bytes]) => ({
+      language: lang,
+      bytes,
+      percentage: totalLangBytes > 0 ? Math.round((bytes / totalLangBytes) * 1000) / 10 : 0
+    }));
+
   // Build and return final ScanResult
   return {
     project: {
@@ -48,9 +92,11 @@ export async function analyzeProject(projectRoot) {
       description: packageJson?.description || '',
       totalFiles: files.length,
       totalLines: files.reduce((sum, f) => sum + f.lines, 0),
-      scannedAt: new Date().toISOString()
+      scannedAt: new Date().toISOString(),
+      projectRoot
     },
     stack: stack,
+    languageBreakdown,
     graph: {
       nodes: graph.nodes,
       edges: graph.edges
@@ -98,3 +144,4 @@ export async function analyzeProject(projectRoot) {
     })
   };
 }
+
