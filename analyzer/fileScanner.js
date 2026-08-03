@@ -21,26 +21,34 @@ export async function scanFiles(projectRoot) {
     '.pdf', '.zip', '.tar', '.gz', '.rar', '.7z', '.exe', '.dll', '.so', '.dylib', '.bin', '.dat'
   ]);
 
-  // Efficiency guardrails (do not change the “meaning” of analysis; just prevent
-  // pathological memory/CPU blowups on very large repos).
-  // If limits are hit, we stop further scanning (not dropping already scanned files).
+  // Efficiency guardrails
   const MAX_FILES = Number(process.env.CODEBASE_XRAY_MAX_FILES || 15000);
-  const MAX_TOTAL_BYTES = Number(process.env.CODEBASE_XRAY_MAX_TOTAL_BYTES || 25 * 1024 * 1024); // 25MB
-  const MAX_BYTES_PER_FILE = Number(process.env.CODEBASE_XRAY_MAX_BYTES_PER_FILE || 2 * 1024 * 1024); // 2MB
+  const MAX_TOTAL_BYTES = Number(process.env.CODEBASE_XRAY_MAX_TOTAL_BYTES || 100 * 1024 * 1024); // 100MB
+  const MAX_BYTES_PER_FILE = Number(process.env.CODEBASE_XRAY_MAX_BYTES_PER_FILE || 5 * 1024 * 1024); // 5MB
 
   let totalBytesRead = 0;
 
   function walk(dir) {
     if (files.length >= MAX_FILES) return;
-    if (totalBytesRead >= MAX_TOTAL_BYTES) return;
 
-    const list = fs.readdirSync(dir);
+    let list;
+    try {
+      list = fs.readdirSync(dir);
+    } catch {
+      return;
+    }
+
     for (const item of list) {
       if (files.length >= MAX_FILES) return;
-      if (totalBytesRead >= MAX_TOTAL_BYTES) return;
 
-      const fullPath = path.join(dir, item);
-      const stat = fs.statSync(fullPath);
+      let fullPath;
+      let stat;
+      try {
+        fullPath = path.join(dir, item);
+        stat = fs.statSync(fullPath);
+      } catch {
+        continue;
+      }
 
       if (stat.isDirectory()) {
         if (skipDirs.has(item)) continue;
@@ -53,8 +61,7 @@ export async function scanFiles(projectRoot) {
       const ext = path.extname(item).toLowerCase();
       if (excludeExts.has(ext)) continue;
 
-      // EXCLUDE checks: anything ending in .d.ts, .min.js, .min.ts,
-      // .test.js.map, .spec.js.map, lockfiles.
+      // EXCLUDE checks: minified files, lockfiles, map files.
       if (
         item.endsWith('.d.ts') ||
         item.endsWith('.min.js') ||
@@ -68,8 +75,7 @@ export async function scanFiles(projectRoot) {
         continue;
       }
 
-      // Read content only while within budget. If a file is too large (or we
-      // exceeded total budget), keep metadata but avoid heavy parsing.
+      // Read content if within byte budget; otherwise keep metadata so 100% of files exist in scan
       let content = '';
       let lines = 0;
 
@@ -79,9 +85,14 @@ export async function scanFiles(projectRoot) {
         (totalBytesRead + stat.size) <= MAX_TOTAL_BYTES;
 
       if (shouldReadContent) {
-        content = fs.readFileSync(fullPath, 'utf8');
-        lines = content.split('\n').length;
-        totalBytesRead += stat.size;
+        try {
+          content = fs.readFileSync(fullPath, 'utf8');
+          lines = content.split('\n').length;
+          totalBytesRead += stat.size;
+        } catch {
+          content = '';
+          lines = 0;
+        }
       }
 
       const relative = path.relative(projectRoot, fullPath);
@@ -101,6 +112,7 @@ export async function scanFiles(projectRoot) {
   }
 
   walk(projectRoot);
+
 
   // Helper: attempt to find best nested package.json / tsconfig in monorepos.
   // We keep scanRoot as projectRoot for file paths, but for dependency detection

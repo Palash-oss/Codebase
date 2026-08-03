@@ -1185,6 +1185,11 @@ body {
   overflow: hidden;
 }
 
+/* Layers view needs scroll — override hidden */
+.view-container:has(#view-layers) {
+  overflow-y: auto;
+}
+
 .view-container.active {
   opacity: 1;
   pointer-events: all;
@@ -1353,22 +1358,58 @@ body {
   color: var(--beige-2);
 }
 
-/* View 2: Layers View */
+/* View 2: Layers View — full page scroll */
 #view-layers {
   overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
   padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #10B981 rgba(15, 23, 42, 0.6);
+  scroll-behavior: smooth;
+  will-change: scroll-position;
+  transform: translateZ(0);
+  -webkit-overflow-scrolling: touch;
 }
+
+
+#view-layers::-webkit-scrollbar,
+.layer-files-col::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+#view-layers::-webkit-scrollbar-track,
+.layer-files-col::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 4px;
+}
+
+#view-layers::-webkit-scrollbar-thumb,
+.layer-files-col::-webkit-scrollbar-thumb {
+  background: #10B981;
+  border-radius: 4px;
+}
+
+#view-layers::-webkit-scrollbar-thumb:hover,
+.layer-files-col::-webkit-scrollbar-thumb:hover {
+  background: #059669;
+}
+
 
 .layer-band {
   display: flex;
+  flex-direction: column;
   border: 1px solid var(--border);
   background-color: var(--black-2);
-  border-radius: 6px;
-  overflow: hidden;
+  border-radius: 8px;
+  overflow: visible;
 }
+
 
 .layer-label-col {
   width: 160px;
@@ -3055,3 +3096,30 @@ body,
     font-size: 12px !important;
   }
 }
+
+/* Master Top Navbar Truncation & Flex Rules */
+.dashboard-navbar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  gap: 8px !important;
+  overflow: hidden !important;
+}
+
+.nav-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+  flex-shrink: 1 !important;
+  overflow: hidden !important;
+}
+
+.nav-right {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-shrink: 0 !important;
+}

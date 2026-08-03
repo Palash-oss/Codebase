@@ -183,12 +183,45 @@ function TechStackView({ data, onSelectFile }) {
     }
   ];
 
+  // Language color palette
+  const langColors = {
+    TypeScript: '#3178C6', JavaScript: '#F7DF1E', CSS: '#563D7C', HTML: '#E34C26',
+    Python: '#3572A5', Shell: '#89E051', Go: '#00ADD8', Ruby: '#CC342D',
+    Java: '#B07219', Rust: '#DEA584', 'C++': '#F34B7D', 'C#': '#178600',
+    PHP: '#4F5D95', Swift: '#FFAC45', Kotlin: '#A97BFF', Markdown: '#083FA1',
+    JSON: '#292929', YAML: '#CB171E', Prisma: '#5A67D8', GraphQL: '#E10098', SQL: '#E38C00'
+  };
+
+  const langBreakdown = (data.languageBreakdown || []).filter(l => l.percentage >= 0.5);
+
   return (
     <div id="view-stack" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', paddingRight: '8px' }}>
       <h2 style={{ fontSize: '32px', fontWeight: '700', color: 'var(--beige)' }}>Tech Stack Architecture</h2>
       <p style={{ color: 'var(--beige-3)', fontSize: '14px', marginTop: '4px', marginBottom: '24px' }}>
         Dynamic grouping of active dependencies into Backend and Frontend environments based on codebase usage.
       </p>
+
+      {/* Language Breakdown Bar */}
+      {langBreakdown.length > 0 && (
+        <div style={{ background: 'var(--black-2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px', marginBottom: '24px' }}>
+          <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--beige-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>Languages</div>
+          <div style={{ display: 'flex', height: '8px', borderRadius: '99px', overflow: 'hidden', gap: '2px', marginBottom: '16px' }}>
+            {langBreakdown.map((l, i) => (
+              <div key={i} style={{ width: `${l.percentage}%`, background: langColors[l.language] || '#888', minWidth: '3px' }} title={`${l.language} ${l.percentage}%`} />
+            ))}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 20px' }}>
+            {langBreakdown.map((l, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: langColors[l.language] || '#888', flexShrink: 0 }} />
+                <span style={{ fontSize: '13px', color: 'var(--beige)', fontWeight: '600' }}>{l.language}</span>
+                <span style={{ fontSize: '12px', color: 'var(--beige-3)' }}>{l.percentage}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
 
       <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
         {layers.map((layer, idx) => (

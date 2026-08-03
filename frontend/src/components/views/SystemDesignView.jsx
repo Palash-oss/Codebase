@@ -11,8 +11,11 @@ function SystemDesignView({ DATA, isActive }) {
   const [selectedId, setSelectedId] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // 4 Role Perspectives (Cloud Architect, DevOps Engineer, System Architect, Software Engineer)
-  const [perspective, setPerspective] = useState('cloud');
+  // 4 Role Perspectives — default 'system' shows BOTH HLD + LLD simultaneously
+  const [perspective, setPerspective] = useState('system');
+
+  // Design Level Filter Mode ('ALL' | 'HLD' | 'LLD')
+  const [designLevelFilter, setDesignLevelFilter] = useState('ALL');
 
   // Refactoring Simulator & Security Scope state
   const [isSimulatorMode, setIsSimulatorMode] = useState(false);
@@ -28,11 +31,22 @@ function SystemDesignView({ DATA, isActive }) {
   const transformRef = useRef({ x: 0, y: 0, scale: 1 });
   const sysDataRef = useRef(null);
   const drawAnimationRef = useRef(null);
+  // On-demand redraw scheduler — prevents continuous RAF loop from wasting CPU
+  const pendingRedrawRef = useRef(false);
+  const requestRedraw = () => {
+    if (!pendingRedrawRef.current) {
+      pendingRedrawRef.current = true;
+      requestAnimationFrame(() => {
+        pendingRedrawRef.current = false;
+        drawDiagram();
+      });
+    }
+  };
 
   // Sync selectedId with hover for click handling
   const selectedCompIdRef = useRef(null);
 
-  // Only initialize and draw when view becomes active or perspective changes
+  // Only initialize and draw when view becomes active, perspective changes, or design level filter changes
   useEffect(() => {
     if (!isActive) {
       setIsInitialized(false);
@@ -49,7 +63,44 @@ function SystemDesignView({ DATA, isActive }) {
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [isActive, DATA, perspective]);
+  }, [isActive, DATA, perspective, designLevelFilter]);
+
+  // ResizeObserver: reinit canvas whenever the container is resized
+  // This fixes the black half-screen when DevTools opens, window resizes, or panels change size
+  useEffect(() => {
+    if (!isActive) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    let resizeRafId = null;
+    const ro = new ResizeObserver(() => {
+      if (resizeRafId) cancelAnimationFrame(resizeRafId);
+      resizeRafId = requestAnimationFrame(() => {
+        if (sysDataRef.current) {
+          // Only re-layout the canvas size; no need to rebuild the full diagram data
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const W = Math.max(container.offsetWidth, 100);
+          const H = Math.max(container.offsetHeight, 100);
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          const targetW = Math.floor(W * dpr);
+          const targetH = Math.floor(H * dpr);
+          if (canvas.width !== targetW || canvas.height !== targetH) {
+            canvas.width = targetW;
+            canvas.height = targetH;
+          }
+          canvas.style.width = W + 'px';
+          canvas.style.height = H + 'px';
+          const ctx = canvas.getContext('2d');
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          requestRedraw();
+        }
+      });
+    });
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [isActive]);
+
 
   const initializeCanvas = () => {
     const canvas = canvasRef.current;
@@ -76,8 +127,17 @@ function SystemDesignView({ DATA, isActive }) {
 
     // Build system design data for selected perspective
     const raw = buildSystemDesign(DATA, DATA?.files || [], perspective);
+
+    // Filter by HLD / LLD level toggle
+    if (designLevelFilter !== 'ALL') {
+      raw.components = raw.components.filter(c => c.designLevel === designLevelFilter || c.designLevel === 'BOTH');
+      const validCompIds = new Set(raw.components.map(c => c.id));
+      raw.connections = raw.connections.filter(conn => validCompIds.has(conn.from) && validCompIds.has(conn.to));
+    }
+
     sysDataRef.current = raw;
     computeLayout(raw.zones, raw.components);
+
 
     // Auto-fit the diagram to the canvas with non-negative scale bounds
     if (raw.components.length > 0) {
@@ -103,25 +163,24 @@ function SystemDesignView({ DATA, isActive }) {
       setZoomText(Math.round(fitScale * 100) + '%');
     }
 
-    // Setup canvas with device pixel ratio
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = W * dpr;
-    canvas.height = H * dpr;
+    // Setup canvas with GPU-safe device pixel ratio (capped at 2 to prevent black region overflow)
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const canvasWidth = Math.min(Math.max(W * dpr, 300), 4096);
+    const canvasHeight = Math.min(Math.max(H * dpr, 300), 4096);
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
     canvas.style.width = W + 'px';
     canvas.style.height = H + 'px';
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+
+
     setIsInitialized(true);
     drawDiagram();
-
-    // Start render loop for hover effects
-    const tick = () => {
-      drawDiagram();
-      drawAnimationRef.current = requestAnimationFrame(tick);
-    };
-    drawAnimationRef.current = requestAnimationFrame(tick);
+    // NO continuous RAF loop — use on-demand requestRedraw() instead for smooth 60fps on interaction only
   };
+
 
   // Helper to re-calculate zone bounds live as nodes are interactively dragged
   const updateZoneBounds = () => {
@@ -148,10 +207,11 @@ function SystemDesignView({ DATA, isActive }) {
   const computeLayout = (zones, components) => {
     const canvas = canvasRef.current;
     const CANVAS_W = (canvas ? canvas.offsetWidth : 1200) || 1200;
-    const ROW_HEIGHT = 240;
-    const COMP_W = 200;
-    const COMP_H = 105;
-    const COMP_GAP = 90;
+    const ROW_HEIGHT = 255;
+    const COMP_W = 230;
+    const COMP_H = 115;
+    const COMP_GAP = 85;
+
 
     const tierOrder = ['client', 'gateway', 'service', 'data', 'devops'];
 
@@ -227,24 +287,35 @@ function SystemDesignView({ DATA, isActive }) {
 
     try {
       const ctx = canvas.getContext('2d');
-      const W = canvas.offsetWidth || 1200;
-      const H = canvas.offsetHeight || 800;
+      // Use container for reliable size, not canvas.offsetWidth (which can be 0 when inspecting)
+      const container = containerRef.current;
+      const W = Math.max(canvas.offsetWidth || (container ? container.offsetWidth : 0) || 1200, 100);
+      const H = Math.max(canvas.offsetHeight || (container ? container.offsetHeight : 0) || 800, 100);
+      // Use native Device Pixel Ratio for 4K ultra-sharp crispness
       const dpr = Math.max(window.devicePixelRatio || 1, 2);
 
-      if (canvas.width !== Math.floor(W * dpr) || canvas.height !== Math.floor(H * dpr)) {
-        canvas.width = Math.floor(W * dpr);
-        canvas.height = Math.floor(H * dpr);
+      const targetW = Math.round(W * dpr);
+      const targetH = Math.round(H * dpr);
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
       }
+      // Always keep CSS size in sync
       canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
+      if ('textRendering' in ctx) {
+        ctx.textRendering = 'geometricPrecision';
+      }
 
       const transform = transformRef.current;
       ctx.clearRect(0, 0, W, H);
       ctx.save();
-      ctx.translate(transform.x, transform.y);
+      ctx.translate(Math.round(transform.x), Math.round(transform.y));
       ctx.scale(transform.scale, transform.scale);
+
 
       // Background
       const isLight = document.documentElement.getAttribute('data-theme') === 'light';
@@ -457,36 +528,40 @@ function SystemDesignView({ DATA, isActive }) {
       drawComponentIcon(ctx, comp, comp.x + comp.w / 2, comp.y + 24);
 
       // Component title
-      ctx.font = '700 12px "Space Grotesk", sans-serif';
+      ctx.font = '700 13px "Space Grotesk", sans-serif';
       ctx.fillStyle = isLight ? '#0F172A' : '#FFFFFF';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      const label = truncate(comp.label, comp.w - 16, ctx);
-      ctx.fillText(label, comp.x + comp.w / 2, comp.y + 44);
+      const label = truncate(comp.label, comp.w - 18, ctx);
+      ctx.fillText(label, Math.round(comp.x + comp.w / 2), Math.round(comp.y + 45));
 
       // Sub-label
-      ctx.font = '500 10px "Space Grotesk", sans-serif';
-      ctx.fillStyle = isLight ? '#475569' : '#9CA3AF';
-      const sub = truncate(comp.sublabel, comp.w - 12, ctx);
-      ctx.fillText(sub, comp.x + comp.w / 2, comp.y + 58);
+      ctx.font = '500 11px "Space Grotesk", sans-serif';
+      ctx.fillStyle = isLight ? '#334155' : '#CBD5E1';
+      const sub = truncate(comp.sublabel, comp.w - 14, ctx);
+      ctx.fillText(sub, Math.round(comp.x + comp.w / 2), Math.round(comp.y + 63));
 
       // Provider Tag Pill (Solid Emerald Green Badge with Black Bold Text)
       if (comp.provider) {
-        ctx.font = '700 9px "Space Mono", monospace';
+        ctx.font = '700 10px "Space Mono", monospace';
         ctx.fillStyle = '#10B981';
-        roundRect(ctx, comp.x + comp.w / 2 - 48, comp.y + 72, 96, 16, 4);
+        roundRect(ctx, Math.round(comp.x + comp.w / 2 - 50), Math.round(comp.y + 78), 100, 18, 5);
         ctx.fill();
         ctx.fillStyle = '#000000';
-        ctx.fillText(comp.provider, comp.x + comp.w / 2, comp.y + 75);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(comp.provider, Math.round(comp.x + comp.w / 2), Math.round(comp.y + 87));
       }
 
       // File names count (High contrast in Light & Dark mode)
       if (comp.files && comp.files.length > 0) {
-        ctx.font = `600 10px "Space Mono", monospace`;
-        ctx.fillStyle = isLight ? '#334155' : '#94A3B8';
+        ctx.font = `600 11px "Space Mono", monospace`;
+        ctx.fillStyle = isLight ? '#0F172A' : '#94A3B8';
         ctx.textAlign = 'center';
-        ctx.fillText(`${comp.files.length} source file${comp.files.length > 1 ? 's' : ''}`, comp.x + comp.w / 2, comp.y + 91);
+        ctx.textBaseline = 'top';
+        ctx.fillText(`${comp.files.length} source file${comp.files.length > 1 ? 's' : ''}`, Math.round(comp.x + comp.w / 2), Math.round(comp.y + 96));
       }
+
       ctx.restore(); // Restore component-level transform
     });
 
@@ -724,22 +799,88 @@ function SystemDesignView({ DATA, isActive }) {
   const selectedComp = sysDataRef.current?.components?.find(c => c.id === selectedId);
   const showInfoPanel = selectedComp && isActive;
 
-  // Event handlers
-  const handleWheel = (e) => {
-    e.preventDefault();
+  // Physics and transform refs for 120Hz-360Hz smooth gliding
+  const targetTransformRef = useRef({ x: 0, y: 0, scale: 1 });
+  const velocityRef = useRef({ x: 0, y: 0 });
+  const lastMousePosRef = useRef({ x: 0, y: 0 });
+
+  // Unlocked High-Refresh-Rate Physics Render Loop for System Design View (120Hz / 144Hz / 180Hz / 240Hz / 360Hz displays)
+  useEffect(() => {
+
+    let animId = null;
+
+    const physicsLoop = () => {
+      const transform = transformRef.current;
+      const target = targetTransformRef.current;
+      const vel = velocityRef.current;
+
+      // Apply friction momentum damping when not dragging
+      if (!dragState.current.draggingCanvas && !dragState.current.draggingNode && (Math.abs(vel.x) > 0.08 || Math.abs(vel.y) > 0.08)) {
+        target.x += vel.x;
+        target.y += vel.y;
+        vel.x *= 0.91; // Damping factor
+        vel.y *= 0.91;
+      }
+
+      // Smooth LERP movement towards target transform
+      const dx = target.x - transform.x;
+      const dy = target.y - transform.y;
+      const ds = target.scale - transform.scale;
+
+      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01 || Math.abs(ds) > 0.001 || (Math.abs(vel.x) > 0.08 || Math.abs(vel.y) > 0.08)) {
+        transform.x += dx * 0.28;
+        transform.y += dy * 0.28;
+        transform.scale += ds * 0.28;
+        drawDiagram();
+      }
+
+      animId = requestAnimationFrame(physicsLoop);
+    };
+
+    animId = requestAnimationFrame(physicsLoop);
+    return () => {
+      if (animId) cancelAnimationFrame(animId);
+    };
+  }, []);
+
+  // Attach wheel event listener to canvas with passive: false for smooth wheel scrolling
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const transform = transformRef.current;
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = Math.min(3, Math.max(0.2, transform.scale * delta));
-    transform.x = mouseX - (mouseX - transform.x) * (newScale / transform.scale);
-    transform.y = mouseY - (mouseY - transform.y) * (newScale / transform.scale);
-    transform.scale = newScale;
+
+    const onWheel = (e) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      const target = targetTransformRef.current;
+      const delta = e.deltaY > 0 ? 0.92 : 1.08;
+      const newScale = Math.min(3, Math.max(0.2, target.scale * delta));
+      target.x = mouseX - (mouseX - target.x) * (newScale / target.scale);
+      target.y = mouseY - (mouseY - target.y) * (newScale / target.scale);
+      target.scale = newScale;
+      setZoomText(Math.round(newScale * 100) + '%');
+    };
+
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      canvas.removeEventListener('wheel', onWheel);
+    };
+  }, []);
+
+  const canvasZoom = (delta) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const W = canvas.offsetWidth;
+    const H = canvas.offsetHeight;
+    const mouseX = W / 2;
+    const mouseY = H / 2;
+    const target = targetTransformRef.current;
+    const newScale = Math.min(3, Math.max(0.2, target.scale + delta));
+    target.x = mouseX - (mouseX - target.x) * (newScale / target.scale);
+    target.y = mouseY - (mouseY - target.y) * (newScale / target.scale);
+    target.scale = newScale;
     setZoomText(Math.round(newScale * 100) + '%');
-    drawDiagram();
   };
 
   // Refs for drag state (Canvas panning OR node dragging)
@@ -751,6 +892,10 @@ function SystemDesignView({ DATA, isActive }) {
     if (!canvas) return;
     
     clickStart.current = { x: e.clientX, y: e.clientY };
+    lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+    velocityRef.current = { x: 0, y: 0 };
+    targetTransformRef.current = { ...transformRef.current };
+
     const pos = canvasToWorld(e.clientX, e.clientY);
     const clickedComp = sysDataRef.current?.components?.find(c =>
       pos.x >= c.x && pos.x <= c.x + c.w && pos.y >= c.y && pos.y <= c.y + c.h
@@ -770,8 +915,8 @@ function SystemDesignView({ DATA, isActive }) {
         draggingCanvas: true,
         draggingNode: false,
         node: null,
-        startX: e.clientX - transformRef.current.x,
-        startY: e.clientY - transformRef.current.y
+        startX: e.clientX - targetTransformRef.current.x,
+        startY: e.clientY - targetTransformRef.current.y
       };
       canvas.style.cursor = 'move';
     }
@@ -786,14 +931,17 @@ function SystemDesignView({ DATA, isActive }) {
       dragState.current.node.x = Math.round(pos.x - dragState.current.offsetX);
       dragState.current.node.y = Math.round(pos.y - dragState.current.offsetY);
       updateZoneBounds();
-      drawDiagram();
+      requestRedraw();
       return;
     }
 
     if (dragState.current.draggingCanvas) {
-      transformRef.current.x = e.clientX - dragState.current.startX;
-      transformRef.current.y = e.clientY - dragState.current.startY;
-      drawDiagram();
+      const velX = e.clientX - lastMousePosRef.current.x;
+      const velY = e.clientY - lastMousePosRef.current.y;
+      velocityRef.current = { x: velX, y: velY };
+      lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+      targetTransformRef.current.x = e.clientX - dragState.current.startX;
+      targetTransformRef.current.y = e.clientY - dragState.current.startY;
       return;
     }
 
@@ -813,6 +961,7 @@ function SystemDesignView({ DATA, isActive }) {
     if (canvas) canvas.style.cursor = 'default';
     dragState.current = { draggingCanvas: false, draggingNode: false, node: null };
   };
+
 
   const touchStateRef = useRef(null);
 
@@ -843,7 +992,7 @@ function SystemDesignView({ DATA, isActive }) {
       const newScale = Math.min(3, Math.max(0.2, touchStateRef.current.initialScale * ratio));
       transformRef.current.scale = newScale;
       setZoomText(`${Math.round(newScale * 100)}%`);
-      drawDiagram();
+      requestRedraw();
     }
   };
 
@@ -942,20 +1091,19 @@ function SystemDesignView({ DATA, isActive }) {
     const canvas = canvasRef.current;
     if (!canvas || !isInitialized) return;
 
-    canvas.addEventListener('wheel', handleWheel, { passive: false });
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mouseup', handleMouseUp);
     canvas.addEventListener('click', handleClick);
 
     return () => {
-      canvas.removeEventListener('wheel', handleWheel);
       canvas.removeEventListener('mousedown', handleMouseDown);
       canvas.removeEventListener('mousemove', handleMouseMove);
       canvas.removeEventListener('mouseup', handleMouseUp);
       canvas.removeEventListener('click', handleClick);
     };
   }, [isInitialized, hoveredId]);
+
 
   // Zoom controls
   const zoomIn = () => {
@@ -1364,7 +1512,44 @@ function SystemDesignView({ DATA, isActive }) {
             <span>{p.label}</span>
           </button>
         ))}
+
+        {/* Separator */}
+        <div style={{ height: '24px', width: '1px', background: 'var(--border)', margin: '0 4px' }}></div>
+
+        {/* HLD / LLD Level Toggle Buttons */}
+        <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.3)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+          {[
+            { id: 'ALL', label: '🔀 Both (HLD + LLD)' },
+            { id: 'HLD', label: '🏛️ HLD (High-Level Only)' },
+            { id: 'LLD', label: '💻 LLD (Low-Level Only)' }
+          ].map(lvl => (
+            <button
+              key={lvl.id}
+              onClick={() => {
+                setDesignLevelFilter(lvl.id);
+                transformRef.current = { x: 20, y: 20, scale: 0.95 };
+                setZoomText('95%');
+              }}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: 'none',
+                background: designLevelFilter === lvl.id ? '#10B981' : 'transparent',
+                color: designLevelFilter === lvl.id ? '#000000' : '#9CA3AF',
+                fontSize: '11px',
+                fontWeight: designLevelFilter === lvl.id ? '800' : '600',
+                fontFamily: 'Space Mono, monospace',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: designLevelFilter === lvl.id ? '0 0 12px rgba(16,185,129,0.4)' : 'none'
+              }}
+            >
+              {lvl.label}
+            </button>
+          ))}
+        </div>
       </div>
+
 
       <canvas 
         ref={canvasRef} 

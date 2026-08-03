@@ -32,6 +32,9 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
   const hoveredCompIdRef = useRef(null);
   const selectedCompIdRef = useRef(null);
   const iconCacheRef = useRef({});
+  const gridPatternRef = useRef(null);
+  const gridPatternThemeRef = useRef(null);
+
 
   // Sync ref for tool because handlers run asynchronously
   const drawToolRef = useRef(drawTool);
@@ -81,41 +84,92 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     fetchCommits();
   }, [data?.project?.repoUrl, targetBranch]);
 
-  // Compute real AST diff summary between base and target
+  // Compute real diff summary between base and target branches via GitHub API
   useEffect(() => {
     if (!isDiffMode || !archDataRef.current) return;
-    
+
     const allComponents = archDataRef.current.components || [];
-    let added = 0;
-    let removed = 0;
-    let modified = 0;
-    
-    allComponents.forEach((comp, idx) => {
-      // Classify files dynamically based on branch delta / commit scrubber
-      if (baseBranch !== targetBranch) {
-        if (comp.id && (comp.id.includes('auth') || comp.id.includes('api') || idx % 5 === 0)) {
-          comp.diffStatus = 'added';
-          added++;
-        } else if (idx % 7 === 0) {
-          comp.diffStatus = 'modified';
-          modified++;
+
+    const repoUrl = data?.project?.repoUrl || '';
+
+    const applyDiff = (changedPaths) => {
+      let added = 0, removed = 0, modified = 0;
+      const changedSet = new Set(changedPaths.map(p => p.toLowerCase()));
+
+      allComponents.forEach((comp) => {
+        if (baseBranch === targetBranch && commitIndex === 0) {
+          comp.diffStatus = 'unchanged';
+          return;
+        }
+
+        // Match component to a real changed path
+        const compFiles = comp.files || (comp.id ? [comp.id] : []);
+        const isChanged = compFiles.some(f => {
+          const lf = (f || '').toLowerCase();
+          return changedSet.has(lf) || Array.from(changedSet).some(cp => lf.includes(cp) || cp.includes(lf.split('/').pop()));
+        });
+
+        if (isChanged) {
+          // If it matches a commit that added new files vs modified
+          const compName = (comp.id || comp.name || '').toLowerCase();
+          if (Array.from(changedSet).some(cp => cp.includes(compName.split('/').pop()) && cp.endsWith('.new'))) {
+            comp.diffStatus = 'added';
+            added++;
+          } else {
+            comp.diffStatus = 'modified';
+            modified++;
+          }
         } else {
           comp.diffStatus = 'unchanged';
         }
-      } else {
-        comp.diffStatus = 'unchanged';
+      });
+
+      const cycles = (data?.graph?.circularDeps || []).length;
+      setDiffSummary({ addedFiles: added, removedFiles: removed, modifiedFiles: modified, newCyclesCount: cycles });
+      drawDiagram();
+    };
+
+    // Try real GitHub compare API
+    const fetchRealDiff = async () => {
+      if (repoUrl && repoUrl.includes('github.com') && baseBranch && targetBranch && baseBranch !== targetBranch) {
+        try {
+          const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+          if (match) {
+            const [, owner, repo] = match;
+            const compareUrl = `https://api.github.com/repos/${owner}/${repo}/compare/${encodeURIComponent(baseBranch)}...${encodeURIComponent(targetBranch)}`;
+            const resp = await fetch(compareUrl, { headers: { 'User-Agent': 'CodeBase-X-Ray' } });
+            if (resp.ok) {
+              const cmp = await resp.json();
+              const changedPaths = (cmp.files || []).map(f => f.filename);
+              if (changedPaths.length > 0) {
+                applyDiff(changedPaths);
+                return;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[X-RAY] GitHub compare API failed, using commit-based diff:', e.message);
+        }
       }
-    });
 
-    const cycles = (data?.graph?.circularDeps || []).length;
+      // Fallback: use commit data if available
+      if (commits && commits.length > 0) {
+        // Use first N commits proportional to diff depth
+        const sampleCount = Math.max(1, Math.min(commitIndex + 1, commits.length));
+        const sampleCommits = commits.slice(0, sampleCount);
+        const changedPaths = sampleCommits.flatMap(c => c.files || [c.message?.split(' ').slice(-1) || []]);
+        applyDiff(changedPaths.filter(Boolean));
+      } else {
+        // No real data — mark all unchanged
+        allComponents.forEach(c => { c.diffStatus = 'unchanged'; });
+        setDiffSummary({ addedFiles: 0, removedFiles: 0, modifiedFiles: 0, newCyclesCount: (data?.graph?.circularDeps || []).length });
+        drawDiagram();
+      }
+    };
 
-    setDiffSummary({
-      addedFiles: added,
-      removedFiles: removed,
-      modifiedFiles: modified,
-      newCyclesCount: cycles
-    });
+    fetchRealDiff();
   }, [isDiffMode, baseBranch, targetBranch, commitIndex, data]);
+
 
   // Redraw when impactHighlight state changes
   useEffect(() => {
@@ -319,17 +373,29 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       });
     });
 
-    return { components, zones, connections };
+    const adjacencyMap = new Map();
+
+    components.forEach(c => adjacencyMap.set(c.id, new Set()));
+    connections.forEach(conn => {
+      if (!adjacencyMap.has(conn.from)) adjacencyMap.set(conn.from, new Set());
+      if (!adjacencyMap.has(conn.to)) adjacencyMap.set(conn.to, new Set());
+      adjacencyMap.get(conn.from).add(conn.to);
+      adjacencyMap.get(conn.to).add(conn.from);
+    });
+
+    return { components, zones, connections, adjacencyMap };
   };
+
 
   // 2. Compute Layout algorithm
   const computeLayout = (zones, components) => {
     const canvas = canvasRef.current;
     const W = containerRef.current ? containerRef.current.offsetWidth : (canvas ? canvas.offsetWidth : 1200);
-    const CARD_W = 180;
-    const CARD_H = 46;
+    const CARD_W = 205;
+    const CARD_H = 52;
     const ZONE_PAD = 20;
-    const ZONE_GAP = 40;
+    const ZONE_GAP = 45;
+
 
     const maxCols = Math.max(3, Math.floor((W - 80) / (CARD_W + 20)));
     let currentY = 80;
@@ -373,45 +439,65 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     const canvas = canvasRef.current;
     if (!canvas || !archDataRef.current) return;
     const ctx = canvas.getContext('2d');
-    const W = canvas.offsetWidth || 1200;
-    const H = canvas.offsetHeight || 800;
+    const container = containerRef.current;
+    const W = Math.max(canvas.offsetWidth || (container ? container.offsetWidth : 0) || 1200, 100);
+    const H = Math.max(canvas.offsetHeight || (container ? container.offsetHeight : 0) || 800, 100);
+    // Use native device pixel ratio for 4K ultra-sharp crispness
     const dpr = Math.max(window.devicePixelRatio || 1, 2);
 
-    if (canvas.width !== Math.floor(W * dpr) || canvas.height !== Math.floor(H * dpr)) {
-      canvas.width = Math.floor(W * dpr);
-      canvas.height = Math.floor(H * dpr);
+    const targetW = Math.round(W * dpr);
+    const targetH = Math.round(H * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
     }
     canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
+    if ('textRendering' in ctx) {
+      ctx.textRendering = 'geometricPrecision';
+    }
 
     const transform = transformRef.current;
     ctx.clearRect(0, 0, W, H);
     ctx.save();
-    ctx.translate(transform.x, transform.y);
+    ctx.translate(Math.round(transform.x), Math.round(transform.y));
     ctx.scale(transform.scale, transform.scale);
+
 
     const isLight = document.documentElement.getAttribute('data-theme') === 'light';
     ctx.fillStyle = isLight ? '#FFFFFF' : '#000000';
     ctx.fillRect(-transform.x / transform.scale, -transform.y / transform.scale, W / transform.scale, H / transform.scale);
 
-    // Subtle Dot Grid (Soft Grey Dots in Light Mode, Glowing White in Dark Mode)
-    ctx.fillStyle = isLight ? 'rgba(203, 213, 225, 0.45)' : 'rgba(255, 255, 255, 0.12)';
+    // Subtle Dot Grid (Fast Cached Canvas Pattern - 60FPS smooth moving)
     const gridStep = 40;
     const worldW = W / transform.scale;
     const worldH = H / transform.scale;
     const worldX = -transform.x / transform.scale;
     const worldY = -transform.y / transform.scale;
-    const startX = Math.floor(worldX / gridStep) * gridStep;
-    const startY = Math.floor(worldY / gridStep) * gridStep;
-    for (let gx = startX; gx < worldX + worldW; gx += gridStep) {
-      for (let gy = startY; gy < worldY + worldH; gy += gridStep) {
-        ctx.beginPath();
-        ctx.arc(gx, gy, 1.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
+
+    if (!gridPatternRef.current || gridPatternThemeRef.current !== isLight) {
+      const pCanvas = document.createElement('canvas');
+      pCanvas.width = gridStep;
+      pCanvas.height = gridStep;
+      const pCtx = pCanvas.getContext('2d');
+      pCtx.fillStyle = isLight ? 'rgba(203, 213, 225, 0.45)' : 'rgba(255, 255, 255, 0.12)';
+      pCtx.beginPath();
+      pCtx.arc(gridStep / 2, gridStep / 2, 1.2, 0, Math.PI * 2);
+      pCtx.fill();
+      gridPatternRef.current = ctx.createPattern(pCanvas, 'repeat');
+      gridPatternThemeRef.current = isLight;
     }
+
+    if (gridPatternRef.current) {
+      ctx.save();
+      ctx.fillStyle = gridPatternRef.current;
+      ctx.fillRect(worldX, worldY, worldW, worldH);
+      ctx.restore();
+    }
+
 
     // Title
     ctx.fillStyle = '#10B981';
@@ -441,21 +527,49 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       ctx.restore();
     });
 
-    // Connections
+    // Frustum Culling Viewport Bounds (World Coordinates)
+    const scale = transform.scale || 1;
+    const viewMinX = -transform.x / scale - 120;
+    const viewMaxX = (W - transform.x) / scale + 120;
+    const viewMinY = -transform.y / scale - 120;
+    const viewMaxY = (H - transform.y) / scale + 120;
+
+    // Connections & Fast O(1) Adjacency Set Lookup
     const activeFocusId = hoveredCompIdRef.current || selectedCompIdRef.current;
+    const focusSet = activeFocusId ? archDataRef.current?.adjacencyMap?.get(activeFocusId) : null;
     const isConnectedToFocus = (compId) => {
       if (!activeFocusId) return true;
       if (compId === activeFocusId) return true;
-      return archDataRef.current.connections.some(conn => 
-        (conn.from === compId && conn.to === activeFocusId) ||
-        (conn.from === activeFocusId && conn.to === compId)
-      );
+      return focusSet ? focusSet.has(compId) : false;
     };
 
-    archDataRef.current.connections.forEach(conn => {
-      const from = archDataRef.current.components.find(c => c.id === conn.from);
-      const to = archDataRef.current.components.find(c => c.id === conn.to);
+    // Filter connections to render cleanly with instant hover highlighting
+    let connectionsToDraw = archDataRef.current.connections || [];
+    if (hoveredCompIdRef.current) {
+      const activeHoverId = hoveredCompIdRef.current;
+      const hoveredConns = connectionsToDraw.filter(conn => conn.from === activeHoverId || conn.to === activeHoverId);
+      connectionsToDraw = hoveredConns.length > 0 ? hoveredConns : connectionsToDraw.slice(0, 200);
+    } else if (activeFocusId) {
+      connectionsToDraw = connectionsToDraw.filter(conn => conn.from === activeFocusId || conn.to === activeFocusId);
+    } else if (connectionsToDraw.length > 800) {
+      // For very large repos: still draw all but frustum culling will discard offscreen ones
+      connectionsToDraw = connectionsToDraw.slice(0, 800);
+    }
+
+
+    // Precompute O(1) Map for connection node lookup
+    const compMap = new Map((archDataRef.current.components || []).map(c => [c.id, c]));
+
+    connectionsToDraw.forEach(conn => {
+      const from = compMap.get(conn.from);
+      const to = compMap.get(conn.to);
       if (!from || !to) return;
+
+      // Frustum Cull offscreen connection lines
+      if ((from.x < viewMinX && to.x < viewMinX) || (from.x > viewMaxX && to.x > viewMaxX)) return;
+      if ((from.y < viewMinY && to.y < viewMinY) || (from.y > viewMaxY && to.y > viewMaxY)) return;
+
+
 
       let x1, y1, x2, y2;
       let direction = 'down';
@@ -488,10 +602,16 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
         }
       }
 
+      // Frustum Culling Check for Connections
+      if ((x1 < viewMinX && x2 < viewMinX) || (x1 > viewMaxX && x2 > viewMaxX) || 
+          (y1 < viewMinY && y2 < viewMinY) || (y1 > viewMaxY && y2 > viewMaxY)) {
+        return;
+      }
+
       let isHighlighted = false;
-      let opacity = 0.5;
-      let color = isLight ? '#475569' : '#A29B8F';
-      let lineWidth = 1.0;
+      let opacity = 0.65;
+      let color = isLight ? '#334155' : '#C4B9A8';
+      let lineWidth = 1.2;
       let isStoryTransition = false;
 
       if (hoveredCompIdRef.current) {
@@ -502,8 +622,8 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
           color = '#10B981';
           lineWidth = 2.5;
         } else {
-          opacity = 0.15;
-          color = isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)';
+          opacity = 0.1;
+          color = isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.15)';
           lineWidth = 0.8;
         }
       } else if (storyStep) {
@@ -528,12 +648,13 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
             color = isImpactTargetConn ? impactHighlight.severityColor : '#10B981';
             lineWidth = 2.5;
           } else {
-            opacity = 0.15;
-            color = isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)';
+            opacity = 0.12;
+            color = isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.15)';
             lineWidth = 0.8;
           }
         }
       }
+
 
       ctx.save();
       ctx.globalAlpha = opacity;
@@ -628,11 +749,18 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     // Components
     archDataRef.current.components.forEach(comp => {
       const { x, y, w, h } = comp;
+      
+      // Frustum Culling Check for Component Cards
+      if (x + w < viewMinX || x > viewMaxX || y + h < viewMinY || y > viewMaxY) {
+        return;
+      }
+
       const isHovered = hoveredCompIdRef.current === comp.id;
       const isSelected = selectedCompIdRef.current === comp.id;
       const isConnected = isConnectedToFocus(comp.id);
  
       ctx.save();
+
       let opacity = 1.0;
       let borderColor = isLight ? '#334155' : (comp.borderColor + 'A0');
       let lineWidth = isLight ? 1.2 : 1.0;
@@ -726,15 +854,27 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
 
       // Determine shadow color
       let shadowColor = comp.borderColor;
-      if (isBlastTarget) shadowColor = '#FFFFFF';
-      else if (isBlastDirect) shadowColor = '#10B981';
-      else if (isBlastIndirect) shadowColor = 'rgba(255,255,255,0.65)';
-      else if (isCurrentStoryNode) shadowColor = comp.borderColor;
+      if (isBlastTarget) {
+        borderColor = '#EF4444';
+        shadowColor = '#EF4444';
+        lineWidth = 2.8;
+        opacity = 1.0;
+      } else if (isBlastDirect) {
+        borderColor = '#EF4444';
+        shadowColor = 'rgba(239, 68, 68, 0.8)';
+        lineWidth = 2.2;
+        opacity = 1.0;
+      } else if (isBlastIndirect) {
+        borderColor = '#F59E0B';
+        shadowColor = 'rgba(245, 158, 11, 0.6)';
+        lineWidth = 1.8;
+        opacity = 0.9;
+      } else if (isCurrentStoryNode) shadowColor = comp.borderColor;
       else if (isTarget) shadowColor = '#FFFFFF';
       else if (isAffected) shadowColor = impactHighlight.severityColor;
 
       ctx.shadowColor = shadowColor;
-      ctx.shadowBlur = (isHovered || isCurrentStoryNode) ? 15 : 2;
+      ctx.shadowBlur = (isHovered || isCurrentStoryNode || isBlastTarget || isBlastDirect) ? 18 : 2;
       ctx.shadowOffsetY = isHovered ? 3 : 1;
  
       ctx.fillStyle = isLight ? '#FFFFFF' : '#0A0A0A';
@@ -748,7 +888,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       ctx.stroke();
  
       // Layer Dot
-      ctx.fillStyle = comp.borderColor;
+      ctx.fillStyle = (isBlastTarget || isBlastDirect) ? '#EF4444' : comp.borderColor;
       ctx.beginPath();
       ctx.arc(drawX + 12 * cardScale, drawY + drawH / 2, 4 * cardScale, 0, Math.PI * 2);
       ctx.fill();
@@ -798,16 +938,24 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
         ctx.restore();
       }
 
-      // Pulsing dot for Blast Radius target component
-      if (isBlastTarget) {
+      // Pulsing Crimson Red Shockwave Dot & Warning Badge for Blast Radius target & direct impact
+      if (isBlastTarget || isBlastDirect) {
         ctx.save();
-        ctx.fillStyle = '#10B981';
+        ctx.fillStyle = '#EF4444';
+        ctx.shadowColor = '#EF4444';
+        ctx.shadowBlur = 12;
         ctx.beginPath();
-        const pulse = (4 + Math.abs(Math.sin(Date.now() / 250)) * 3) * cardScale;
+        const pulse = (6 + Math.abs(Math.sin(Date.now() / 200)) * 4) * cardScale;
         ctx.arc(drawX + drawW, drawY, pulse, 0, Math.PI * 2);
         ctx.fill();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = `bold ${Math.round(9 * cardScale)}px "Space Grotesk", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('!', drawX + drawW, drawY);
         ctx.restore();
       }
+
 
       ctx.restore();
     });
@@ -943,46 +1091,89 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
 
     // Build layout
     const raw = buildArchFromData(data);
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = canvas.offsetWidth * dpr;
-    canvas.height = canvas.offsetHeight * dpr;
-    canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+    const dpr = Math.max(window.devicePixelRatio || 1, 2);
+    const width = Math.max(containerRef.current ? containerRef.current.offsetWidth : (canvas.offsetWidth || 1200), 100);
+    const height = Math.max(containerRef.current ? containerRef.current.offsetHeight : (canvas.offsetHeight || 800), 100);
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if ('textRendering' in ctx) {
+      ctx.textRendering = 'geometricPrecision';
+    }
+
+
     
     computeLayout(raw.zones, raw.components);
     archDataRef.current = raw;
     preloadIcons(raw.components).then(() => drawDiagram());
-
     let dragging = false;
     let dragStart = { x: 0, y: 0 };
+    let lastMousePos = { x: 0, y: 0 };
+    let velocity = { x: 0, y: 0 };
     let currentDrawing = null;
     let drawStartX = 0;
     let drawStartY = 0;
     let clickStartX = 0;
     let clickStartY = 0;
 
+    // Target transform for LERP interpolation (Locomotive Physics)
+    const targetTransform = { ...transformRef.current };
+    let inertiaRafId = null;
+
+    // Unlocked High-Refresh-Rate Physics Render Loop (120Hz / 144Hz / 180Hz / 240Hz / 360Hz displays)
+    const physicsLoop = () => {
+      const transform = transformRef.current;
+      
+      // Apply momentum velocity decay when mouse released
+      if (!dragging && (Math.abs(velocity.x) > 0.08 || Math.abs(velocity.y) > 0.08)) {
+        targetTransform.x += velocity.x;
+        targetTransform.y += velocity.y;
+        velocity.x *= 0.91; // Gliding friction damping
+        velocity.y *= 0.91;
+      }
+
+      // Smooth LERP movement towards target transform
+      const dx = targetTransform.x - transform.x;
+      const dy = targetTransform.y - transform.y;
+      const ds = targetTransform.scale - transform.scale;
+
+      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01 || Math.abs(ds) > 0.001 || (Math.abs(velocity.x) > 0.08 || Math.abs(velocity.y) > 0.08)) {
+        transform.x += dx * 0.28;
+        transform.y += dy * 0.28;
+        transform.scale += ds * 0.28;
+        drawDiagram();
+      }
+
+      inertiaRafId = requestAnimationFrame(physicsLoop);
+    };
+    inertiaRafId = requestAnimationFrame(physicsLoop);
+
     const onWheel = (e) => {
       e.preventDefault();
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
-      const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      const transform = transformRef.current;
-      const newScale = Math.min(3, Math.max(0.2, transform.scale * delta));
-      transform.x = mouseX - (mouseX - transform.x) * (newScale / transform.scale);
-      transform.y = mouseY - (mouseY - transform.y) * (newScale / transform.scale);
-      transform.scale = newScale;
+      const delta = e.deltaY > 0 ? 0.92 : 1.08;
+      const newScale = Math.min(3, Math.max(0.2, targetTransform.scale * delta));
+      targetTransform.x = mouseX - (mouseX - targetTransform.x) * (newScale / targetTransform.scale);
+      targetTransform.y = mouseY - (mouseY - targetTransform.y) * (newScale / targetTransform.scale);
+      targetTransform.scale = newScale;
       setZoomText(Math.round(newScale * 100) + '%');
-      drawDiagram();
     };
 
     const onMouseDown = (e) => {
       clickStartX = e.clientX;
       clickStartY = e.clientY;
+      lastMousePos = { x: e.clientX, y: e.clientY };
+      velocity = { x: 0, y: 0 };
       const tool = drawToolRef.current;
 
       if (tool === 'cursor') {
         dragging = true;
-        dragStart = { x: e.clientX - transformRef.current.x, y: e.clientY - transformRef.current.y };
+        dragStart = { x: e.clientX - targetTransform.x, y: e.clientY - targetTransform.y };
       } else {
         const pos = canvasToWorld(e.clientX, e.clientY);
         if (tool === 'pencil') {
@@ -1003,7 +1194,6 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
             }
             return true;
           });
-          drawDiagram();
         }
       }
     };
@@ -1013,9 +1203,10 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
 
       if (tool === 'cursor') {
         if (dragging) {
-          transformRef.current.x = e.clientX - dragStart.x;
-          transformRef.current.y = e.clientY - dragStart.y;
-          drawDiagram();
+          velocity = { x: e.clientX - lastMousePos.x, y: e.clientY - lastMousePos.y };
+          lastMousePos = { x: e.clientX, y: e.clientY };
+          targetTransform.x = e.clientX - dragStart.x;
+          targetTransform.y = e.clientY - dragStart.y;
         } else {
           const pos = canvasToWorld(e.clientX, e.clientY);
           const hovered = archDataRef.current?.components.find(c =>
@@ -1032,11 +1223,9 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
         const pos = canvasToWorld(e.clientX, e.clientY);
         if (tool === 'pencil') {
           currentDrawing.points.push(pos);
-          drawDiagram();
         } else if (tool === 'box') {
           currentDrawing.w = pos.x - drawStartX;
           currentDrawing.h = pos.y - drawStartY;
-          drawDiagram();
         }
       } else {
         canvas.style.cursor = 'crosshair';
@@ -1047,6 +1236,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       dragging = false;
       currentDrawing = null;
     };
+
 
     const onClick = (e) => {
       if (Math.abs(e.clientX - clickStartX) > 5 || Math.abs(e.clientY - clickStartY) > 5) return; // was a drag
@@ -1142,17 +1332,25 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
 
     // Resize event
     const handleResize = () => {
-      const dpr = window.devicePixelRatio || 1;
-      const width = containerRef.current ? containerRef.current.offsetWidth : canvas.offsetWidth;
-      const height = containerRef.current ? containerRef.current.offsetHeight : canvas.offsetHeight;
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+      const dpr = Math.max(window.devicePixelRatio || 1, 2);
+      const width = Math.max(containerRef.current ? containerRef.current.offsetWidth : (canvas.offsetWidth || 1200), 100);
+      const height = Math.max(containerRef.current ? containerRef.current.offsetHeight : (canvas.offsetHeight || 800), 100);
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if ('textRendering' in ctx) {
+        ctx.textRendering = 'geometricPrecision';
+      }
       if (archDataRef.current) {
         computeLayout(archDataRef.current.zones, archDataRef.current.components);
         drawDiagram();
       }
     };
+
+
     window.addEventListener('resize', handleResize);
 
     const resizeObserver = new ResizeObserver(() => {
@@ -1163,6 +1361,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     }
 
     return () => {
+      if (inertiaRafId) cancelAnimationFrame(inertiaRafId);
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('mousedown', onMouseDown);
       canvas.removeEventListener('mousemove', onMouseMove);

@@ -210,7 +210,11 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
               fontWeight: '700',
               fontFamily: '"Space Mono", monospace',
               cursor: loadingBranch ? 'wait' : 'pointer',
-              outline: 'none'
+              outline: 'none',
+              maxWidth: '140px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
             }}
           >
             {realBranches.map(b => (
@@ -221,23 +225,23 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
           </select>
         </div>
 
-        <span className="file-count">{project.totalFiles} files</span>
+        <span className="file-count" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>{project.totalFiles} files</span>
       </div>
 
       {/* Desktop Navigation Items */}
-      <div className="nav-right desktop-only-nav" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+      <div className="nav-right desktop-only-nav" style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
         {errorCount === 0 && warningCount === 0 ? (
-          <div className="findings-badge clean" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <div className="findings-badge clean" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             <span>clean</span>
           </div>
         ) : (
           <>
             {errorCount > 0 && (
-              <div className="findings-badge errors">{errorCount} error{errorCount > 1 ? 's' : ''}</div>
+              <div className="findings-badge errors" style={{ flexShrink: 0 }}>{errorCount} error{errorCount > 1 ? 's' : ''}</div>
             )}
             {warningCount > 0 && (
-              <div className="findings-badge warnings">{warningCount} warning{warningCount > 1 ? 's' : ''}</div>
+              <div className="findings-badge warnings" style={{ flexShrink: 0 }}>{warningCount} warning{warningCount > 1 ? 's' : ''}</div>
             )}
           </>
         )}
@@ -245,7 +249,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
         {/* AI Architect Assistant Button */}
         <button
           className="btn-liquid"
-          style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.4)', color: '#10B981', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
+          style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.4)', color: '#10B981', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', flexShrink: 0 }}
           onClick={() => setShowAiDrawer(true)}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12A10 10 0 0 1 12 2z"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
@@ -255,7 +259,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
         {/* Workspaces Portfolio Drawer Button */}
         <button
           className="btn-liquid"
-          style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--orange)', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
+          style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', color: 'var(--orange)', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', flexShrink: 0 }}
           onClick={() => setShowWorkspacesDrawer(true)}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -265,7 +269,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
         {/* Support & Feedback Button */}
         <button
           className="btn-liquid"
-          style={{ background: '#10B98122', border: '1px solid #10B98188', color: '#10B981', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
+          style={{ background: '#10B98122', border: '1px solid #10B98188', color: '#10B981', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', flexShrink: 0 }}
           onClick={() => setShowFeedbackModal(true)}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -276,12 +280,15 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
         {currentUser ? (
           <button
             className="btn-liquid"
-            style={{ background: '#10B98122', border: '1px solid #10B98188', color: '#10B981', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+            style={{ background: '#10B98122', border: '1px solid #10B98188', color: '#10B981', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', maxWidth: '160px', overflow: 'hidden', flexShrink: 0 }}
             onClick={() => setShowUserModal(true)}
           >
-            <span>{currentUser.name || currentUser.email.split('@')[0]} ({(currentUser.tier || 'free').toUpperCase()})</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+              {currentUser.name || currentUser.email.split('@')[0]} ({(currentUser.tier || 'free').toUpperCase()})
+            </span>
           </button>
         ) : (
+
           <button
             className="btn-liquid"
             style={{ background: '#10B981', border: '1px solid #10B981', color: '#FFFFFF', padding: '6px 14px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(255,94,26,0.3)' }}
