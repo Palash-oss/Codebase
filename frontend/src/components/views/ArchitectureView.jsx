@@ -434,6 +434,9 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     });
   };
 
+  // Track active interaction (drag/pan/zoom) for Dynamic Resolution Scaling (DRS)
+  const isInteractingRef = useRef(false);
+
   // 3. Render Canvas elements
   const drawDiagram = () => {
     const canvas = canvasRef.current;
@@ -442,8 +445,10 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     const container = containerRef.current;
     const W = Math.max(canvas.offsetWidth || (container ? container.offsetWidth : 0) || 1200, 100);
     const H = Math.max(canvas.offsetHeight || (container ? container.offsetHeight : 0) || 800, 100);
-    // Use native device pixel ratio for 4K ultra-sharp crispness
-    const dpr = Math.max(window.devicePixelRatio || 1, 2);
+    
+    // Dynamic Resolution Scaling: Use 1.0x DPR while actively dragging/panning for 60+ FPS, native DPR on idle
+    const nativeDpr = Math.max(window.devicePixelRatio || 1, 2);
+    const dpr = isInteractingRef.current ? Math.min(nativeDpr, 1.25) : nativeDpr;
 
     const targetW = Math.round(W * dpr);
     const targetH = Math.round(H * dpr);
@@ -455,9 +460,9 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     canvas.style.height = H + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingQuality = isInteractingRef.current ? 'low' : 'high';
     if ('textRendering' in ctx) {
-      ctx.textRendering = 'geometricPrecision';
+      ctx.textRendering = isInteractingRef.current ? 'fast' : 'geometricPrecision';
     }
 
     const transform = transformRef.current;
@@ -465,6 +470,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     ctx.save();
     ctx.translate(Math.round(transform.x), Math.round(transform.y));
     ctx.scale(transform.scale, transform.scale);
+
 
 
     const isLight = document.documentElement.getAttribute('data-theme') === 'light';
@@ -1140,16 +1146,26 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
       const dy = targetTransform.y - transform.y;
       const ds = targetTransform.scale - transform.scale;
 
-      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01 || Math.abs(ds) > 0.001 || (Math.abs(velocity.x) > 0.08 || Math.abs(velocity.y) > 0.08)) {
-        transform.x += dx * 0.28;
-        transform.y += dy * 0.28;
-        transform.scale += ds * 0.28;
+      const isMoving = dragging || Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05 || Math.abs(ds) > 0.002 || Math.abs(velocity.x) > 0.08 || Math.abs(velocity.y) > 0.08;
+
+      if (isMoving) {
+        if (!isInteractingRef.current) {
+          isInteractingRef.current = true;
+        }
+        transform.x += dx * 0.32;
+        transform.y += dy * 0.32;
+        transform.scale += ds * 0.32;
+        drawDiagram();
+      } else if (isInteractingRef.current) {
+        // Drag/pan motion settled: switch back to native 4K DPR and crisp text rendering
+        isInteractingRef.current = false;
         drawDiagram();
       }
 
       inertiaRafId = requestAnimationFrame(physicsLoop);
     };
     inertiaRafId = requestAnimationFrame(physicsLoop);
+
 
     const onWheel = (e) => {
       e.preventDefault();
