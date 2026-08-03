@@ -40,6 +40,8 @@ function Sidebar({ currentView, onViewChange }) {
     }
   ];
 
+
+
   return (
     <aside className="sidebar">
       {navItems.map((item) => (

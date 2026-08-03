@@ -14,6 +14,8 @@ import BlastRadiusView from './views/BlastRadiusView';
 import CodeStoryView from './views/CodeStoryView';
 
 function Dashboard({ data, onNewAnalysis, onSelectWorkspaceProject, theme, toggleTheme }) {
+
+
   const [currentView, setCurrentView] = useState('architecture');
   const [selectedFile, setSelectedFile] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -174,6 +176,8 @@ function Dashboard({ data, onNewAnalysis, onSelectWorkspaceProject, theme, toggl
           )}
         </div>
       </main>
+
+
 
       {/* Selected file detail panel (slide out sidebar) */}
       {isSidebarOpen && (

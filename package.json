@@ -5,8 +5,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "npm run build && node server.js",
-    "build": "cd frontend && npm install && npm run build"
+    "build": "cd frontend && npm run build"
   },
+
   "dependencies": {
     "@typescript-eslint/typescript-estree": "^6.7.0",
     "adm-zip": "^0.5.10",
