@@ -14,6 +14,8 @@ import BlastRadiusView from './views/BlastRadiusView';
 import CodeStoryView from './views/CodeStoryView';
 
 function Dashboard({ data, onNewAnalysis, onSelectWorkspaceProject, theme, toggleTheme }) {
+
+
   const [currentView, setCurrentView] = useState('architecture');
   const [selectedFile, setSelectedFile] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -50,11 +52,11 @@ function Dashboard({ data, onNewAnalysis, onSelectWorkspaceProject, theme, toggl
     };
   }, [selectedFile]);
 
-  // Navigate to Explorer and focus on a specific file
+  // Focus on a specific file without forcing a view tab switch away from System Architecture
   const handleSelectFile = (file) => {
     setSelectedFile(file);
-    setCurrentView('explorer');
   };
+
 
   // Determine main layout shift classes
   let mainContentClass = 'main-content';
@@ -174,6 +176,8 @@ function Dashboard({ data, onNewAnalysis, onSelectWorkspaceProject, theme, toggl
           )}
         </div>
       </main>
+
+
 
       {/* Selected file detail panel (slide out sidebar) */}
       {isSidebarOpen && (

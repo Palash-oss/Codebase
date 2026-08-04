@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import LocomotiveScroll from 'locomotive-scroll';
 import Toast from './Toast';
+import BillingModal from './BillingModal';
 import AuthModal from './AuthModal';
 import IsometricStackVisualizer from './IsometricStackVisualizer';
 
@@ -13,6 +14,7 @@ function LandingPage({ onAnalysisSuccess, theme, toggleTheme }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [progressWidth, setProgressWidth] = useState('0%');
   const [toastMsg, setToastMsg] = useState('');
+  const [showPricingModal, setShowPricingModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [currentUser, setCurrentUser] = useState(() => {
@@ -23,6 +25,10 @@ function LandingPage({ onAnalysisSuccess, theme, toggleTheme }) {
       return null;
     }
   });
+
+  // State for Multi-Repo Analysis (Pillar 4)
+  const [scanMode, setScanMode] = useState('single'); // 'single' | 'multi'
+  const [multiRepos, setMultiRepos] = useState(['', '']);
 
   // Interactive Fleek Network-Style Topology & Terminal Showcase State
   const [selectedNode, setSelectedNode] = useState({
@@ -460,8 +466,20 @@ func main() {
     try {
       const uStr = localStorage.getItem('xray_user');
       const user = uStr ? JSON.parse(uStr) : null;
-      // Main Branch Edition: Unlimited free scans for all users
-      return true;
+      const tier = user?.tier || 'free';
+      const count = parseInt(localStorage.getItem('xray_analysis_count') || '0', 10);
+
+      // Always exempt exact primary owner account
+      const OWNER_EMAIL = 'palash.pathare005@gmail.com';
+      if (user?.email && user.email.toLowerCase().trim() === OWNER_EMAIL) {
+        return true;
+      }
+
+      if (tier === 'free' && count >= 2) {
+        setShowPricingModal(true);
+        setToastMsg('Free plan is limited to 2 codebase analyses. Upgrade to Pro for Unlimited Architecture Generations!');
+        return false;
+      }
     } catch (e) {}
     return true;
   };
@@ -596,6 +614,40 @@ func main() {
     }
   };
 
+  const submitMultiRepo = async () => {
+    const validRepos = multiRepos.map(r => r.trim()).filter(r => r.includes('github.com'));
+    if (validRepos.length < 2) {
+      setErrorMessage('Please enter at least 2 valid GitHub repository URLs.');
+      return;
+    }
+    if (!checkAnalysisLimit()) return;
+    startLoading();
+
+    try {
+      const response = await fetch('/api/multi-repo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repos: validRepos })
+      });
+
+      let data = {};
+      try { data = await response.json(); } catch (e) {}
+
+      if (response.ok) {
+        incrementAnalysisCount();
+        handleSuccess(data);
+      } else {
+        stopLoading();
+        setLoading(false);
+        setErrorMessage(data.error || 'Multi-repo analysis failed.');
+      }
+    } catch (err) {
+      stopLoading();
+      setLoading(false);
+      setErrorMessage('Network error during multi-repo analysis.');
+    }
+  };
+
   // Section Scroll Tracking Effect for 01-06 Sidebar
   useEffect(() => {
     const handleSectionScroll = () => {
@@ -677,6 +729,10 @@ func main() {
                 <span>Dark</span>
               </>
             )}
+          </button>
+          
+          <button className="fleek-outline-btn" onClick={() => setShowPricingModal(true)}>
+            Pricing & Plans
           </button>
 
           {currentUser ? (
@@ -860,7 +916,7 @@ func main() {
           <div style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', borderRadius: '16px', padding: '32px' }}>
             <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px', color: '#10B981', fontWeight: '700', marginBottom: '8px' }}>ENTERPRISES</div>
             <p style={{ fontSize: '14px', color: 'var(--beige-3)', lineHeight: 1.6, marginBottom: '24px' }}>Deploy team architecture hubs with security limits, unlimited repos, and priority AST parsing.</p>
-            <button className="fleek-solid-btn" style={{ width: '100%' }} onClick={scrollToUpload}>Explore Platform</button>
+            <button className="fleek-solid-btn" style={{ width: '100%' }} onClick={() => setShowPricingModal(true)}>Upgrade Plan</button>
           </div>
         </div>
       </section>
@@ -869,8 +925,8 @@ func main() {
       <section id="upload" style={{ position: 'relative', zIndex: 10, padding: '80px 48px 100px 80px', maxWidth: '700px', margin: '0 auto' }}>
         {!loading ? (
           <div style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', borderRadius: '20px', padding: '40px', boxShadow: 'var(--shadow-lg)' }}>
-            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px', color: '#10B981', fontWeight: '700', letterSpacing: '0.12em', textAlign: 'center', marginBottom: '20px' }}>
-              // ANALYZE GITHUB REPOSITORY //
+            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px', color: '#10B981', fontWeight: '700', letterSpacing: '0.12em', textAlign: 'center', marginBottom: '16px' }}>
+              // ANALYZE GITHUB ARCHITECTURE //
             </div>
 
             <div style={{ marginBottom: '24px' }}>
@@ -920,6 +976,17 @@ func main() {
           <a href="#sec-06">// Security</a>
         </div>
       </footer>
+
+      {/* SaaS Pricing & Plans Modal */}
+      <BillingModal
+        isOpen={showPricingModal}
+        onClose={() => setShowPricingModal(false)}
+        currentUser={currentUser}
+        onUpgradeSuccess={(user) => {
+          setCurrentUser(user);
+          setToastMsg(`Upgraded account to ${user.tier.toUpperCase()} Plan!`);
+        }}
+      />
 
       {/* Developer Sign In & Registration Modal */}
       <AuthModal
@@ -988,6 +1055,25 @@ func main() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                onClick={() => {
+                  setShowUserModal(false);
+                  setShowPricingModal(true);
+                }}
+                style={{
+                  padding: '11px',
+                  borderRadius: '8px',
+                  background: '#F8FAFC',
+                  border: '1px solid #CBD5E1',
+                  color: '#334155',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                Manage Subscription & Plans
+              </button>
+
               <button
                 onClick={() => {
                   localStorage.removeItem('xray_auth_token');

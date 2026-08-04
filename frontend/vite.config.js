@@ -14,6 +14,7 @@ export default defineConfig({
       '/github': 'http://localhost:3001',
       '/chat': 'http://localhost:3001',
       '/api': 'http://localhost:3001',
+      '/badge': 'http://localhost:3001',
     }
   }
 })

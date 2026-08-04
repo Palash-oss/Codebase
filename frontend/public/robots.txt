@@ -1,0 +1,5 @@
+# Robots.txt for CodeBase X-Ray
+User-agent: *
+Allow: /
+
+Sitemap: https://codebase-kpgd.vercel.app/sitemap.xml

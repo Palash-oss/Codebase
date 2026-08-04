@@ -222,7 +222,7 @@ export default function WorkspacesDrawer({ isOpen, onClose, onSelectProject, act
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <h5 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#111827' }}>
-                      {proj.name}
+                      {proj.name || 'Workspace Project'}
                     </h5>
                     <button
                       onClick={(e) => handleDelete(proj.id, e)}
