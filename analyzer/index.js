@@ -3,8 +3,9 @@ import { scanFiles } from './fileScanner.js';
 import { detectStack } from './stackDetector.js';
 import { parseImports } from './importParser.js';
 import { detectLayers } from './layerDetector.js';
-import { buildGraph } from './graphBuilder.js';
+import { buildGraph, detectLayerViolations, computeSystemHealth } from './graphBuilder.js';
 import { mapArchitecture } from './archMapper.js';
+import { generateSystemSpec } from './specGenerator.js';
 
 export async function analyzeProject(projectRoot) {
   console.log(`[X-RAY] Initiating analysis on project root: ${projectRoot}`);
@@ -38,6 +39,14 @@ export async function analyzeProject(projectRoot) {
   // Phase 6: Map architecture
   console.log('[X-RAY] Phase 7: Mapping system architecture components...');
   const arch = mapArchitecture(stack, layeredFiles, graph);
+
+  // Phase 8: Detect layer violations (Pillar 1)
+  console.log('[X-RAY] Phase 8: Detecting layer violations...');
+  const layerViolations = detectLayerViolations(layeredFiles, graph.edges);
+
+  // Phase 9: Compute system health metrics (Pillar 3)
+  console.log('[X-RAY] Phase 9: Computing system health metrics...');
+  const healthData = computeSystemHealth(graph.nodes, graph.edges, layeredFiles);
 
   console.log('[X-RAY] Analysis complete. Building response payload...');
 
@@ -84,8 +93,8 @@ export async function analyzeProject(projectRoot) {
       percentage: totalLangBytes > 0 ? Math.round((bytes / totalLangBytes) * 1000) / 10 : 0
     }));
 
-  // Build and return final ScanResult
-  return {
+  // Build final ScanResult
+  const result = {
     project: {
       name: packageJson?.name || path.basename(projectRoot),
       version: packageJson?.version || '0.0.0',
@@ -117,10 +126,14 @@ export async function analyzeProject(projectRoot) {
       circularDeps: graph.circularDeps,
       deadFiles: graph.deadFiles,
       deadExports: graph.deadExports,
-      missingEnvVars: graph.missingEnvVars
+      missingEnvVars: graph.missingEnvVars,
+      layerViolations
     },
+    healthMetrics: healthData.metrics,
+    healthSummary: healthData.summary,
     files: layeredFiles.map(f => {
       const node = graph.nodes.find(n => n.id === f.relativePath) || {};
+      const healthNode = healthData.metrics.find(m => m.id === f.relativePath);
       return {
         relativePath: f.relativePath,
         name: f.name,
@@ -139,9 +152,20 @@ export async function analyzeProject(projectRoot) {
         incomingCount: node.incomingCount || 0,
         outgoingCount: node.outgoingCount || 0,
         centrality: node.centrality || 0,
-        isEntryPoint: node.isEntryPoint || false
+        isEntryPoint: node.isEntryPoint || false,
+        afferentCoupling: healthNode?.afferentCoupling || 0,
+        efferentCoupling: healthNode?.efferentCoupling || 0,
+        instability: healthNode?.instability || 0.5,
+        riskScore: healthNode?.riskScore || 0,
+        healthFlags: healthNode?.flags || []
       };
     })
   };
+
+  // Phase 10: Generate living system specification (Pillar 2)
+  console.log('[X-RAY] Phase 10: Generating system specification...');
+  result.systemSpec = generateSystemSpec(layeredFiles, stack, arch, graph, languageBreakdown);
+
+  return result;
 }
 

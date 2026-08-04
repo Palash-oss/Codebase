@@ -25,6 +25,9 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
   const [commitIndex, setCommitIndex] = useState(0);
   const [diffSummary, setDiffSummary] = useState({ addedFiles: 0, removedFiles: 0, modifiedFiles: 0, newCyclesCount: 0 });
 
+  // State for System Health Risk Heatmap Overlay (Pillar 3)
+  const [isHeatmapMode, setIsHeatmapMode] = useState(false);
+
   // Refs for tracking canvas transforms and diagram state
   const transformRef = useRef({ x: 0, y: 0, scale: 1 });
   const archDataRef = useRef(null);
@@ -352,7 +355,8 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
           const lastPart = parts[parts.length - 1].replace(/\.(js|jsx|ts|tsx|mjs|cjs)$/, '');
           
           const matchedFile = DATA.files.find(f => {
-            const nameWithoutExt = f.name.replace(/\.(js|jsx|ts|tsx|mjs|cjs)$/, '');
+            const fName = f.name || (f.relativePath ? f.relativePath.split('/').pop() : '');
+            const nameWithoutExt = fName ? fName.replace(/\.(js|jsx|ts|tsx|mjs|cjs)$/, '') : '';
             return nameWithoutExt === lastPart;
           });
           if (matchedFile) {
@@ -462,7 +466,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = isInteractingRef.current ? 'low' : 'high';
     if ('textRendering' in ctx) {
-      ctx.textRendering = isInteractingRef.current ? 'fast' : 'geometricPrecision';
+      ctx.textRendering = isInteractingRef.current ? 'optimizeSpeed' : 'geometricPrecision';
     }
 
     const transform = transformRef.current;
@@ -1479,7 +1483,86 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
           </svg>
           {isDiffMode ? 'Diff Mode Active' : 'Architecture Diff'}
         </button>
+        <div style={{ width: '1px', height: '16px', background: 'var(--border)', margin: '0 4px' }}></div>
+        <button 
+          className={`tool-btn ${isHeatmapMode ? 'active' : ''}`} 
+          onClick={() => setIsHeatmapMode(!isHeatmapMode)}
+          style={{
+            background: isHeatmapMode ? 'rgba(239,68,68,0.2)' : 'transparent',
+            color: isHeatmapMode ? '#EF4444' : 'var(--beige-2)',
+            border: `1px solid ${isHeatmapMode ? '#EF4444' : 'var(--border)'}`,
+            borderRadius: '6px',
+            padding: '4px 10px',
+            fontWeight: '600'
+          }}
+          title="Toggle System Health Risk Heatmap Overlay"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '4px', verticalAlign: '-2px' }}>
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+          </svg>
+          {isHeatmapMode ? 'Heatmap ON' : 'Health Heatmap'}
+        </button>
       </div>
+
+      {/* Floating System Health Heatmap Legend (Pillar 3) */}
+      {isHeatmapMode && (
+        <div style={{
+          position: 'absolute',
+          top: '64px',
+          right: '20px',
+          background: 'rgba(20, 18, 16, 0.95)',
+          border: '1px solid rgba(239,68,68,0.4)',
+          borderRadius: '12px',
+          padding: '14px 18px',
+          boxShadow: '0 12px 36px rgba(0,0,0,0.4)',
+          zIndex: 100,
+          width: '260px',
+          fontFamily: '"Space Grotesk", sans-serif',
+          backdropFilter: 'blur(8px)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#EF4444', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+              Health Heatmap Radar
+            </span>
+            <span style={{
+              fontSize: '12px', fontWeight: 900, fontFamily: '"Space Mono", monospace',
+              padding: '2px 8px', borderRadius: '6px',
+              background: data?.healthSummary?.grade === 'A+' || data?.healthSummary?.grade === 'A' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)',
+              color: data?.healthSummary?.grade === 'A+' || data?.healthSummary?.grade === 'A' ? '#10B981' : '#EF4444',
+              border: `1px solid ${data?.healthSummary?.grade === 'A+' || data?.healthSummary?.grade === 'A' ? '#10B981' : '#EF4444'}`
+            }}>
+              Grade {data?.healthSummary?.grade || 'A+'}
+            </span>
+          </div>
+
+          <div style={{ fontSize: '10px', color: 'var(--beige-3)', marginBottom: '12px', lineHeight: 1.4 }}>
+            Quantitative coupling & instability analysis overlay across system components.
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px', color: '#FFF' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#EF4444', border: '1px solid #FF8888', display: 'inline-block' }} />
+              <span>SPOF / High Risk (Coupling &gt; 8)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#F59E0B', border: '1px solid #FCD34D', display: 'inline-block' }} />
+              <span>God Object (High Afferent & Efferent)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#10B981', border: '1px solid #6EE7B7', display: 'inline-block' }} />
+              <span>Stable / Decoupled Foundation</span>
+            </div>
+          </div>
+
+          {data?.healthSummary?.spofCount > 0 && (
+            <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--border)', fontSize: '10px', color: '#EF4444', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+              {data.healthSummary.spofCount} Single Point(s) of Failure detected!
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Architecture Diff & Time-Travel Slider Control Panel */}
       {isDiffMode && (

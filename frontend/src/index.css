@@ -3122,4 +3122,102 @@ body,
   align-items: center !important;
   gap: 6px !important;
   flex-shrink: 0 !important;
-}
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   UNIVERSAL HIGH-CONTRAST LIGHT MODE OVERRIDES
+   Ensures ALL text, table cells, inputs, headers, borders, SVG icons, cards,
+   and badges turn dark (#0F172A / #1E293B) in Light Mode with crisp contrast.
+   ──────────────────────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --black: #FFFFFF;
+  --black-2: #F8FAFC;
+  --black-3: #F1F5F9;
+  --black-4: #E2E8F0;
+
+  --beige: #0F172A;
+  --beige-2: #1E293B;
+  --beige-3: #475569;
+
+  --border: rgba(15, 23, 42, 0.16);
+  --border-2: rgba(15, 23, 42, 0.24);
+  --border-3: rgba(15, 23, 42, 0.36);
+  color: #0F172A !important;
+}
+
+[data-theme="light"] table {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+}
+
+[data-theme="light"] th {
+  color: #475569 !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.14) !important;
+}
+
+[data-theme="light"] td {
+  color: #0F172A !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] input,
+[data-theme="light"] textarea,
+[data-theme="light"] select {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border-color: rgba(0, 0, 0, 0.22) !important;
+}
+
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: #64748B !important;
+}
+
+[data-theme="light"] .perspective-bar-wrapper,
+[data-theme="light"] .top-action-bar-wrapper,
+[data-theme="light"] .view-controls {
+  background: rgba(255, 255, 255, 0.94) !important;
+  border: 1px solid rgba(0, 0, 0, 0.16) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+  color: #0F172A !important;
+}
+
+[data-theme="light"] pre,
+[data-theme="light"] code {
+  background-color: #F1F5F9 !important;
+  color: #0F172A !important;
+  border-color: #CBD5E1 !important;
+}
+
+/* Findings Badges in Navbar */
+.findings-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 3px 8px !important;
+  border-radius: 6px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  font-family: 'Space Mono', monospace !important;
+  line-height: 1 !important;
+}
+
+.findings-badge.clean {
+  background: rgba(16, 185, 129, 0.14) !important;
+  border: 1px solid rgba(16, 185, 129, 0.35) !important;
+  color: #10B981 !important;
+}
+
+.findings-badge.errors {
+  background: rgba(239, 68, 68, 0.14) !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  color: #EF4444 !important;
+}
+
+.findings-badge.warnings {
+  background: rgba(245, 158, 11, 0.14) !important;
+  border: 1px solid rgba(245, 158, 11, 0.35) !important;
+  color: #F59E0B !important;
+}
+
+

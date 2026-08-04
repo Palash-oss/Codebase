@@ -150,7 +150,7 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
                         className="list-item-name clickable" 
                         onClick={() => onSelectFile(zf)}
                       >
-                        {zf.name}
+                        {zf.name || (zf.relativePath ? zf.relativePath.split('/').pop() : 'File')}
                       </span>
                     </div>
                     <span style={{ fontFamily: 'Space Mono', fontSize: '10px', color: 'var(--beige-3)' }}>
@@ -164,7 +164,7 @@ function DetailPanel({ file, files, onClose, onSelectFile, layout = 'sidebar', s
         ) : (
           /* Standard File Details */
           <div style={{ padding: '0 8px 14px' }}>
-            <h2 className="detail-title">{file.name}</h2>
+            <h2 className="detail-title">{file.name || (file.relativePath ? file.relativePath.split('/').pop() : 'File')}</h2>
             <div className="detail-path">{file.relativePath}</div>
             
             <div className="detail-badges" style={{ marginBottom: '20px' }}>

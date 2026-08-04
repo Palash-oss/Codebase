@@ -276,8 +276,8 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
           <span>Feedback</span>
         </button>
 
-        {/* User Account / Auth Button */}
-        {currentUser ? (
+        {/* User Account Button */}
+        {currentUser && (
           <button
             className="btn-liquid"
             style={{ background: '#10B98122', border: '1px solid #10B98188', color: '#10B981', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', maxWidth: '160px', overflow: 'hidden', flexShrink: 0 }}
@@ -287,16 +287,8 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
               {currentUser.name || currentUser.email.split('@')[0]} ({(currentUser.tier || 'free').toUpperCase()})
             </span>
           </button>
-        ) : (
-
-          <button
-            className="btn-liquid"
-            style={{ background: '#10B981', border: '1px solid #10B981', color: '#FFFFFF', padding: '6px 14px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(255,94,26,0.3)' }}
-            onClick={() => setShowAuthModal(true)}
-          >
-            <span>Sign In</span>
-          </button>
         )}
+
 
         <button 
           className="btn-liquid"
@@ -481,14 +473,7 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
               >
                 <span>Profile ({(currentUser.tier || 'free').toUpperCase()})</span>
               </button>
-            ) : (
-              <button
-                style={{ background: '#10B981', border: '1px solid #10B981', color: '#FFFFFF', padding: '12px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
-                onClick={() => { setShowAuthModal(true); setIsMobileMenuOpen(false); }}
-              >
-                <span>Sign In</span>
-              </button>
-            )}
+            ) : null}
           </div>
 
           <button

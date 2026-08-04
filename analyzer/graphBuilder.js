@@ -422,3 +422,170 @@ export function computeBlastRadius(targetPath, nodes, edges) {
 
   return { targetPath, directImpact, indirectImpact, totalAffected, safetyScore, severity }
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Pillar 1: Architectural Conformance — Layer Violation Drift Detection
+// ────────────────────────────────────────────────────────────────────────────
+
+// Legal import hierarchy (top-to-bottom). Each layer may import from layers
+// at the same level or BELOW it. Importing UPWARD is a violation.
+const LAYER_RANK = {
+  'Test': 0,            // Tests can import anything
+  'Presentation': 1,
+  'Interaction': 2,
+  'Gateway': 3,
+  'Domain': 4,
+  'Persistence': 5,
+  'Foundation': 6,
+  'Infrastructure': 7,
+  'Unknown': -1
+};
+
+export function detectLayerViolations(files, edges) {
+  const fileLayerMap = new Map();
+  for (const f of files) {
+    fileLayerMap.set(f.relativePath, f.layer || 'Unknown');
+  }
+
+  const violations = [];
+  const seen = new Set();
+
+  for (const edge of edges) {
+    const srcLayer = fileLayerMap.get(edge.source);
+    const tgtLayer = fileLayerMap.get(edge.target);
+    if (!srcLayer || !tgtLayer) continue;
+
+    const srcRank = LAYER_RANK[srcLayer];
+    const tgtRank = LAYER_RANK[tgtLayer];
+
+    // Skip unknown layers, test files (tests can import anything), and same-layer imports
+    if (srcRank === -1 || tgtRank === -1 || srcRank === 0) continue;
+    if (srcRank === tgtRank) continue;
+
+    // Violation: source layer is BELOW the target layer (importing upward)
+    // e.g., Persistence (rank 5) importing Presentation (rank 1)
+    if (srcRank > tgtRank) {
+      const key = `${edge.source}|${edge.target}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const gap = srcRank - tgtRank;
+      violations.push({
+        source: edge.source,
+        target: edge.target,
+        sourceLayer: srcLayer,
+        targetLayer: tgtLayer,
+        severity: gap >= 3 ? 'critical' : (gap >= 2 ? 'warning' : 'info'),
+        message: `${srcLayer} layer file "${edge.source}" imports ${tgtLayer} layer file "${edge.target}" — this bypasses ${gap - 1} intermediate layer(s).`,
+        suggestion: `Route this dependency through the ${Object.keys(LAYER_RANK).find(k => LAYER_RANK[k] === srcRank - 1) || 'adjacent'} layer instead.`
+      });
+    }
+  }
+
+  // Sort by severity (critical first)
+  const severityOrder = { critical: 0, warning: 1, info: 2 };
+  violations.sort((a, b) => (severityOrder[a.severity] || 9) - (severityOrder[b.severity] || 9));
+
+  return violations;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Pillar 3: Quantitative System Health — Coupling, Instability & SPOF Radar
+// ────────────────────────────────────────────────────────────────────────────
+
+export function computeSystemHealth(nodes, edges, files) {
+  // Build per-node coupling metrics
+  const afferent = new Map();  // incoming count (who depends on me)
+  const efferent = new Map();  // outgoing count (who do I depend on)
+
+  for (const n of nodes) {
+    afferent.set(n.id, 0);
+    efferent.set(n.id, 0);
+  }
+
+  for (const edge of edges) {
+    efferent.set(edge.source, (efferent.get(edge.source) || 0) + 1);
+    afferent.set(edge.target, (afferent.get(edge.target) || 0) + 1);
+  }
+
+  const fileMap = new Map();
+  for (const f of files) {
+    fileMap.set(f.relativePath, f);
+  }
+
+  const metrics = [];
+  let totalRisk = 0;
+
+  for (const n of nodes) {
+    const aff = afferent.get(n.id) || 0;
+    const eff = efferent.get(n.id) || 0;
+    const totalCoupling = aff + eff;
+
+    // Instability Index: I = efferent / (afferent + efferent)
+    // 0.0 = maximally stable (everything depends on it, it depends on nothing)
+    // 1.0 = maximally unstable (depends on everything, nothing depends on it)
+    const instability = totalCoupling > 0 ? Math.round((eff / totalCoupling) * 100) / 100 : 0.5;
+
+    const file = fileMap.get(n.id);
+    const lines = file?.lines || 0;
+    const layer = n.layer || file?.layer || 'Unknown';
+
+    // Risk score: high coupling + high line count + low instability (stable but critical) = high risk
+    const riskScore = Math.round((aff * 2 + eff) * (1 + lines / 500) * (1.5 - instability));
+
+    // God Object: both high afferent AND high efferent coupling
+    const isGodObject = aff >= 5 && eff >= 5;
+
+    // SPOF: high afferent coupling + low instability (stable foundation that everything depends on)
+    const isSPOF = aff >= 8 && instability < 0.3;
+
+    // High complexity: large file with high coupling
+    const isHighComplexity = lines > 300 && totalCoupling > 6;
+
+    const flags = [];
+    if (isGodObject) flags.push('god-object');
+    if (isSPOF) flags.push('spof');
+    if (isHighComplexity) flags.push('high-complexity');
+
+    totalRisk += riskScore;
+
+    metrics.push({
+      id: n.id,
+      layer,
+      lines,
+      afferentCoupling: aff,
+      efferentCoupling: eff,
+      instability,
+      riskScore,
+      flags
+    });
+  }
+
+  // Sort by risk score descending
+  metrics.sort((a, b) => b.riskScore - a.riskScore);
+
+  // Compute overall codebase health grade
+  const avgRisk = nodes.length > 0 ? totalRisk / nodes.length : 0;
+  const spofCount = metrics.filter(m => m.flags.includes('spof')).length;
+  const godObjectCount = metrics.filter(m => m.flags.includes('god-object')).length;
+
+  let grade = 'A+';
+  if (avgRisk > 80 || spofCount > 5) grade = 'F';
+  else if (avgRisk > 60 || spofCount > 3) grade = 'D';
+  else if (avgRisk > 40 || godObjectCount > 5) grade = 'C';
+  else if (avgRisk > 25 || godObjectCount > 2) grade = 'B';
+  else if (avgRisk > 12) grade = 'A';
+
+  return {
+    metrics,
+    summary: {
+      grade,
+      averageRisk: Math.round(avgRisk),
+      totalFiles: nodes.length,
+      spofCount,
+      godObjectCount,
+      highComplexityCount: metrics.filter(m => m.flags.includes('high-complexity')).length,
+      topRiskFiles: metrics.slice(0, 5).map(m => ({ id: m.id, riskScore: m.riskScore, flags: m.flags }))
+    }
+  };
+}

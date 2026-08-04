@@ -272,7 +272,7 @@ function ThreeDView({ DATA, onSelectFile }) {
           ctx.font = `${isHovered || isSelected ? '700 12px' : '500 10px'} Inter, system-ui, sans-serif`;
           ctx.fillStyle = isHovered || isSelected ? '#FFFFFF' : '#CBD5E1';
           ctx.textAlign = 'center';
-          ctx.fillText(node.name, node.screenX, node.screenY + radius + 14);
+          ctx.fillText(node.name || (node.path ? node.path.split('/').pop() : 'Module'), node.screenX, node.screenY + radius + 14);
         }
 
         ctx.restore();

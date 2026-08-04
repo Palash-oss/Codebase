@@ -26,6 +26,10 @@ function LandingPage({ onAnalysisSuccess, theme, toggleTheme }) {
     }
   });
 
+  // State for Multi-Repo Analysis (Pillar 4)
+  const [scanMode, setScanMode] = useState('single'); // 'single' | 'multi'
+  const [multiRepos, setMultiRepos] = useState(['', '']);
+
   // Interactive Fleek Network-Style Topology & Terminal Showcase State
   const [selectedNode, setSelectedNode] = useState({
     id: 'gateway',
@@ -610,6 +614,40 @@ func main() {
     }
   };
 
+  const submitMultiRepo = async () => {
+    const validRepos = multiRepos.map(r => r.trim()).filter(r => r.includes('github.com'));
+    if (validRepos.length < 2) {
+      setErrorMessage('Please enter at least 2 valid GitHub repository URLs.');
+      return;
+    }
+    if (!checkAnalysisLimit()) return;
+    startLoading();
+
+    try {
+      const response = await fetch('/api/multi-repo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repos: validRepos })
+      });
+
+      let data = {};
+      try { data = await response.json(); } catch (e) {}
+
+      if (response.ok) {
+        incrementAnalysisCount();
+        handleSuccess(data);
+      } else {
+        stopLoading();
+        setLoading(false);
+        setErrorMessage(data.error || 'Multi-repo analysis failed.');
+      }
+    } catch (err) {
+      stopLoading();
+      setLoading(false);
+      setErrorMessage('Network error during multi-repo analysis.');
+    }
+  };
+
   // Section Scroll Tracking Effect for 01-06 Sidebar
   useEffect(() => {
     const handleSectionScroll = () => {
@@ -887,8 +925,8 @@ func main() {
       <section id="upload" style={{ position: 'relative', zIndex: 10, padding: '80px 48px 100px 80px', maxWidth: '700px', margin: '0 auto' }}>
         {!loading ? (
           <div style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', borderRadius: '20px', padding: '40px', boxShadow: 'var(--shadow-lg)' }}>
-            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px', color: '#10B981', fontWeight: '700', letterSpacing: '0.12em', textAlign: 'center', marginBottom: '20px' }}>
-              // ANALYZE GITHUB REPOSITORY //
+            <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px', color: '#10B981', fontWeight: '700', letterSpacing: '0.12em', textAlign: 'center', marginBottom: '16px' }}>
+              // ANALYZE GITHUB ARCHITECTURE //
             </div>
 
             <div style={{ marginBottom: '24px' }}>

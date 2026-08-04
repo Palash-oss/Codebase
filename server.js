@@ -14,6 +14,7 @@ import { execSync } from 'child_process';
 import { analyzeProject } from './analyzer/index.js';
 import { computeImpactRadius, computeBlastRadius } from './analyzer/graphBuilder.js';
 import { computeGraphDiff } from './analyzer/diffBuilder.js';
+import { generateSpecMarkdown } from './analyzer/specGenerator.js';
 import {
   registerUser,
   loginUser,
@@ -192,6 +193,34 @@ app.post(['/api/impact', '/impact'], (req, res) => {
     });
   }
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// Pillar 2: Living System Specification Routes
+// ────────────────────────────────────────────────────────────────────────────
+
+// GET /api/system-spec — Return generated system specification as JSON
+app.get(['/api/system-spec', '/system-spec'], (req, res) => {
+  const lastRes = getLastScanResult();
+  if (!lastRes || !lastRes.systemSpec) {
+    return res.json({ error: 'No analysis data available. Scan a repository first.' });
+  }
+  res.json(lastRes.systemSpec);
+});
+
+// GET /api/system-spec/markdown — Download system specification as markdown file
+app.get(['/api/system-spec/markdown', '/system-spec/markdown'], (req, res) => {
+  const lastRes = getLastScanResult();
+  if (!lastRes || !lastRes.systemSpec) {
+    return res.status(404).send('No analysis data available.');
+  }
+  const projectName = lastRes.project?.name || 'System';
+  const markdown = generateSpecMarkdown(lastRes.systemSpec, projectName);
+  res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${projectName.replace(/\s+/g, '_')}_system_spec.md"`);
+  res.send(markdown);
+});
+
+
 
 // Dynamic SVG README Badge Generator
 app.get(['/api/badge', '/api/badge.svg', '/api/badge/:owner/:repo.svg', '/badge.svg', '/badge'], (req, res) => {
@@ -970,76 +999,114 @@ app.post('/api/autofix', (req, res) => {
 });
 
 // Generate GitHub Actions Workflow endpoint
-app.get('/api/generate-gh-action', (req, res) => {
-  const yamlContent = `name: CodeBase X-Ray Architecture Guard
+app.get(['/api/generate-gh-action', '/generate-gh-action'], (req, res) => {
+  const lastScan = getLastScanResult() || latestAnalysisResult || {};
+  const projName = lastScan.project?.name || 'codebase';
+  const defaultBranch = lastScan.project?.activeBranch || 'main';
+
+  const yamlContent = `# CodeBase X-Ray Architecture Guard Workflow
+# Auto-generated for repository: ${projName}
+
+name: Architecture & Layer Guard
 
 on:
+  push:
+    branches: [ ${defaultBranch}, master, develop ]
   pull_request:
-    branches: [ main, master, develop ]
+    branches: [ ${defaultBranch}, master, develop ]
 
 jobs:
-  architecture-check:
+  architecture-audit:
+    name: CodeBase X-Ray AST & Compliance Scan
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Node.js
+      - name: Setup Node.js Environment
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
-      - name: Run CodeBase X-Ray Architecture Guard
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Execute AST Architecture & Circular Import Check
         run: npx codebase-xray-guard --fail-on-circular --fail-on-missing-env
 
-      - name: Architecture Lint Result
-        run: echo "Architecture rules passed cleanly!"
+      - name: Upload Architecture Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-xray-report
+          path: .xray-report.json
 `;
-  res.json({ filename: '.github/workflows/codebase-xray-guard.yml', content: yamlContent });
+  res.json({ filename: `.github/workflows/codebase-xray-guard.yml`, content: yamlContent });
 });
 
 // Export Mermaid syntax endpoint
-app.post('/api/export-mermaid', (req, res) => {
+app.post(['/api/export-mermaid', '/export-mermaid'], (req, res) => {
   try {
-    let { nodes, edges, files } = req.body;
+    const lastScan = getLastScanResult() || latestAnalysisResult || {};
+    const nodes = (req.body?.nodes && req.body.nodes.length > 0) ? req.body.nodes : (lastScan.graph?.nodes || []);
+    const edges = (req.body?.edges && req.body.edges.length > 0) ? req.body.edges : (lastScan.graph?.edges || []);
+    const projName = lastScan.project?.name || 'Repository';
 
-    if ((!nodes || nodes.length === 0) && latestAnalysisResult?.graph) {
-      nodes = latestAnalysisResult.graph.nodes;
-      edges = latestAnalysisResult.graph.edges;
+    const lines = [
+      '```mermaid',
+      '%% CodeBase X-Ray Living Architecture Diagram',
+      `%% Generated for ${projName}`,
+      'flowchart TB'
+    ];
+
+    // Group nodes by layer
+    const layersMap = new Map();
+    (nodes || []).forEach(n => {
+      const layer = n.layer || 'Core';
+      if (!layersMap.has(layer)) layersMap.set(layer, []);
+      layersMap.get(layer).push(n);
+    });
+
+    const sanitizeId = (str) => 'node_' + String(str || '').replace(/[^a-zA-Z0-9]/g, '_');
+
+    // Create subgraphs for each layer
+    for (const [layer, layerNodes] of layersMap.entries()) {
+      const cleanLayerId = layer.replace(/[^a-zA-Z0-9]/g, '_');
+      lines.push(`  subgraph ${cleanLayerId}["${layer} Layer"]`);
+      layerNodes.slice(0, 15).forEach(node => {
+        const id = sanitizeId(node.id);
+        const label = (node.label || node.id || '').split('/').pop();
+        const info = node.lines ? ` (${node.lines} loc)` : '';
+        lines.push(`    ${id}["${label}${info}"]`);
+      });
+      lines.push('  end');
     }
 
-    const mermaidLines = ['```mermaid', 'graph TD'];
+    lines.push('');
 
-    if (edges && edges.length > 0) {
-      const addedEdges = new Set();
-      edges.slice(0, 40).forEach(edge => {
-        const srcName = (edge.source || '').split('/').pop();
-        const tgtName = (edge.target || '').split('/').pop();
-        const srcId = srcName.replace(/[^a-zA-Z0-9]/g, '');
-        const tgtId = tgtName.replace(/[^a-zA-Z0-9]/g, '');
+    // Add edges
+    const addedEdges = new Set();
+    (edges || []).slice(0, 60).forEach(e => {
+      const srcId = sanitizeId(e.source);
+      const tgtId = sanitizeId(e.target);
+      const k = `${srcId}->${tgtId}`;
+      if (srcId !== tgtId && !addedEdges.has(k)) {
+        addedEdges.add(k);
+        const label = e.type ? ` -- ${e.type} --> ` : ' --> ';
+        lines.push(`  ${srcId}${label}${tgtId}`);
+      }
+    });
 
-        if (srcId && tgtId && srcId !== tgtId && !addedEdges.has(`${srcId}->${tgtId}`)) {
-          addedEdges.add(`${srcId}->${tgtId}`);
-          mermaidLines.push(`  ${srcId}["${srcName}"] --> ${tgtId}["${tgtName}"]`);
-        }
-      });
-    } else if (nodes && nodes.length > 0) {
-      nodes.slice(0, 20).forEach(n => {
-        const cleanId = (n.id || '').split('/').pop().replace(/[^a-zA-Z0-9]/g, '');
-        const cleanLabel = n.label || n.id;
-        mermaidLines.push(`  ${cleanId}["${cleanLabel}"]`);
-      });
-    } else {
-      mermaidLines.push('  WebBrowser["Web Browser (React UI)"] --> APIGateway["API Gateway (Express Server)"]');
-      mermaidLines.push('  APIGateway --> Database["Database (Persistence)"]');
-    }
-
-    mermaidLines.push('```');
-    res.json({ mermaid: mermaidLines.join('\n') });
+    lines.push('```');
+    res.json({ mermaid: lines.join('\n') });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
+
 
 // =========================================================================
 // PHASE 1: USER AUTHENTICATION & SAVED WORKSPACES API ENDPOINTS
