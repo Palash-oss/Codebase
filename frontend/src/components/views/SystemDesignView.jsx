@@ -14,8 +14,8 @@ function SystemDesignView({ DATA, isActive }) {
   // 4 Role Perspectives — default 'system' shows BOTH HLD + LLD simultaneously
   const [perspective, setPerspective] = useState('system');
 
-  // Design Level Filter Mode ('ALL' | 'HLD' | 'LLD')
-  const [designLevelFilter, setDesignLevelFilter] = useState('ALL');
+  // Design Level: 'HLD' (High-Level) or 'LLD' (Low-Level) — no "both" mode
+  const [designLevelFilter, setDesignLevelFilter] = useState('HLD');
 
   // Refactoring Simulator & Security Scope state
   const [isSimulatorMode, setIsSimulatorMode] = useState(false);
@@ -128,12 +128,11 @@ function SystemDesignView({ DATA, isActive }) {
     // Build system design data for selected perspective
     const raw = buildSystemDesign(DATA, DATA?.files || [], perspective);
 
-    // Filter by HLD / LLD level toggle
-    if (designLevelFilter !== 'ALL') {
-      raw.components = raw.components.filter(c => c.designLevel === designLevelFilter || c.designLevel === 'BOTH');
-      const validCompIds = new Set(raw.components.map(c => c.id));
-      raw.connections = raw.connections.filter(conn => validCompIds.has(conn.from) && validCompIds.has(conn.to));
-    }
+    // Filter to only show selected design level (HLD or LLD)
+    raw.components = raw.components.filter(c => c.designLevel === designLevelFilter);
+    const validCompIds = new Set(raw.components.map(c => c.id));
+    raw.connections = raw.connections.filter(conn => validCompIds.has(conn.from) && validCompIds.has(conn.to));
+
 
     sysDataRef.current = raw;
     computeLayout(raw.zones, raw.components);
@@ -203,70 +202,84 @@ function SystemDesignView({ DATA, isActive }) {
     });
   };
 
-  // Layout computation - positions components and zones with ZERO OVERLAP
+  // Layout computation - positions components with ZERO OVERLAP
+  // Fits multi-card rows cleanly across screen width
   const computeLayout = (zones, components) => {
     const canvas = canvasRef.current;
     const CANVAS_W = (canvas ? canvas.offsetWidth : 1200) || 1200;
-    const ROW_HEIGHT = 255;
-    const COMP_W = 230;
+    const COMP_W = 310;  // 310px wide cards so titles like ORM Table Schemas fit cleanly
     const COMP_H = 115;
-    const COMP_GAP = 85;
-
+    const ROW_HEIGHT = 160;
+    const COL_GAP = 60;   // gap between HLD and LLD columns
+    const TIER_GAP = 40;  // extra vertical gap between tiers
 
     const tierOrder = ['client', 'gateway', 'service', 'data', 'devops'];
+    const activeTiers = tierOrder.filter(t => components.some(c => c.tier === t));
 
-    // Collect active tiers present in components
-    const activeTiers = tierOrder.filter(tier => components.some(c => c.tier === tier));
-    const tierToRowIndex = {};
-    activeTiers.forEach((tier, idx) => {
-      tierToRowIndex[tier] = idx;
+    // Separate HLD and LLD components per tier
+    activeTiers.forEach((tier, tierIdx) => {
+      const tierHLD = components.filter(c => c.tier === tier && c.designLevel === 'HLD');
+      const tierLLD = components.filter(c => c.tier === tier && c.designLevel === 'LLD');
+      const tierAll = components.filter(c => c.tier === tier);
+
+      // Y position for this tier row (start at 160px so top bar never overlaps)
+      const rowY = 160 + tierIdx * (COMP_H + ROW_HEIGHT + TIER_GAP);
+
+      if (tierHLD.length > 0 && tierLLD.length > 0) {
+        // Split layout: HLD on left, LLD on right
+        const totalCols = Math.max(tierHLD.length, tierLLD.length);
+        const totalW = totalCols * COMP_W + (totalCols - 1) * 20;
+        const centerX = Math.max(50, CANVAS_W / 2);
+
+        // Left side = HLD column(s)
+        tierHLD.forEach((comp, i) => {
+          comp.x = centerX - COL_GAP / 2 - COMP_W + i * (COMP_W + 16);
+          comp.y = rowY;
+          comp.w = COMP_W;
+          comp.h = COMP_H;
+          if (tierHLD.length > 1) {
+            comp.x = centerX - COL_GAP / 2 - (tierHLD.length * (COMP_W + 16)) / 2 + i * (COMP_W + 16);
+          }
+        });
+
+        // Right side = LLD column(s)
+        tierLLD.forEach((comp, i) => {
+          comp.x = centerX + COL_GAP / 2 + i * (COMP_W + 16);
+          comp.y = rowY;
+          comp.w = COMP_W;
+          comp.h = COMP_H;
+          if (tierLLD.length > 1) {
+            comp.x = centerX + COL_GAP / 2 + i * (COMP_W + 16) - (COMP_W * (tierLLD.length - 1)) / 2;
+          }
+        });
+      } else {
+        // Single view filter active (HLD or LLD): center multi-cards horizontally per tier row
+        const count = tierAll.length;
+        const totalW = count * COMP_W + (count - 1) * 36;
+        const startX = Math.max(40, CANVAS_W / 2 - totalW / 2);
+
+        tierAll.forEach((comp, i) => {
+          comp.x = startX + i * (COMP_W + 36);
+          comp.y = rowY;
+          comp.w = COMP_W;
+          comp.h = COMP_H;
+        });
+      }
     });
 
-    // Group components by tier row
-    const rowGroups = {};
-    components.forEach(comp => {
-      const rowIndex = tierToRowIndex[comp.tier] ?? 0;
-      comp.rowIndex = rowIndex;
-      if (!rowGroups[rowIndex]) rowGroups[rowIndex] = [];
-      rowGroups[rowIndex].push(comp);
+    // Compute zone bounds
+    activeTiers.forEach(tier => {
+      const comps = components.filter(c => c.tier === tier);
+      const zone = zones.find(z => z.id === `${tier}-zone`);
+      if (zone && comps.length > 0) {
+        zone.x = Math.min(...comps.map(c => c.x)) - 28;
+        zone.y = Math.min(...comps.map(c => c.y)) - 38;
+        zone.w = Math.max(...comps.map(c => c.x + c.w)) - Math.min(...comps.map(c => c.x)) + 56;
+        zone.h = Math.max(...comps.map(c => c.y + c.h)) - Math.min(...comps.map(c => c.y)) + 60;
+      }
     });
-
-    // Position each component centered horizontally within its tier row
-    Object.entries(rowGroups).forEach(([rStr, compsInRow]) => {
-      const r = parseInt(rStr, 10);
-      const count = compsInRow.length;
-      const totalW = count * COMP_W + (count - 1) * COMP_GAP;
-      const startX = Math.max(50, CANVAS_W / 2 - totalW / 2);
-
-      compsInRow.forEach((comp, idx) => {
-        comp.x = startX + idx * (COMP_W + COMP_GAP);
-        comp.y = 150 + r * ROW_HEIGHT;
-        comp.w = COMP_W;
-        comp.h = COMP_H;
-      });
-    });
-
-    // Compute non-overlapping zone bounds
-    if (sysDataRef.current) {
-      updateZoneBounds();
-    } else {
-      activeTiers.forEach(tier => {
-        const comps = components.filter(c => c.tier === tier);
-        const zone = zones.find(z => z.id === `${tier}-zone`);
-        if (zone && comps.length > 0) {
-          const minX = Math.min(...comps.map(c => c.x));
-          const maxX = Math.max(...comps.map(c => c.x + c.w));
-          const minY = Math.min(...comps.map(c => c.y));
-          const maxY = Math.max(...comps.map(c => c.y + c.h));
-
-          zone.x = minX - 24;
-          zone.y = minY - 36;
-          zone.w = maxX - minX + 48;
-          zone.h = maxY - minY + 56;
-        }
-      });
-    }
   };
+
 
   // Convert canvas client coords to world coords
   const canvasToWorld = (clientX, clientY) => {
@@ -312,7 +325,7 @@ function SystemDesignView({ DATA, isActive }) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = isInteractingRef.current ? 'low' : 'high';
       if ('textRendering' in ctx) {
-        ctx.textRendering = isInteractingRef.current ? 'fast' : 'geometricPrecision';
+        ctx.textRendering = isInteractingRef.current ? 'optimizeSpeed' : 'geometricPrecision';
       }
 
       const transform = transformRef.current;
@@ -359,217 +372,400 @@ function SystemDesignView({ DATA, isActive }) {
       ctx.fillStyle = isLight ? '#0F172A' : '#FFFFFF';
       ctx.fillText(`${projName} — ${perspectiveTitles[perspective] || 'System Architecture'}`, 44, 80);
 
-    // Draw zones (dashed rectangles with labels)
-    sysDataRef.current.zones.forEach(zone => {
-      ctx.save();
-      const zoneAccentColor = isLight 
-        ? (zone.color && zone.color !== '#FFFFFF' && !zone.color.includes('255,255,255') ? zone.color : '#059669') 
-        : (zone.color && zone.color !== '#000000' && !zone.color.includes('255,255,255') ? zone.color : '#10B981');
+      // Draw zones (dashed rectangles with labels)
+      const LIGHT_ZONE_COLORS = {
+        '#10B981': '#047857',
+        '#3B82F6': '#1D4ED8',
+        '#8B5CF6': '#6D28D9',
+        '#EC4899': '#BE185D',
+        '#F59E0B': '#B45309'
+      };
 
-      ctx.strokeStyle = zoneAccentColor;
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([8, 5]);
-      roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 12);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      sysDataRef.current.zones.forEach(zone => {
+        ctx.save();
+        const zoneAccentColor = isLight 
+          ? (LIGHT_ZONE_COLORS[zone.color] || '#047857') 
+          : (zone.color && zone.color !== '#000000' && !zone.color.includes('255,255,255') ? zone.color : '#10B981');
 
-      // Zone background fill
-      ctx.fillStyle = isLight ? 'rgba(248, 250, 252, 0.92)' : 'rgba(10, 10, 10, 0.88)';
-      roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 12);
-      ctx.fill();
+        ctx.strokeStyle = zoneAccentColor;
+        ctx.lineWidth = 1.8;
+        ctx.setLineDash([8, 5]);
+        roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 12);
+        ctx.stroke();
+        ctx.setLineDash([]);
 
-      // Zone label
-      ctx.font = '800 11px "Space Grotesk", sans-serif';
-      ctx.fillStyle = zoneAccentColor;
-      ctx.fillText(zone.label.toUpperCase(), zone.x + 12, zone.y + 16);
-      ctx.restore();
-    });
+        // Zone background fill
+        ctx.fillStyle = isLight ? 'rgba(241, 245, 249, 0.75)' : 'rgba(10, 10, 10, 0.88)';
+        roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 12);
+        ctx.fill();
 
-    // Draw connections (before components)
-    sysDataRef.current.connections.forEach((conn, connIndex) => {
-      const src = sysDataRef.current.components.find(c => c.id === conn.from);
-      const tgt = sysDataRef.current.components.find(c => c.id === conn.to);
-      if (!src || !tgt) return;
+        // Zone label
+        ctx.font = '800 11px "Space Grotesk", sans-serif';
+        ctx.fillStyle = zoneAccentColor;
+        ctx.fillText(zone.label.toUpperCase(), zone.x + 12, zone.y + 16);
+        ctx.restore();
+      });
 
-      const sameRow = Math.abs(src.y - tgt.y) < 40;
-      let x1, y1, x2, y2, cy1, cy2;
+      // Draw connections (before components)
+      sysDataRef.current.connections.forEach((conn, connIndex) => {
+        const src = sysDataRef.current.components.find(c => c.id === conn.from);
+        const tgt = sysDataRef.current.components.find(c => c.id === conn.to);
+        if (!src || !tgt) return;
+        let x1, y1, x2, y2, cx1, cy1, cx2, cy2;
+        const sameRow = Math.abs(src.y - tgt.y) < 30;
+        const isUpward = tgt.y < src.y - 30;
 
-      if (sameRow) {
-        if (src.x < tgt.x) {
-          x1 = src.x + src.w;
+        if (sameRow) {
+          if (src.x < tgt.x) {
+            x1 = src.x + src.w;
+            y1 = src.y + src.h / 2;
+            x2 = tgt.x;
+            y2 = tgt.y + tgt.h / 2;
+          } else {
+            x1 = src.x;
+            y1 = src.y + src.h / 2;
+            x2 = tgt.x + tgt.w;
+            y2 = tgt.y + tgt.h / 2;
+          }
+          cx1 = (x1 + x2) / 2;
+          cy1 = y1;
+          cx2 = (x1 + x2) / 2;
+          cy2 = y2;
+        } else if (isUpward) {
+          // Upward feedback connection (e.g. Tier 5 up to Tier 2/3): Route around left outer margin
+          x1 = src.x;
           y1 = src.y + src.h / 2;
           x2 = tgt.x;
           y2 = tgt.y + tgt.h / 2;
+          const outerX = Math.min(x1, x2) - 80;
+          cx1 = outerX;
+          cy1 = y1;
+          cx2 = outerX;
+          cy2 = y2;
         } else {
-          x1 = src.x;
-          y1 = src.y + src.h / 2;
-          x2 = tgt.x + tgt.w;
-          y2 = tgt.y + tgt.h / 2;
+          // Standard downward tier-to-tier flow
+          x1 = src.x + src.w / 2;
+          y1 = src.y + src.h;
+          x2 = tgt.x + tgt.w / 2;
+          y2 = tgt.y;
+          cx1 = x1;
+          cy1 = y1 + (y2 - y1) * 0.45;
+          cx2 = x2;
+          cy2 = y2 - (y2 - y1) * 0.45;
         }
-        cy1 = y1;
-        cy2 = y2;
-      } else {
-        x1 = src.x + src.w / 2;
-        y1 = src.y + src.h;
-        x2 = tgt.x + tgt.w / 2;
-        y2 = tgt.y;
-        cy1 = y1 + (y2 - y1) * 0.45;
-        cy2 = y2 - (y2 - y1) * 0.45;
-      }
 
-      const lineColor = conn.style === 'dashed' ? '#10B981' : '#10B981';
-      ctx.strokeStyle = lineColor;
-      ctx.lineWidth = 2.5;
-      if (conn.style === 'dashed') ctx.setLineDash([6, 4]);
+        const lineColor = isLight ? '#047857' : '#10B981';
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 2.5;
+        if (conn.style === 'dashed') ctx.setLineDash([6, 4]);
 
-      ctx.save();
-      ctx.shadowColor = 'rgba(255, 94, 26, 0.25)';
-      ctx.shadowBlur = 6;
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.bezierCurveTo(x1, cy1, x2, cy2, x2, y2);
-      ctx.stroke();
-      ctx.restore();
-      ctx.setLineDash([]);
-
-      // Real-time Directional Flow Pulse Dot
-      const animTime = (Date.now() * 0.0012 + (connIndex || 0) * 0.3) % 1;
-      const pulseX = Math.pow(1 - animTime, 2) * x1 + 2 * (1 - animTime) * animTime * ((x1 + x2) / 2) + Math.pow(animTime, 2) * x2;
-      const pulseY = Math.pow(1 - animTime, 2) * y1 + 2 * (1 - animTime) * animTime * cy1 + Math.pow(animTime, 2) * y2;
-
-      ctx.save();
-      ctx.fillStyle = lineColor;
-      ctx.shadowColor = lineColor;
-      ctx.shadowBlur = 8;
-      ctx.beginPath();
-      ctx.arc(pulseX, pulseY, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      const angle = Math.atan2(y2 - cy2, x2 - (sameRow ? x1 : x2));
-      drawArrowhead(ctx, x2, y2, angle, lineColor);
-
-      if (conn.label) {
-        ctx.font = '600 10px "Space Grotesk", sans-serif';
-        const tw = ctx.measureText(conn.label).width;
-        const mx = (x1 + x2) / 2;
-        const my = (y1 + y2) / 2;
-        
         ctx.save();
-        ctx.fillStyle = isLight ? '#FFFFFF' : '#0F172A';
-        ctx.strokeStyle = '#10B981';
-        ctx.lineWidth = 1.2;
-        roundRect(ctx, mx - tw / 2 - 8, my - 10, tw + 16, 20, 6);
+        ctx.shadowColor = isLight ? 'rgba(4, 120, 87, 0.15)' : 'rgba(255, 94, 26, 0.25)';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.bezierCurveTo(cx1, cy1, cx2, cy2, x2, y2);
+        ctx.stroke();
+        ctx.restore();
+        ctx.setLineDash([]);
+
+        // Real-time Directional Flow Pulse Dot
+        const animTime = (Date.now() * 0.0012 + (connIndex || 0) * 0.3) % 1;
+        const pulseX = Math.pow(1 - animTime, 2) * x1 + 2 * (1 - animTime) * animTime * cx1 + Math.pow(animTime, 2) * x2;
+        const pulseY = Math.pow(1 - animTime, 2) * y1 + 2 * (1 - animTime) * animTime * cy1 + Math.pow(animTime, 2) * y2;
+
+        ctx.save();
+        ctx.fillStyle = lineColor;
+        ctx.shadowColor = lineColor;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(pulseX, pulseY, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        const angle = Math.atan2(y2 - cy2, x2 - cx2);
+        drawArrowhead(ctx, x2, y2, angle, lineColor);
+
+        if (conn.label) {
+          ctx.font = '600 10px "Space Grotesk", sans-serif';
+          const tw = ctx.measureText(conn.label).width;
+          const mx = isUpward ? (Math.min(x1, x2) - 80) : ((x1 + x2) / 2);
+          const labelOffsetY = isUpward ? 0 : (((connIndex || 0) % 2 === 0 ? -12 : 12));
+          const my = (y1 + y2) / 2 + labelOffsetY;
+          
+          ctx.save();
+          ctx.fillStyle = isLight ? '#FFFFFF' : '#0F172A';
+          ctx.strokeStyle = isLight ? '#047857' : '#10B981';
+          ctx.lineWidth = 1.2;
+          roundRect(ctx, mx - tw / 2 - 8, my - 10, tw + 16, 20, 6);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = isLight ? '#0F172A' : '#F8FAFC';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(conn.label, mx, my + 1);
+          ctx.restore();
+        }
+      });
+
+      // Draw components
+      sysDataRef.current.components.forEach(comp => {
+        ctx.save();
+        const isHovered = hoveredId === comp.id;
+        const isSelected = selectedId === comp.id;
+        const isDisabled = disabledCompIds.has(comp.id);
+
+        if (isDisabled) {
+          ctx.globalAlpha = 0.4;
+        }
+
+        // Drop Shadow for cards
+        if (isSelected && !isDisabled) {
+          ctx.shadowColor = isLight ? 'rgba(4, 120, 87, 0.25)' : 'rgba(255, 94, 26, 0.4)';
+          ctx.shadowBlur = 16;
+        } else if (isHovered && !isDisabled) {
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.12)';
+          ctx.shadowBlur = 12;
+        } else {
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.05)';
+          ctx.shadowBlur = 6;
+        }
+
+        // Box Card background
+        ctx.fillStyle = isLight ? '#FFFFFF' : '#0A0A0A';
+        roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 10);
+        ctx.fill();
+
+        // Top Provider Accent Banner Bar (4px height)
+        const bannerColor = isLight 
+          ? (LIGHT_ZONE_COLORS[comp.badgeColor] || '#047857') 
+          : (comp.badgeColor || '#10B981');
+        ctx.fillStyle = bannerColor;
+        ctx.beginPath();
+        ctx.moveTo(comp.x + 10, comp.y);
+        ctx.lineTo(comp.x + comp.w - 10, comp.y);
+        ctx.quadraticCurveTo(comp.x + comp.w, comp.y, comp.x + comp.w, comp.y + 4);
+        ctx.lineTo(comp.x, comp.y + 4);
+        ctx.quadraticCurveTo(comp.x, comp.y, comp.x + 10, comp.y);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+
+        // Card Border
+        ctx.strokeStyle = isSelected ? bannerColor : isHovered ? bannerColor : (isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.18)');
+        ctx.lineWidth = isSelected || isHovered ? 2 : 1;
+        roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 10);
+        ctx.stroke();
+
+        // HLD / LLD indicator pill (top-right corner of card)
+        const levelColor = comp.designLevel === 'HLD'
+          ? (isLight ? '#1D4ED8' : '#60A5FA')
+          : comp.designLevel === 'LLD'
+            ? (isLight ? '#6D28D9' : '#A78BFA')
+            : '#10B981';
+        const levelLabel = comp.designLevel === 'HLD' ? 'HLD' : comp.designLevel === 'LLD' ? 'LLD' : 'ALL';
+        const pillW = 34;
+        ctx.fillStyle = levelColor + (isLight ? '22' : '33');
+        ctx.strokeStyle = levelColor;
+        ctx.lineWidth = 1;
+        roundRect(ctx, comp.x + comp.w - pillW - 8, comp.y + 8, pillW, 16, 4);
+        ctx.fill();
+        ctx.stroke();
+        ctx.font = '700 9px "Space Mono", monospace';
+        ctx.fillStyle = levelColor;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(levelLabel, comp.x + comp.w - pillW / 2 - 8, comp.y + 16);
+
+        // Tech Brand Logo Icon on Card
+        const logoUrl = getTechLogoUrl(comp);
+        let hasLogo = false;
+        if (logoUrl) {
+          if (!logoCacheRef.current[logoUrl]) {
+            const img = new Image();
+            img.crossOrigin = 'Anonymous';
+            img.src = logoUrl;
+            img.onload = () => {
+              requestRedraw();
+            };
+            logoCacheRef.current[logoUrl] = img;
+          }
+          const cachedImg = logoCacheRef.current[logoUrl];
+          if (cachedImg && cachedImg.complete && cachedImg.naturalWidth !== 0) {
+            hasLogo = true;
+            ctx.save();
+            ctx.fillStyle = isLight ? '#F1F5F9' : '#1E293B';
+            ctx.strokeStyle = isLight ? '#CBD5E1' : '#334155';
+            ctx.lineWidth = 1;
+            roundRect(ctx, comp.x + 10, comp.y + 10, 26, 26, 6);
+            ctx.fill();
+            ctx.stroke();
+            ctx.drawImage(cachedImg, comp.x + 13, comp.y + 13, 20, 20);
+            ctx.restore();
+          }
+        }
+
+        // Fallback Number badge if logo loading or unavailable
+        if (!hasLogo) {
+          const badgeBg = isLight ? '#047857' : '#10B981';
+          ctx.fillStyle = badgeBg;
+          ctx.beginPath();
+          ctx.arc(comp.x + 20, comp.y + 22, 10, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = '700 9px "Space Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(comp.number, comp.x + 20, comp.y + 22);
+        }
+
+        // Component title & positioning offset
+        const labelStr = comp.label || '';
+        const textX = comp.x + 42;
+        const halfW = comp.w - 88;
+        ctx.font = '700 12px "Space Grotesk", sans-serif';
+        ctx.fillStyle = isLight ? '#0F172A' : '#FFFFFF';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+
+        // Word-wrap label into 2 lines max
+        const words = labelStr.split(' ');
+        let line1 = '', line2 = '';
+        let measuring = '';
+        for (const w of words) {
+          const test = measuring ? measuring + ' ' + w : w;
+          if (ctx.measureText(test).width <= halfW) {
+            measuring = test;
+          } else {
+            if (!line1) { line1 = measuring || test; measuring = line1 ? w : ''; }
+            else { line2 = measuring + (measuring ? ' ' : '') + words.slice(words.indexOf(w)).join(' '); break; }
+          }
+        }
+        if (!line1) line1 = measuring;
+        else if (!line2) line2 = measuring;
+
+        ctx.fillText(line1, textX, comp.y + 10);
+        if (line2) {
+          const truncLine2 = truncate(line2, halfW, ctx);
+          ctx.fillText(truncLine2, textX, comp.y + 24);
+        }
+
+        // Sub-label
+        const subY = line2 ? comp.y + 40 : comp.y + 28;
+        ctx.font = '500 10px "Space Grotesk", sans-serif';
+        ctx.fillStyle = isLight ? '#475569' : '#94A3B8';
+        const sub = truncate(comp.sublabel || '', comp.w - 24, ctx);
+        ctx.fillText(sub, comp.x + 12, subY + 12);
+
+        // File count / endpoint details at bottom
+        if (comp.files && comp.files.length > 0) {
+          ctx.font = '600 9px "Space Mono", monospace';
+          ctx.fillStyle = levelColor;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(`${comp.files.length} file(s)`, comp.x + 12, comp.y + comp.h - 8);
+        }
+
+        ctx.restore(); // Restore component-level transform
+      });
+
+
+      // Render Database Schema Tables Matrix & External SaaS Integration Sidebars (Matching Reference Screenshots)
+      const tables = sysDataRef.current.detectedTables || ['Users', 'Workspaces', 'Projects', 'AnalysisCache', 'Tickets', 'SupportLogs'];
+      const saas = sysDataRef.current.externalServices || [
+        { name: 'GitHub (Users & Webhooks)', category: 'OAuth / Webhooks' },
+        { name: 'Stripe Subscription Billing', category: 'SaaS Billing' }
+      ];
+
+      // Draw Scanned DB Schema Table Card at bottom center
+      const dataZone = sysDataRef.current.zones.find(z => z.id === 'data-zone');
+      if (dataZone && dataZone.w > 0) {
+        const dbX = dataZone.x + dataZone.w + 40;
+        const dbY = dataZone.y;
+        const dbW = 280;
+        const dbH = Math.max(140, Math.ceil(tables.length / 2) * 28 + 48);
+
+        ctx.save();
+        ctx.fillStyle = isLight ? '#FFFFFF' : '#0B0F17';
+        ctx.strokeStyle = isLight ? '#047857' : '#10B981';
+        ctx.lineWidth = 1.8;
+        roundRect(ctx, dbX, dbY, dbW, dbH, 12);
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = isLight ? '#0F172A' : '#F8FAFC';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(conn.label, mx, my + 1);
+        ctx.font = '800 12px "Space Grotesk", sans-serif';
+        ctx.fillStyle = isLight ? '#047857' : '#10B981';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText('DATABASE SCHEMA TABLES', dbX + 16, dbY + 14);
+
+        tables.slice(0, 6).forEach((tbl, tIdx) => {
+          const col = tIdx % 2;
+          const row = Math.floor(tIdx / 2);
+          const tx = dbX + 16 + col * 125;
+          const ty = dbY + 36 + row * 26;
+
+          ctx.fillStyle = isLight ? '#F1F5F9' : '#1E293B';
+          ctx.strokeStyle = isLight ? '#CBD5E1' : '#334155';
+          ctx.lineWidth = 1;
+          roundRect(ctx, tx, ty, 115, 22, 4);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.font = '700 10px "Space Mono", monospace';
+          ctx.fillStyle = isLight ? '#0F172A' : '#F8FAFC';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(tbl, tx + 57, ty + 11);
+        });
         ctx.restore();
       }
-    });
 
-    // Draw components
-    sysDataRef.current.components.forEach(comp => {
-      ctx.save();
-      const isHovered = hoveredId === comp.id;
-      const isSelected = selectedId === comp.id;
-      const isInferred = !comp.isDetected;
-      const isDisabled = disabledCompIds.has(comp.id);
+      // Draw External SaaS Integrations Card at top right
+      const clientZone = sysDataRef.current.zones.find(z => z.id === 'client-zone');
+      if (clientZone && clientZone.w > 0) {
+        const saasX = clientZone.x + clientZone.w + 40;
+        const saasY = clientZone.y;
+        const saasW = 260;
+        const saasH = saas.length * 52 + 40;
 
-      if (isDisabled) {
-        ctx.globalAlpha = 0.4;
-      }
-
-      // Drop Shadow for cards
-      if (isSelected && !isDisabled) {
-        ctx.shadowColor = 'rgba(255, 94, 26, 0.4)';
-        ctx.shadowBlur = 16;
-      } else if (isHovered && !isDisabled) {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.12)';
-        ctx.shadowBlur = 12;
-      } else {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.05)';
-        ctx.shadowBlur = 6;
-      }
-
-      // Box Card background
-      ctx.fillStyle = isLight ? '#FFFFFF' : '#0A0A0A';
-      roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 10);
-      ctx.fill();
-
-      // Top Provider Accent Banner Bar (4px height)
-      ctx.fillStyle = '#10B981';
-      ctx.beginPath();
-      ctx.moveTo(comp.x + 10, comp.y);
-      ctx.lineTo(comp.x + comp.w - 10, comp.y);
-      ctx.quadraticCurveTo(comp.x + comp.w, comp.y, comp.x + comp.w, comp.y + 4);
-      ctx.lineTo(comp.x, comp.y + 4);
-      ctx.quadraticCurveTo(comp.x, comp.y, comp.x + 10, comp.y);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.shadowBlur = 0;
-
-      // Card Border
-      ctx.strokeStyle = isSelected ? '#10B981' : isHovered ? '#10B981' : (isLight ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.18)');
-      ctx.lineWidth = isSelected || isHovered ? 2 : 1;
-      roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 10);
-      ctx.stroke();
-
-      // Number badge - top left
-      ctx.fillStyle = '#10B981';
-      ctx.beginPath();
-      ctx.arc(comp.x + 16, comp.y + 18, 9, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#000000';
-      ctx.font = '700 9px "Space Mono", monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(comp.number, comp.x + 16, comp.y + 18);
-
-      // Component icon with official colorful logo
-      drawComponentIcon(ctx, comp, comp.x + comp.w / 2, comp.y + 24);
-
-      // Component title
-      ctx.font = '700 13px "Space Grotesk", sans-serif';
-      ctx.fillStyle = isLight ? '#0F172A' : '#FFFFFF';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      const label = truncate(comp.label, comp.w - 18, ctx);
-      ctx.fillText(label, Math.round(comp.x + comp.w / 2), Math.round(comp.y + 45));
-
-      // Sub-label
-      ctx.font = '500 11px "Space Grotesk", sans-serif';
-      ctx.fillStyle = isLight ? '#334155' : '#CBD5E1';
-      const sub = truncate(comp.sublabel, comp.w - 14, ctx);
-      ctx.fillText(sub, Math.round(comp.x + comp.w / 2), Math.round(comp.y + 63));
-
-      // Provider Tag Pill (Solid Emerald Green Badge with Black Bold Text)
-      if (comp.provider) {
-        ctx.font = '700 10px "Space Mono", monospace';
-        ctx.fillStyle = '#10B981';
-        roundRect(ctx, Math.round(comp.x + comp.w / 2 - 50), Math.round(comp.y + 78), 100, 18, 5);
+        ctx.save();
+        ctx.fillStyle = isLight ? '#FFFFFF' : '#0B0F17';
+        ctx.strokeStyle = isLight ? '#6D28D9' : '#8B5CF6';
+        ctx.lineWidth = 1.8;
+        roundRect(ctx, saasX, saasY, saasW, saasH, 12);
         ctx.fill();
-        ctx.fillStyle = '#000000';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(comp.provider, Math.round(comp.x + comp.w / 2), Math.round(comp.y + 87));
-      }
+        ctx.stroke();
 
-      // File names count (High contrast in Light & Dark mode)
-      if (comp.files && comp.files.length > 0) {
-        ctx.font = `600 11px "Space Mono", monospace`;
-        ctx.fillStyle = isLight ? '#0F172A' : '#94A3B8';
-        ctx.textAlign = 'center';
+        ctx.font = '800 12px "Space Grotesk", sans-serif';
+        ctx.fillStyle = isLight ? '#6D28D9' : '#8B5CF6';
+        ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-        ctx.fillText(`${comp.files.length} source file${comp.files.length > 1 ? 's' : ''}`, Math.round(comp.x + comp.w / 2), Math.round(comp.y + 96));
-      }
+        ctx.fillText('EXTERNAL SAAS INTEGRATIONS', saasX + 16, saasY + 14);
 
-      ctx.restore(); // Restore component-level transform
-    });
+        saas.forEach((s, sIdx) => {
+          const sy = saasY + 36 + sIdx * 50;
+          ctx.fillStyle = isLight ? '#F8FAFC' : '#1E1035';
+          ctx.strokeStyle = isLight ? '#E2E8F0' : '#4C1D95';
+          ctx.lineWidth = 1;
+          roundRect(ctx, saasX + 12, sy, saasW - 24, 42, 8);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.font = '700 11px "Space Grotesk", sans-serif';
+          ctx.fillStyle = isLight ? '#0F172A' : '#FFFFFF';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+          ctx.fillText(s.name, saasX + 22, sy + 6);
+
+          ctx.font = '600 9px "Space Mono", monospace';
+          ctx.fillStyle = isLight ? '#6D28D9' : '#A78BFA';
+          ctx.fillText(s.category, saasX + 22, sy + 23);
+        });
+        ctx.restore();
+      }
 
       ctx.restore(); // Restore top-level world transform (matches line 230 ctx.save)
 
@@ -635,7 +831,7 @@ function SystemDesignView({ DATA, isActive }) {
     if (k.includes('lambda') || k.includes('serverless')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-plain-wordmark.svg';
     }
-    if (k.includes('cloudfront') || k.includes('api gateway') || k.includes('route53')) {
+    if (k.includes('cloudfront') || k.includes('route53')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-line-wordmark.svg';
     }
     if (k.includes('rds') || k.includes('aurora')) {
@@ -645,14 +841,17 @@ function SystemDesignView({ DATA, isActive }) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-original.svg';
     }
 
-    // Other Major Cloud Providers
+    // Other Major Cloud Providers & Hosting
     if (k.includes('gcp') || k.includes('google cloud') || k.includes('firebase')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/googlecloud/googlecloud-original.svg';
     }
     if (k.includes('azure')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/azure/azure-original.svg';
     }
-    if (k.includes('vercel') || k.includes('next')) {
+    if (k.includes('vercel')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/vercel/vercel-original.svg';
+    }
+    if (k.includes('next')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nextjs/nextjs-original.svg';
     }
 
@@ -671,8 +870,14 @@ function SystemDesignView({ DATA, isActive }) {
     if (k.includes('react')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg';
     }
-    if (k.includes('node') || k.includes('express')) {
+    if (k.includes('express')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/express/express-original.svg';
+    }
+    if (k.includes('node')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nodejs/nodejs-original.svg';
+    }
+    if (k.includes('openai') || k.includes('llm') || k.includes('rag') || k.includes('chat') || k.includes('ai') || k.includes('prompt')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/openai/openai-original.svg';
     }
     if (k.includes('python')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg';
@@ -683,9 +888,18 @@ function SystemDesignView({ DATA, isActive }) {
     if (k.includes('java') || k.includes('spring')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg';
     }
+    if (k.includes('typescript') || k.includes('ts')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/typescript/typescript-original.svg';
+    }
+    if (k.includes('javascript') || k.includes('js')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/javascript/javascript-original.svg';
+    }
 
     // Databases & Caching
-    if (k.includes('postgres') || k.includes('sql') || k.includes('prisma')) {
+    if (k.includes('prisma')) {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/prisma/prisma-original.svg';
+    }
+    if (k.includes('postgres') || k.includes('sql')) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg';
     }
     if (k.includes('mongo')) {
@@ -695,16 +909,40 @@ function SystemDesignView({ DATA, isActive }) {
       return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/redis/redis-original.svg';
     }
 
-    return '';
+    // Tier-based Defaults so EVERY node gets a recognizable tech icon
+    if (comp.tier === 'client') {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg';
+    }
+    if (comp.tier === 'gateway') {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/express/express-original.svg';
+    }
+    if (comp.tier === 'service') {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nodejs/nodejs-original.svg';
+    }
+    if (comp.tier === 'data') {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg';
+    }
+    if (comp.tier === 'devops') {
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg';
+    }
+
+    return null;
   };
 
-  // Draw component icons with official colorful logos
-  const drawComponentIcon = (ctx, comp, cx, cy) => {
+  // Draw component icons with official colorful logos or rich vector icons
+  const drawComponentIcon = (ctx, comp, cx, cy, isLight = false) => {
     const logoUrl = getTechLogoUrl(comp);
     if (logoUrl) {
       if (!logoCacheRef.current[logoUrl]) {
         const img = new Image();
         img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          // Re-render when image finishes loading asynchronously
+          if (containerRef.current) {
+            const evt = new CustomEvent('xray-redraw');
+            window.dispatchEvent(evt);
+          }
+        };
         img.src = logoUrl;
         logoCacheRef.current[logoUrl] = img;
       }
@@ -715,23 +953,36 @@ function SystemDesignView({ DATA, isActive }) {
       }
     }
 
-    ctx.strokeStyle = comp.badgeColor || '#888888';
-    ctx.lineWidth = 1.5;
-    ctx.fillStyle = 'transparent';
+    const strokeColor = isLight
+      ? '#047857'
+      : (comp.badgeColor && comp.badgeColor !== '#FFFFFF' && !comp.badgeColor.includes('255,255,255') ? comp.badgeColor : '#10B981');
+
+    ctx.strokeStyle = strokeColor;
+    ctx.fillStyle = strokeColor;
+    ctx.lineWidth = 1.8;
 
     switch (comp.icon) {
       case 'browser': {
-        roundRect(ctx, cx - 14, cy - 8, 28, 18, 3);
+        roundRect(ctx, cx - 14, cy - 8, 28, 18, 4);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(cx - 14, cy - 1);
-        ctx.lineTo(cx + 14, cy - 1);
+        ctx.moveTo(cx - 14, cy - 2);
+        ctx.lineTo(cx + 14, cy - 2);
         ctx.stroke();
+        // Browser dots
+        ctx.beginPath();
+        ctx.arc(cx - 9, cy - 5, 1.2, 0, Math.PI * 2);
+        ctx.arc(cx - 5, cy - 5, 1.2, 0, Math.PI * 2);
+        ctx.arc(cx - 1, cy - 5, 1.2, 0, Math.PI * 2);
+        ctx.fill();
         break;
       }
       case 'mobile': {
-        roundRect(ctx, cx - 9, cy - 12, 18, 24, 3);
+        roundRect(ctx, cx - 8, cy - 12, 16, 24, 4);
         ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy + 8, 1.5, 0, Math.PI * 2);
+        ctx.fill();
         break;
       }
       case 'database': {
@@ -745,13 +996,97 @@ function SystemDesignView({ DATA, isActive }) {
         ctx.lineTo(cx + 12, cy + 6);
         ctx.stroke();
         ctx.beginPath();
+        ctx.ellipse(cx, cy, 12, 4, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
         ctx.ellipse(cx, cy + 6, 12, 4, 0, 0, Math.PI * 2);
         ctx.stroke();
         break;
       }
-      default: {
-        roundRect(ctx, cx - 10, cy - 10, 20, 20, 4);
+      case 'network': {
+        // Service Mesh Router Hexagon
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (Math.PI / 3) * i - Math.PI / 6;
+          const x = cx + 12 * Math.cos(a);
+          const y = cy + 12 * Math.sin(a);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
         ctx.stroke();
+        // Inner core
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 'service': {
+        // Microservice API Controller Node (Hexagon with cross lines)
+        roundRect(ctx, cx - 11, cy - 11, 22, 22, 5);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 'monitor': {
+        // APM Monitor Screen with Chart Line
+        roundRect(ctx, cx - 12, cy - 9, 24, 16, 3);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx - 4, cy + 7);
+        ctx.lineTo(cx + 4, cy + 7);
+        ctx.moveTo(cx, cy + 7);
+        ctx.lineTo(cx, cy + 10);
+        ctx.stroke();
+        // Line chart inside
+        ctx.beginPath();
+        ctx.moveTo(cx - 8, cy + 2);
+        ctx.lineTo(cx - 4, cy - 3);
+        ctx.lineTo(cx, cy + 1);
+        ctx.lineTo(cx + 4, cy - 5);
+        ctx.lineTo(cx + 8, cy - 1);
+        ctx.stroke();
+        break;
+      }
+      case 'cloud': {
+        // Cloud Dome
+        ctx.beginPath();
+        ctx.arc(cx - 4, cy - 1, 6, Math.PI * 0.8, Math.PI * 1.9);
+        ctx.arc(cx + 4, cy - 3, 7, Math.PI * 1.1, Math.PI * 2.1);
+        ctx.arc(cx + 9, cy + 3, 5, Math.PI * 1.6, Math.PI * 0.5);
+        ctx.lineTo(cx - 10, cy + 8);
+        ctx.arc(cx - 9, cy + 3, 5, Math.PI * 0.5, Math.PI * 1.3);
+        ctx.closePath();
+        ctx.stroke();
+        break;
+      }
+      case 'cache': {
+        // Memory Cache Grid Stack
+        roundRect(ctx, cx - 11, cy - 10, 22, 6, 2);
+        ctx.stroke();
+        roundRect(ctx, cx - 11, cy - 2, 22, 6, 2);
+        ctx.stroke();
+        roundRect(ctx, cx - 11, cy + 6, 22, 6, 2);
+        ctx.stroke();
+        break;
+      }
+      default: {
+        // Universal Subsystem Core Icon (Hexagon Node + Center Core)
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (Math.PI / 3) * i;
+          const x = cx + 11 * Math.cos(a);
+          const y = cy + 11 * Math.sin(a);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+        ctx.fill();
         break;
       }
     }
@@ -801,9 +1136,10 @@ function SystemDesignView({ DATA, isActive }) {
     ctx.restore();
   };
 
-  // Info panel for selected component
+  // Info panel for selected component and Theme State
+  const isLight = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light';
   const selectedComp = sysDataRef.current?.components?.find(c => c.id === selectedId);
-  const showInfoPanel = selectedComp && isActive;
+  const showInfoPanel = Boolean(selectedComp && isActive);
 
   // Physics and transform refs for 120Hz-360Hz smooth gliding
   const targetTransformRef = useRef({ x: 0, y: 0, scale: 1 });
@@ -1487,18 +1823,9 @@ function SystemDesignView({ DATA, isActive }) {
                 <polyline points="2 12 12 17 22 12"/>
               </svg>
             )
-          },
-          {
-            id: 'software',
-            label: 'Software Engineer',
-            icon: (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="16 18 22 12 16 6"/>
-                <polyline points="8 6 2 12 8 18"/>
-              </svg>
-            )
           }
         ].map(p => (
+
           <button
             key={p.id}
             onClick={() => {
@@ -1510,10 +1837,14 @@ function SystemDesignView({ DATA, isActive }) {
               padding: '7px 14px',
               borderRadius: '8px',
               border: 'none',
-              background: perspective === p.id ? '#10B981' : 'transparent',
-              color: perspective === p.id ? '#000000' : '#9CA3AF',
+              background: perspective === p.id 
+                ? '#10B981' 
+                : (isLight ? 'rgba(0,0,0,0.06)' : 'transparent'),
+              color: perspective === p.id 
+                ? '#FFFFFF' 
+                : (isLight ? '#0F172A' : '#9CA3AF'),
               fontSize: '11px',
-              fontWeight: perspective === p.id ? '800' : '600',
+              fontWeight: perspective === p.id ? '800' : '700',
               fontFamily: 'Space Mono, monospace',
               cursor: 'pointer',
               display: 'flex',
@@ -1529,40 +1860,51 @@ function SystemDesignView({ DATA, isActive }) {
         ))}
 
         {/* Separator */}
-        <div style={{ height: '24px', width: '1px', background: 'var(--border)', margin: '0 4px' }}></div>
+        <div style={{ height: '24px', width: '1px', background: isLight ? '#CBD5E1' : 'var(--border)', margin: '0 4px' }}></div>
 
-        {/* HLD / LLD Level Toggle Buttons */}
-        <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.3)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+        {/* HLD / LLD Design Level Selector — high contrast in both light and dark modes */}
+        <div style={{
+          display: 'flex',
+          gap: '4px',
+          background: isLight ? '#F1F5F9' : 'rgba(0,0,0,0.35)',
+          padding: '3px',
+          borderRadius: '8px',
+          border: isLight ? '1px solid #CBD5E1' : '1px solid rgba(255,255,255,0.12)'
+        }}>
           {[
-            { id: 'ALL', label: '🔀 Both (HLD + LLD)' },
-            { id: 'HLD', label: '🏛️ HLD (High-Level Only)' },
-            { id: 'LLD', label: '💻 LLD (Low-Level Only)' }
+            { id: 'HLD', label: 'HLD', desc: 'High-Level Design', color: isLight ? '#1D4ED8' : '#60A5FA' },
+            { id: 'LLD', label: 'LLD', desc: 'Low-Level Design',  color: isLight ? '#6D28D9' : '#A78BFA' }
           ].map(lvl => (
             <button
               key={lvl.id}
+              title={lvl.desc}
               onClick={() => {
                 setDesignLevelFilter(lvl.id);
-                transformRef.current = { x: 20, y: 20, scale: 0.95 };
+                transformRef.current = { x: 20, y: 30, scale: 0.95 };
                 setZoomText('95%');
               }}
               style={{
-                padding: '6px 12px',
+                padding: '6px 16px',
                 borderRadius: '6px',
-                border: 'none',
-                background: designLevelFilter === lvl.id ? '#10B981' : 'transparent',
-                color: designLevelFilter === lvl.id ? '#000000' : '#9CA3AF',
+                border: designLevelFilter === lvl.id ? `1.5px solid ${lvl.color}` : 'none',
+                background: designLevelFilter === lvl.id ? (isLight ? '#FFFFFF' : lvl.color + '22') : 'transparent',
+                color: designLevelFilter === lvl.id ? lvl.color : (isLight ? '#475569' : '#9CA3AF'),
                 fontSize: '11px',
-                fontWeight: designLevelFilter === lvl.id ? '800' : '600',
+                fontWeight: '800',
                 fontFamily: 'Space Mono, monospace',
+                boxShadow: designLevelFilter === lvl.id && isLight ? '0 2px 6px rgba(0,0,0,0.1)' : 'none',
+
                 cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: designLevelFilter === lvl.id ? '0 0 12px rgba(16,185,129,0.4)' : 'none'
+                transition: 'all 0.18s ease',
+                boxShadow: designLevelFilter === lvl.id ? `0 0 12px ${lvl.color}44` : 'none',
+                letterSpacing: '0.05em'
               }}
             >
               {lvl.label}
             </button>
           ))}
         </div>
+
       </div>
 
 
@@ -1779,52 +2121,225 @@ function SystemDesignView({ DATA, isActive }) {
         </button>
       </div>
 
-      {/* Info Panel - right side */}
+      {/* Component Info Side Panel — Deep Code Repository Intelligence */}
       {showInfoPanel && (
         <div style={{
           position: 'absolute',
-          right: '16px',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          width: '240px',
-          backgroundColor: '#111111',
-          border: '1px solid #2a2a2a',
-          borderRadius: '8px',
-          padding: '16px',
+          right: '20px',
+          top: '20px',
+          bottom: '20px',
+          width: '340px',
+          backgroundColor: isLight ? '#FFFFFF' : '#0D1117',
+          border: isLight ? '1px solid #CBD5E1' : '1px solid #334155',
+          borderRadius: '16px',
+          padding: '20px',
+          boxShadow: isLight ? '0 12px 36px rgba(0,0,0,0.12)' : '0 12px 36px rgba(0,0,0,0.6)',
           zIndex: 100,
-          fontFamily: '"Space Grotesk", sans-serif'
+          color: isLight ? '#0F172A' : '#F9FAFB',
+          fontFamily: '"Space Grotesk", sans-serif',
+          display: 'flex',
+          flexDirection: 'column',
+          overflowY: 'auto'
         }}>
-          <div style={{ fontSize: '14px', fontWeight: '600', color: '#F5F0E8', marginBottom: '4px' }}>
-            {selectedComp.label}
+          {/* Top Title & Close Button */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+            <div>
+              <div style={{ fontSize: '15px', fontWeight: '800', color: isLight ? '#0F172A' : '#F8FAFC', lineHeight: '1.3' }}>
+                {selectedComp.label}
+              </div>
+              <div style={{ fontSize: '11px', fontFamily: '"Space Mono", monospace', color: isLight ? '#2563EB' : '#60A5FA', marginTop: '2px', fontWeight: '700' }}>
+                {selectedComp.sublabel}
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedId(null)}
+              style={{
+                background: isLight ? '#F1F5F9' : '#1E293B',
+                border: 'none',
+                borderRadius: '8px',
+                width: '26px',
+                height: '26px',
+                color: isLight ? '#64748B' : '#94A3B8',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '700',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              ✕
+            </button>
           </div>
-          <div style={{ fontSize: '11px', fontFamily: '"Space Mono", monospace', color: '#888888', marginBottom: '12px' }}>
-            {selectedComp.sublabel}
+
+          {/* Level Tag & Tier Badges */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+            <span style={{
+              fontSize: '10px',
+              fontFamily: '"Space Mono", monospace',
+              fontWeight: '800',
+              padding: '3px 8px',
+              borderRadius: '6px',
+              background: selectedComp.designLevel === 'HLD' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)',
+              color: selectedComp.designLevel === 'HLD' ? '#2563EB' : '#059669',
+              border: selectedComp.designLevel === 'HLD' ? '1px solid rgba(59,130,246,0.3)' : '1px solid rgba(16,185,129,0.3)'
+            }}>
+              {selectedComp.designLevel} LEVEL
+            </span>
+            <span style={{
+              fontSize: '10px',
+              fontFamily: '"Space Mono", monospace',
+              fontWeight: '700',
+              padding: '3px 8px',
+              borderRadius: '6px',
+              background: isLight ? '#F1F5F9' : '#1E293B',
+              color: isLight ? '#475569' : '#94A3B8',
+              textTransform: 'uppercase'
+            }}>
+              TIER: {selectedComp.tier}
+            </span>
           </div>
-          <div style={{ borderTop: '1px solid #2a2a2a', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#888888' }}>Tier:</span>
-              <span style={{ color: '#F5F0E8', textTransform: 'capitalize' }}>{selectedComp.tier}</span>
+
+          {/* Detail Explanation */}
+          <div style={{
+            fontSize: '12px',
+            lineHeight: '1.5',
+            color: isLight ? '#334155' : '#CBD5E1',
+            marginBottom: '16px',
+            background: isLight ? '#F8FAFC' : '#161B22',
+            padding: '12px',
+            borderRadius: '10px',
+            border: isLight ? '1px solid #E2E8F0' : '1px solid #21262D'
+          }}>
+            {selectedComp.detail || 'High-level subsystem handling business rules and component execution.'}
+          </div>
+
+          {/* Extracted API Endpoints */}
+          {selectedComp.endpoints && selectedComp.endpoints.length > 0 && (
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ fontSize: '10px', fontFamily: '"Space Mono", monospace', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '800', color: isLight ? '#64748B' : '#94A3B8', marginBottom: '6px' }}>
+                API Endpoints:
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {selectedComp.endpoints.map((ep, i) => (
+                  <div key={i} style={{
+                    fontSize: '10px',
+                    fontFamily: '"Space Mono", monospace',
+                    background: isLight ? '#EFF6FF' : '#1E293B',
+                    color: isLight ? '#1D4ED8' : '#60A5FA',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: isLight ? '1px solid #BFDBFE' : '1px solid #334155'
+                  }}>
+                    {ep}
+                  </div>
+                ))}
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#888888' }}>Status:</span>
-              <span style={{ color: selectedComp.isDetected ? '#22C55E' : '#6B7280' }}>
-                {selectedComp.isDetected ? 'Detected in codebase' : 'Inferred'}
-              </span>
+          )}
+
+          {/* Extracted Function Signatures */}
+          {selectedComp.functions && selectedComp.functions.length > 0 && (
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ fontSize: '10px', fontFamily: '"Space Mono", monospace', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '800', color: isLight ? '#64748B' : '#94A3B8', marginBottom: '6px' }}>
+                AST Function Signatures:
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {selectedComp.functions.map((fn, i) => (
+                  <div key={i} style={{
+                    fontSize: '10px',
+                    fontFamily: '"Space Mono", monospace',
+                    background: isLight ? '#F5F3FF' : '#1E1B4B',
+                    color: isLight ? '#6D28D9' : '#A78BFA',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: isLight ? '1px solid #DDD6FE' : '1px solid #312E81'
+                  }}>
+                    {fn}
+                  </div>
+                ))}
+              </div>
             </div>
-            <div style={{ borderTop: '1px solid #2a2a2a', paddingTop: '8px', marginTop: '4px' }}>
-              <div style={{ color: '#888888', marginBottom: '4px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Connects to:</div>
-              {sysDataRef.current?.connections
-                ?.filter(c => c.from === selectedComp.id || c.to === selectedComp.id)
-                .map(c => {
-                  const otherId = c.from === selectedComp.id ? c.to : c.from;
-                  const other = sysDataRef.current.components.find(comp => comp.id === otherId);
-                  return other ? (
-                    <div key={other.id} style={{ color: '#888888', fontFamily: '"Space Mono", monospace', fontSize: '10px', padding: '2px 0' }}>
-                      {other.label} ({c.label})
-                    </div>
-                  ) : null;
-                })}
+          )}
+
+          {/* Extracted DB Schemas */}
+          {selectedComp.schemas && selectedComp.schemas.length > 0 && (
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ fontSize: '10px', fontFamily: '"Space Mono", monospace', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '800', color: isLight ? '#64748B' : '#94A3B8', marginBottom: '6px' }}>
+                Database Schemas & Fields:
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {selectedComp.schemas.map((sch, i) => (
+                  <div key={i} style={{
+                    fontSize: '10px',
+                    fontFamily: '"Space Mono", monospace',
+                    background: isLight ? '#FDF2F8' : '#831843',
+                    color: isLight ? '#BE185D' : '#F472B6',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: isLight ? '1px solid #FBCFE8' : '1px solid #9D174D'
+                  }}>
+                    {sch}
+                  </div>
+                ))}
+              </div>
             </div>
+          )}
+
+          {/* Associated Repository Files */}
+          {selectedComp.files && selectedComp.files.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '10px', fontFamily: '"Space Mono", monospace', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '800', color: isLight ? '#64748B' : '#94A3B8', marginBottom: '6px' }}>
+                Associated Source Files ({selectedComp.files.length}):
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '160px', overflowY: 'auto' }}>
+                {selectedComp.files.map((file, i) => (
+                  <div key={i} style={{
+                    fontSize: '10px',
+                    fontFamily: '"Space Mono", monospace',
+                    background: isLight ? '#F1F5F9' : '#1E293B',
+                    color: isLight ? '#0F172A' : '#E2E8F0',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: isLight ? '1px solid #CBD5E1' : '1px solid #334155',
+                    wordBreak: 'break-all'
+                  }}>
+                    📄 {file}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Inter-Component Connections */}
+          <div style={{ borderTop: isLight ? '1px solid #E2E8F0' : '1px solid #334155', paddingTop: '12px' }}>
+            <div style={{ fontSize: '10px', fontFamily: '"Space Mono", monospace', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '800', color: isLight ? '#64748B' : '#94A3B8', marginBottom: '6px' }}>
+              Connected Protocol Flow:
+            </div>
+            {sysDataRef.current?.connections
+              ?.filter(c => c.from === selectedComp.id || c.to === selectedComp.id)
+              .map(c => {
+                const isOutbound = c.from === selectedComp.id;
+                const otherId = isOutbound ? c.to : c.from;
+                const other = sysDataRef.current.components.find(comp => comp.id === otherId);
+                return other ? (
+                  <div key={other.id} style={{
+                    fontSize: '10px',
+                    fontFamily: '"Space Mono", monospace',
+                    color: isLight ? '#0F172A' : '#E2E8F0',
+                    padding: '4px 0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <span style={{ color: isOutbound ? '#10B981' : '#3B82F6', fontWeight: '800' }}>
+                      {isOutbound ? '➔ OUT:' : '⬅ IN:'}
+                    </span>
+                    <span style={{ fontWeight: '700' }}>{other.label}</span>
+                    <span style={{ color: isLight ? '#64748B' : '#94A3B8', fontSize: '9px' }}>({c.label})</span>
+                  </div>
+                ) : null;
+              })}
           </div>
         </div>
       )}

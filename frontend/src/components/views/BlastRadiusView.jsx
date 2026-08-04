@@ -165,7 +165,7 @@ function BlastRadiusView({ DATA, selectedFile, onFileSelect, onHighlight }) {
                   }}
                 >
                   <span style={{ fontFamily: 'Space Mono', fontSize: '11px', color: 'var(--orange)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '210px' }}>
-                    {f.name}
+                    {f.name || (f.relativePath ? f.relativePath.split('/').pop() : 'File')}
                   </span>
                   <span style={{ fontFamily: 'Space Mono', fontSize: '10px', color: 'var(--beige-3)', background: 'var(--black-2)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)' }}>
                     {f.incomingCount} dependents
@@ -203,10 +203,11 @@ function BlastRadiusView({ DATA, selectedFile, onFileSelect, onHighlight }) {
   const layerColor = LAYER_COLORS[selectedFile.layer] || '#8E8578';
 
   // Compute test suites affected
-  const testFiles = (DATA?.files || []).filter(f => 
-    (f.layer === 'Test' || f.name.includes('.test.') || f.name.includes('.spec.')) &&
-    (blastData.directImpact.includes(f.relativePath) || blastData.indirectImpact.includes(f.relativePath))
-  );
+  const testFiles = (DATA?.files || []).filter(f => {
+    const fn = f.name || f.relativePath || '';
+    return (f.layer === 'Test' || fn.includes('.test.') || fn.includes('.spec.')) &&
+      (blastData.directImpact.includes(f.relativePath) || blastData.indirectImpact.includes(f.relativePath));
+  });
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--black)', position: 'relative' }}>
@@ -495,8 +496,138 @@ function BlastRadiusView({ DATA, selectedFile, onFileSelect, onHighlight }) {
           Highlight Cascading Path on Architecture Graph →
         </button>
       </div>
+
+      {/* ── Pillar 3: System Health Radar ── */}
+      {DATA?.healthSummary && (
+        <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--beige-3)', marginBottom: '12px' }}>
+            System Health Radar
+          </div>
+
+          {/* Health Grade */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+            <div style={{
+              width: '48px', height: '48px', borderRadius: '12px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '20px', fontWeight: 900, fontFamily: '"Space Mono", monospace',
+              background: DATA.healthSummary.grade === 'A+' || DATA.healthSummary.grade === 'A' ? 'rgba(16,185,129,0.15)' :
+                DATA.healthSummary.grade === 'B' ? 'rgba(234,179,8,0.15)' : 'rgba(239,68,68,0.15)',
+              color: DATA.healthSummary.grade === 'A+' || DATA.healthSummary.grade === 'A' ? '#10B981' :
+                DATA.healthSummary.grade === 'B' ? '#EAB308' : '#EF4444',
+              border: `1px solid ${DATA.healthSummary.grade === 'A+' || DATA.healthSummary.grade === 'A' ? 'rgba(16,185,129,0.3)' :
+                DATA.healthSummary.grade === 'B' ? 'rgba(234,179,8,0.3)' : 'rgba(239,68,68,0.3)'}`
+            }}>
+              {DATA.healthSummary.grade}
+            </div>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#FFF' }}>
+                Codebase Health Grade
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--beige-3)' }}>
+                {DATA.healthSummary.totalFiles} files analyzed | Avg risk: {DATA.healthSummary.averageRisk}
+              </div>
+            </div>
+          </div>
+
+          {/* Summary Stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '14px' }}>
+            {[
+              { label: 'SPOF Files', value: DATA.healthSummary.spofCount, color: '#EF4444' },
+              { label: 'God Objects', value: DATA.healthSummary.godObjectCount, color: '#F59E0B' },
+              { label: 'High Complexity', value: DATA.healthSummary.highComplexityCount, color: '#8B5CF6' }
+            ].map((stat, i) => (
+              <div key={i} style={{ background: 'var(--black-2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', textAlign: 'center' }}>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: stat.value > 0 ? stat.color : '#10B981', fontFamily: '"Space Mono", monospace' }}>
+                  {stat.value}
+                </div>
+                <div style={{ fontSize: '9px', color: 'var(--beige-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Top Risk Files */}
+          {DATA.healthSummary.topRiskFiles?.length > 0 && (
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--beige-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>
+                Top Risk Files
+              </div>
+              {DATA.healthSummary.topRiskFiles.map((f, i) => (
+                <div key={i} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '6px 8px', borderRadius: '6px', marginBottom: '4px',
+                  background: 'var(--black-2)', border: '1px solid var(--border)', cursor: 'pointer'
+                }}
+                onClick={() => {
+                  const fileObj = DATA.files?.find(file => file.relativePath === f.id);
+                  if (fileObj) onFileSelect(fileObj);
+                }}>
+                  <div style={{ fontSize: '11px', color: '#FFF', fontFamily: '"Space Mono", monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%' }}>
+                    {f.id}
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {f.flags.map((flag, fi) => (
+                      <span key={fi} style={{
+                        fontSize: '8px', padding: '1px 5px', borderRadius: '3px', fontWeight: 700, textTransform: 'uppercase',
+                        background: flag === 'spof' ? 'rgba(239,68,68,0.15)' : flag === 'god-object' ? 'rgba(245,158,11,0.15)' : 'rgba(139,92,246,0.15)',
+                        color: flag === 'spof' ? '#EF4444' : flag === 'god-object' ? '#F59E0B' : '#8B5CF6'
+                      }}>
+                        {flag}
+                      </span>
+                    ))}
+                    <span style={{ fontSize: '10px', color: 'var(--beige-3)', fontFamily: '"Space Mono", monospace' }}>
+                      {f.riskScore}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Pillar 1: Layer Violations ── */}
+      {DATA?.findings?.layerViolations?.length > 0 && (
+        <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#EF4444', marginBottom: '12px' }}>
+            Layer Violations ({DATA.findings.layerViolations.length})
+          </div>
+          <div style={{ fontSize: '10px', color: 'var(--beige-3)', marginBottom: '10px', lineHeight: 1.5 }}>
+            These files import across forbidden architectural layer boundaries, bypassing intermediate layers.
+          </div>
+          {DATA.findings.layerViolations.slice(0, 15).map((v, i) => (
+            <div key={i} style={{
+              background: 'var(--black-2)', border: `1px solid ${v.severity === 'critical' ? 'rgba(239,68,68,0.3)' : 'rgba(234,179,8,0.3)'}`,
+              borderRadius: '8px', padding: '10px', marginBottom: '8px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <span style={{
+                  fontSize: '8px', padding: '2px 6px', borderRadius: '4px', fontWeight: 800, textTransform: 'uppercase',
+                  background: v.severity === 'critical' ? 'rgba(239,68,68,0.15)' : 'rgba(234,179,8,0.15)',
+                  color: v.severity === 'critical' ? '#EF4444' : '#EAB308'
+                }}>
+                  {v.severity}
+                </span>
+                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: 'rgba(59,130,246,0.15)', color: '#3B82F6' }}>{v.sourceLayer}</span>
+                  <span style={{ fontSize: '9px', color: 'var(--beige-3)' }}>→</span>
+                  <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: 'rgba(16,185,129,0.15)', color: '#10B981' }}>{v.targetLayer}</span>
+                </div>
+              </div>
+              <div style={{ fontSize: '10px', color: '#FFF', fontFamily: '"Space Mono", monospace', marginBottom: '4px', lineHeight: 1.4 }}>
+                {v.source.split('/').pop()} → {v.target.split('/').pop()}
+              </div>
+              <div style={{ fontSize: '9px', color: 'var(--beige-3)', lineHeight: 1.4 }}>
+                {v.suggestion}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 export default BlastRadiusView;
+

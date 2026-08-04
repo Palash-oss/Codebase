@@ -108,15 +108,11 @@ function TechStackView({ data, onSelectFile }) {
     if (name === '@typescript-eslint/typescript-estree') return 'Scans and parses source files into Abstract Syntax Trees (AST) to resolve imports and structure.';
     if (name === 'adm-zip') return 'Handles extraction of uploaded repository and project ZIP archives.';
     if (name === 'multer') return 'Handles file uploads and multipart form data storage.';
-    if (name === 'node-fetch') return 'Performs asynchronous HTTP fetch requests to remote servers and APIs.';
-    if (name === 'gsap') return 'Powers smooth scroll triggers and premium micro-animations.';
-    if (name === 'locomotive-scroll') return 'Provides high-quality premium inertial smooth scrolling.';
-    if (name === 'oxlint') return 'Performs lightning-fast static analysis and codebase linting.';
-    if (name === 'typescript') return 'Provides static typing, compiler checks, and type definition support.';
-    if (name === 'cors') return 'Configures Cross-Origin Resource Sharing (CORS) security headers.';
-    
-    if (category === 'frontend') return `${techName} drives client-side interface elements, styling rules, or application states.`;
-    if (category === 'backend') return `${techName} manages database persistence, API protocols, or middleware server utilities.`;
+    if (techName === '@typescript-eslint/typescript-estree') return 'Scans and parses source files into Abstract Syntax Trees (AST) to resolve imports and structure.';
+    if (techName === 'acorn' || techName.includes('babel')) return 'Parses raw source code strings into Abstract Syntax Tree AST representations.';
+    if (category === 'Frontend UI') return `Powers interactive client-side rendering and state management for ${techName}.`;
+    if (category === 'Backend Framework') return `Handles HTTP API routing, controller request dispatches, and server endpoints for ${techName}.`;
+    if (category === 'Database') return `Provides relational / document storage and data persistence layer for ${techName}.`;
     return `${techName} supports development testing, static analysis pipelines, or deployment setups.`;
   };
 
@@ -124,11 +120,11 @@ function TechStackView({ data, onSelectFile }) {
   Object.keys(allDeps).forEach(depName => {
     const isImported = allImports.has(depName);
     const hasConfig = 
-      (depName === 'vite' && data.files.some(f => f.name.includes('vite.config'))) ||
-      (depName === 'tailwindcss' && data.files.some(f => f.name.includes('tailwind.config'))) ||
-      (depName === 'jest' && data.files.some(f => f.name.includes('jest.config'))) ||
-      (depName === 'vitest' && data.files.some(f => f.name.includes('vitest.config'))) ||
-      (depName === 'docker' && data.files.some(f => f.name === 'Dockerfile' || f.name.startsWith('docker-compose')));
+      (depName === 'vite' && data.files.some(f => (f.name || f.relativePath || '').includes('vite.config'))) ||
+      (depName === 'tailwindcss' && data.files.some(f => (f.name || f.relativePath || '').includes('tailwind.config'))) ||
+      (depName === 'jest' && data.files.some(f => (f.name || f.relativePath || '').includes('jest.config'))) ||
+      (depName === 'vitest' && data.files.some(f => (f.name || f.relativePath || '').includes('vitest.config'))) ||
+      (depName === 'docker' && data.files.some(f => (f.name || f.relativePath || '').includes('Dockerfile') || (f.name || f.relativePath || '').includes('docker-compose')));
       
     if (isImported || hasConfig) {
       const known = knownTech.find(t => t.key === depName || (depName.includes(t.key) && t.key.length > 3));
@@ -349,8 +345,122 @@ function TechStackView({ data, onSelectFile }) {
           </div>
         ))}
       </div>
+
+      {/* ── Pillar 2: Living System Specification ── */}
+      {data?.systemSpec && (
+        <div style={{ marginTop: '28px', borderTop: '1px solid var(--border)', paddingTop: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div>
+              <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--beige)', margin: 0, letterSpacing: '0.02em' }}>
+                System Specification
+              </h3>
+              <p style={{ fontSize: '11px', color: 'var(--beige-3)', margin: '4px 0 0 0' }}>
+                Auto-generated living architecture spec from codebase analysis.
+              </p>
+            </div>
+            <button
+              onClick={() => window.open('/api/system-spec/markdown', '_blank')}
+              style={{
+                padding: '8px 14px', borderRadius: '8px', border: '1px solid #10B981',
+                background: 'rgba(16,185,129,0.1)', color: '#10B981', fontSize: '11px',
+                fontWeight: 700, cursor: 'pointer', fontFamily: '"Space Grotesk", sans-serif'
+              }}
+            >
+              Export Markdown
+            </button>
+          </div>
+
+          {/* API Endpoint Registry */}
+          {data.systemSpec.apiEndpoints?.length > 0 && (
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#3B82F6', marginBottom: '8px' }}>
+                API Endpoint Registry ({data.systemSpec.apiEndpoints.length})
+              </div>
+              <div style={{ background: 'var(--black-2)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', color: 'var(--beige-3)', fontWeight: 600, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Methods</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', color: 'var(--beige-3)', fontWeight: 600, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Route Path</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', color: 'var(--beige-3)', fontWeight: 600, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Handler</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', color: 'var(--beige-3)', fontWeight: 600, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Layer</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.systemSpec.apiEndpoints.slice(0, 20).map((ep, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '6px 10px' }}>
+                          {(ep.methods || ['GET']).map((m, mi) => (
+                            <span key={mi} style={{ fontSize: '9px', padding: '1px 4px', borderRadius: '3px', marginRight: '3px', fontWeight: 700, fontFamily: '"Space Mono", monospace', background: m === 'GET' ? 'rgba(16,185,129,0.15)' : m === 'POST' ? 'rgba(59,130,246,0.15)' : m === 'PUT' ? 'rgba(234,179,8,0.15)' : 'rgba(239,68,68,0.15)', color: m === 'GET' ? '#10B981' : m === 'POST' ? '#3B82F6' : m === 'PUT' ? '#EAB308' : '#EF4444' }}>{m}</span>
+                          ))}
+                        </td>
+                        <td style={{ padding: '6px 10px', color: 'var(--beige)', fontFamily: '"Space Mono", monospace' }}>{ep.path}</td>
+                        <td style={{ padding: '6px 10px', color: 'var(--beige-3)', fontFamily: '"Space Mono", monospace', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ep.handlerFile || ep.handler || ''}</td>
+                        <td style={{ padding: '6px 10px' }}>
+                          <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: 'rgba(139,92,246,0.15)', color: '#8B5CF6' }}>{ep.layer || 'Gateway'}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Env Variables */}
+          {data.systemSpec.envVariables?.length > 0 && (
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#F59E0B', marginBottom: '8px' }}>
+                Environment Variables Audit ({data.systemSpec.envVariables.length})
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px' }}>
+                {data.systemSpec.envVariables.map((ev, i) => (
+                  <div key={i} style={{
+                    background: 'var(--black-2)', border: '1px solid var(--border)',
+                    borderRadius: '8px', padding: '10px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--beige)', fontFamily: '"Space Mono", monospace' }}>{ev?.name || 'VAR'}</span>
+                      <span style={{
+                        fontSize: '8px', padding: '1px 5px', borderRadius: '3px', fontWeight: 700, textTransform: 'uppercase',
+                        background: ev.status === 'missing' ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)',
+                        color: ev.status === 'missing' ? '#EF4444' : '#10B981'
+                      }}>
+                        {ev.status}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '9px', color: 'var(--beige-3)' }}>Used in {ev.fileCount} file(s)</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* External Dependencies */}
+          {data.systemSpec.externalDependencies?.length > 0 && (
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8B5CF6', marginBottom: '8px' }}>
+                External Dependencies ({data.systemSpec.externalDependencies.length})
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {data.systemSpec.externalDependencies.slice(0, 30).map((dep, i) => (
+                  <div key={i} style={{
+                    background: 'var(--black-2)', border: '1px solid var(--border)', borderRadius: '6px',
+                    padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '6px'
+                  }}>
+                    <span style={{ fontSize: '11px', color: 'var(--beige)', fontWeight: 600 }}>{dep?.name || dep}</span>
+                    <span style={{ fontSize: '8px', padding: '1px 4px', borderRadius: '3px', background: 'rgba(139,92,246,0.12)', color: '#8B5CF6', textTransform: 'uppercase', fontWeight: 600 }}>{dep.category}</span>
+                    <span style={{ fontSize: '9px', color: 'var(--beige-3)' }}>{dep.usedInFileCount}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 export default TechStackView;
+
