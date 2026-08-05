@@ -5,6 +5,12 @@ export default function BillingModal({ isOpen, onClose, currentUser, onUpgradeSu
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  React.useEffect(() => {
+    if (isOpen) {
+      handleInstantUpgrade('enterprise');
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const loadRazorpayScript = () => {
