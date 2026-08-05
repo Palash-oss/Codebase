@@ -299,7 +299,7 @@ export function buildSystemDesign(DATA, fileList = []) {
     sysHLD.push({ id:'dns', number:num(),
       label:'DNS', sublabel:'Domain resolution',
       zone:'network', zoneLabel:'NETWORK LAYER', zoneColor:'#6B7280',
-      techKey:'', isDetected:true, files:[]
+      techKey:'dns', isDetected:true, files:[]
     });
   }
 
@@ -524,7 +524,7 @@ export function buildSystemDesign(DATA, fileList = []) {
       ? `${envVars.length} env vars tracked`
       : 'Logs · Metrics · Traces',
     zone:'observability', zoneLabel:'TIER 5 — RUNTIME & OPERATIONS', zoneColor:'#6B7280',
-    techKey:'', isDetected:false,
+    techKey:'monitoring', isDetected:true,
     files: getFilesMatching('.env', 'config', 'constants', 'logger')
   });
 
