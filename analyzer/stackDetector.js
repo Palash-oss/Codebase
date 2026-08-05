@@ -128,17 +128,38 @@ export function detectStack(packageJson, files) {
     { key: 'docker', name: 'Docker', logoKey: 'docker', brandColor: '#2496ED', category: 'devops', test: () => Array.from(fileNames).some(n => n === 'dockerfile' || n === 'docker-compose.yml' || n === 'docker-compose.yaml') },
     { key: 'gha', name: 'GitHub Actions', logoKey: 'github', brandColor: '#2088FF', category: 'devops', test: () => Array.from(filePaths).some(p => p.includes('.github/workflows')) },
 
-    // ------------ Cloud ------------
+    // ------------ Cloud & Third-Party SaaS / AI / DB ------------
     { key: 'aws-s3', name: 'AWS S3', logoKey: 'inline-aws', brandColor: '#FF9900', category: 'cloud', service: 'S3', test: () => hasDep(deps, '@aws-sdk/client-s3') || allImports.has('@aws-sdk/client-s3') },
     { key: 'aws-lambda', name: 'AWS Lambda', logoKey: 'inline-aws', brandColor: '#FF9900', category: 'cloud', service: 'Lambda', test: () => hasDep(deps, '@aws-sdk/client-lambda') || allImports.has('@aws-sdk/client-lambda') },
     { key: 'aws-dynamo', name: 'AWS DynamoDB', logoKey: 'inline-aws', brandColor: '#FF9900', category: 'cloud', service: 'DynamoDB', test: () => hasDep(deps, '@aws-sdk/client-dynamodb') || allImports.has('@aws-sdk/client-dynamodb') },
     { key: 'aws-sqs', name: 'AWS SQS', logoKey: 'inline-aws', brandColor: '#FF9900', category: 'cloud', service: 'SQS', test: () => hasDep(deps, '@aws-sdk/client-sqs') || allImports.has('@aws-sdk/client-sqs') },
     { key: 'aws-ses', name: 'AWS SES', logoKey: 'inline-aws', brandColor: '#FF9900', category: 'cloud', service: 'SES', test: () => hasDep(deps, '@aws-sdk/client-ses') || allImports.has('@aws-sdk/client-ses') },
     { key: 'aws-ec2', name: 'AWS EC2', logoKey: 'inline-aws', brandColor: '#FF9900', category: 'cloud', service: 'EC2', test: () => hasDep(deps, '@aws-sdk/client-ec2') || allImports.has('@aws-sdk/client-ec2') },
+    { key: 'aws-bedrock', name: 'AWS Bedrock', logoKey: 'aws', brandColor: '#FF9900', category: 'cloud', service: 'Bedrock', test: () => hasDep(deps, '@aws-sdk/client-bedrock-runtime') || allImports.has('@aws-sdk/client-bedrock-runtime') },
+    { key: 'aws-cloudfront', name: 'AWS CloudFront', logoKey: 'aws', brandColor: '#FF9900', category: 'cloud', service: 'CloudFront', test: () => hasDep(deps, '@aws-sdk/client-cloudfront') || allImports.has('@aws-sdk/client-cloudfront') },
+    { key: 'aws-secrets', name: 'AWS Secrets Manager', logoKey: 'aws', brandColor: '#FF9900', category: 'cloud', service: 'SecretsManager', test: () => hasDep(deps, '@aws-sdk/client-ssm') || hasDep(deps, '@aws-sdk/client-secrets-manager') || allImports.has('@aws-sdk/client-ssm') || allImports.has('@aws-sdk/client-secrets-manager') },
 
     { key: 'supabase', name: 'Supabase', logoKey: 'inline-supabase', brandColor: '#3FCF8E', category: 'cloud', test: () => hasDep(deps, '@supabase/supabase-js') || allImports.has('@supabase/supabase-js') },
     { key: 'firebase', name: 'Firebase', logoKey: 'firebase', brandColor: '#FFCA28', category: 'cloud', test: () => hasDep(deps, 'firebase') || hasDep(deps, 'firebase-admin') || allImports.has('firebase') },
-    { key: 'vercel', name: 'Vercel', logoKey: 'inline-vercel', brandColor: '#ffffff', category: 'cloud', test: () => hasDep(deps, '@vercel/analytics') && allImports.has('@vercel/analytics') },
+    { key: 'vercel', name: 'Vercel', logoKey: 'inline-vercel', brandColor: '#ffffff', category: 'cloud', test: () => (hasDep(deps, '@vercel/analytics') || hasDep(deps, '@vercel/kv') || hasDep(deps, '@vercel/postgres')) && (allImports.has('@vercel/analytics') || allImports.has('@vercel/kv')) },
+
+    { key: 'pinecone', name: 'Pinecone', logoKey: 'pinecone', brandColor: '#5C4EFF', category: 'database', test: () => hasDep(deps, '@pinecone-database/pinecone') || hasDep(deps, 'pinecone') || allImports.has('@pinecone-database/pinecone') || allImports.has('pinecone') },
+    { key: 'neon', name: 'Neon Postgres', logoKey: 'neon', brandColor: '#00E599', category: 'database', test: () => hasDep(deps, '@neondatabase/serverless') || hasDep(deps, '@neon/serverless') || hasDep(deps, 'neon') || allImports.has('@neondatabase/serverless') || allImports.has('@neon/serverless') },
+    { key: 'upstash', name: 'Upstash Redis', logoKey: 'upstash', brandColor: '#00E9A3', category: 'database', test: () => hasDep(deps, '@upstash/redis') || allImports.has('@upstash/redis') },
+
+    { key: 'resend', name: 'Resend', logoKey: 'resend', brandColor: '#000000', category: 'cloud', test: () => hasDep(deps, 'resend') || allImports.has('resend') },
+    { key: 'anthropic', name: 'Anthropic Claude', logoKey: 'anthropic', brandColor: '#D97757', category: 'cloud', test: () => hasDep(deps, '@anthropic-ai/sdk') || hasDep(deps, 'anthropic') || allImports.has('@anthropic-ai/sdk') || allImports.has('anthropic') },
+    { key: 'openai', name: 'OpenAI', logoKey: 'openai', brandColor: '#412991', category: 'cloud', test: () => hasDep(deps, 'openai') || allImports.has('openai') },
+    { key: 'groq', name: 'Groq', logoKey: 'groq', brandColor: '#F55036', category: 'cloud', test: () => hasDep(deps, 'groq-sdk') || hasDep(deps, 'groq') || allImports.has('groq-sdk') || allImports.has('groq') },
+    { key: 'stripe', name: 'Stripe', logoKey: 'stripe', brandColor: '#635BFF', category: 'cloud', test: () => hasDep(deps, 'stripe') || hasDep(deps, '@stripe/stripe-js') || allImports.has('stripe') || allImports.has('@stripe/stripe-js') },
+    { key: 'slack', name: 'Slack', logoKey: 'slack', brandColor: '#4A154B', category: 'cloud', test: () => hasDep(deps, '@slack/bolt') || hasDep(deps, '@slack/web-api') || hasDep(deps, 'slack') || allImports.has('@slack/bolt') || allImports.has('@slack/web-api') || allImports.has('slack') },
+    { key: 'discord', name: 'Discord', logoKey: 'discord', brandColor: '#5865F2', category: 'cloud', test: () => hasDep(deps, 'discord.js') || hasDep(deps, 'discord-bot-client') || allImports.has('discord.js') },
+    { key: 'twilio', name: 'Twilio', logoKey: 'twilio', brandColor: '#F22F46', category: 'cloud', test: () => hasDep(deps, 'twilio') || allImports.has('twilio') },
+    { key: 'sendgrid', name: 'SendGrid', logoKey: 'sendgrid', brandColor: '#1A82E2', category: 'cloud', test: () => hasDep(deps, '@sendgrid/mail') || hasDep(deps, 'sendgrid') || allImports.has('@sendgrid/mail') || allImports.has('sendgrid') },
+    { key: 'langchain', name: 'LangChain', logoKey: 'langchain', brandColor: '#1C3C3C', category: 'cloud', test: () => hasDep(deps, 'langchain') || hasDep(deps, '@langchain/core') || allImports.has('langchain') || allImports.has('@langchain/core') },
+    { key: 'octokit', name: 'Octokit/GitHub API', logoKey: 'github', brandColor: '#24292F', category: 'cloud', test: () => hasDep(deps, '@octokit/rest') || hasDep(deps, 'octokit') || allImports.has('@octokit/rest') || allImports.has('octokit') },
+    { key: 'bullmq', name: 'BullMQ', logoKey: 'bullmq', brandColor: '#F5793A', category: 'queue', test: () => hasDep(deps, 'bullmq') || hasDep(deps, 'bull') || allImports.has('bullmq') || allImports.has('bull') },
+    { key: 'kafka', name: 'Apache Kafka', logoKey: 'kafka', brandColor: '#231F20', category: 'queue', test: () => hasDep(deps, 'kafkajs') || allImports.has('kafkajs') },
 
     // ------------ Networking / real-time ------------
     { key: 'socket.io', name: 'Socket.IO', logoKey: 'socketio', brandColor: '#010101', category: 'framework', test: () => (hasDep(deps, 'socket.io') || hasDep(deps, 'socket.io-client')) && (allImports.has('socket.io') || allImports.has('socket.io-client')) },

@@ -192,10 +192,8 @@ function SystemDesignView({ DATA, isActive }) {
     // Build system design data for selected perspective
     const rawData = buildSystemDesign(DATA, DATA?.files || []);
     const activeComponents = getActiveComponents(rawData, perspective, designLevelFilter);
-    const zonesArray = Object.values(rawData.zones || {});
-
-    // Compute layout for the active components
-    computeLayout(zonesArray, activeComponents);
+    const zKey = perspective + (designLevelFilter === 'HLD' ? 'HLD' : 'LLD');
+    const zonesArray = rawData.zones?.[zKey] || (Array.isArray(rawData.zones) ? rawData.zones : Object.values(rawData.zones || {})[0] || []);
 
     sysDataRef.current = {
       components: activeComponents,
