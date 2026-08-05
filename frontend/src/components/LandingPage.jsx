@@ -713,19 +713,6 @@ func main() {
             )}
           </button>
           
-          <button className="fleek-outline-btn" onClick={() => setShowPricingModal(true)}>
-            Pricing & Plans
-          </button>
-
-          {currentUser ? (
-            <button className="fleek-solid-btn" onClick={() => setShowUserModal(true)}>
-              Account ({(currentUser.tier || 'free').toUpperCase()})
-            </button>
-          ) : (
-            <button className="fleek-solid-btn" onClick={() => setShowAuthModal(true)}>
-              Sign In / Register
-            </button>
-          )}
         </div>
       </header>
 
@@ -898,7 +885,7 @@ func main() {
           <div style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', borderRadius: '16px', padding: '32px' }}>
             <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px', color: '#10B981', fontWeight: '700', marginBottom: '8px' }}>ENTERPRISES</div>
             <p style={{ fontSize: '14px', color: 'var(--beige-3)', lineHeight: 1.6, marginBottom: '24px' }}>Deploy team architecture hubs with security limits, unlimited repos, and priority AST parsing.</p>
-            <button className="fleek-solid-btn" style={{ width: '100%' }} onClick={() => setShowPricingModal(true)}>Upgrade Plan</button>
+            <button className="fleek-solid-btn" style={{ width: '100%' }} onClick={scrollToUpload}>Analyze Codebase</button>
           </div>
         </div>
       </section>
