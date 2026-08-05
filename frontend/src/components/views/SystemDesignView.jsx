@@ -958,6 +958,7 @@ function SystemDesignView({ DATA, isActive }) {
       'fastify':     `${DEVICON}/fastify/fastify-original.svg`,
       'node':        `${DEVICON}/nodejs/nodejs-original.svg`,
       'hono':        `${CDN}/hono/E36002`,
+      'web':         `${CDN}/googlechrome/4285F4`,
 
       // Python backends
       'flask':       `${DEVICON}/flask/flask-original.svg`,
@@ -990,13 +991,14 @@ function SystemDesignView({ DATA, isActive }) {
       // Auth
       'nextauth':    `${CDN}/auth0/EB5424`,
       'auth0':       `${CDN}/auth0/EB5424`,
+      'auth':        `${CDN}/auth0/EB5424`,
       'clerk':       `${CDN}/clerk/6C47FF`,
       'jwt':         `${CDN}/jsonwebtokens/000000`,
       'passport':    `${CDN}/passport/34E27A`,
       'aws-cognito': `${CDN}/amazonwebservices/FF9900`,
 
       // State
-      'zustand':     null,
+      'zustand':     `${CDN}/react/61DAFB`,
       'redux':       `${DEVICON}/redux/redux-original.svg`,
 
       // DevOps
@@ -1029,7 +1031,7 @@ function SystemDesignView({ DATA, isActive }) {
       'groq':        `${CDN}/groq/F55036`,
       'pinecone':    `${CDN}/pinecone/5C4EFF`,
       'huggingface': `${CDN}/huggingface/FF9D00`,
-      'chromadb':    null,
+      'chromadb':    `${CDN}/chroma/F97316`,
       'weaviate':    `${CDN}/weaviate/FA5252`,
       'qdrant':      `${CDN}/qdrant/EF4444`,
       'slack':       `${CDN}/slack/4A154B`,
@@ -1061,7 +1063,7 @@ function SystemDesignView({ DATA, isActive }) {
     return map[techKey] || null;
   }
 
-  // When icon fails to load or URL is null, show this fallback:
+  // When icon fails to load or URL is null, show a rich vector graphic fallback — NEVER text initials!
   function drawFallbackIcon(ctx, techKey, cx, cy, size = 28) {
     const r = 14;
 
@@ -1080,18 +1082,27 @@ function SystemDesignView({ DATA, isActive }) {
       return;
     }
 
-    const solidCircle = (color, label, textColor = '#fff') => {
-      ctx.fillStyle = color;
+    // 1. Auth / Security / Middleware — Security Shield with Keyhole
+    if (techKey === 'nextauth' || techKey === 'auth0' || techKey === 'auth' || techKey === 'clerk' || techKey === 'jwt' || techKey === 'passport' || techKey === 'aws-cognito') {
+      ctx.fillStyle = '#7C3AED';
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-      ctx.font = `700 ${label.length > 2 ? '9' : '12'}px "Space Mono"`;
-      ctx.fillStyle = textColor;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(label, cx, cy);
-    };
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 8);
+      ctx.lineTo(cx + 7, cy - 4);
+      ctx.lineTo(cx + 7, cy + 3);
+      ctx.quadraticCurveTo(cx, cy + 9, cx, cy + 9);
+      ctx.quadraticCurveTo(cx - 7, cy + 3, cx - 7, cy - 4);
+      ctx.lineTo(cx, cy - 8);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.arc(cx, cy - 1, 2, 0, Math.PI * 2); ctx.fill();
+      return;
+    }
 
-    // Dedicated Rich Vector Icons for core architecture components
+    // 2. DNS — Network Globe
     if (techKey === 'dns') {
-      // DNS Globe
       ctx.fillStyle = '#F38020';
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5;
@@ -1101,8 +1112,8 @@ function SystemDesignView({ DATA, isActive }) {
       return;
     }
 
+    // 3. Monitoring / Observability — Activity Pulse Waveform
     if (techKey === 'monitoring' || techKey === 'observability') {
-      // Activity Pulse Chart
       ctx.fillStyle = '#632CA6';
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#00E599'; ctx.lineWidth = 2;
@@ -1117,8 +1128,8 @@ function SystemDesignView({ DATA, isActive }) {
       return;
     }
 
-    if (techKey === 'secrets') {
-      // Golden Padlock Icon
+    // 4. Secrets / Config — Golden Padlock
+    if (techKey === 'secrets' || techKey === 'aws-secrets') {
       ctx.fillStyle = '#F59E0B';
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#000000';
@@ -1128,47 +1139,45 @@ function SystemDesignView({ DATA, isActive }) {
       return;
     }
 
-    const icons = {
-      'supabase':  () => solidCircle('#3FCF8E', 'S'),
-      'vercel':    () => {
-        ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.moveTo(cx, cy - 12); ctx.lineTo(cx + 14, cy + 10); ctx.lineTo(cx - 14, cy + 10);
-        ctx.closePath(); ctx.fill();
-      },
-      'neon':      () => solidCircle('#00E599', 'N', '#000'),
-      'upstash':   () => solidCircle('#00E9A3', 'U', '#000'),
-      'pinecone':  () => solidCircle('#5C4EFF', 'PC'),
-      'anthropic': () => solidCircle('#D97757', 'Cl'),
-      'groq':      () => solidCircle('#F55036', 'G'),
-      'resend':    () => solidCircle('#000000', 'R'),
-      'langchain': () => solidCircle('#1C3C3C', 'LC'),
-      'bullmq':    () => solidCircle('#F5793A', 'BQ'),
-      'kafka':     () => solidCircle('#231F20', 'K', '#ccc'),
-      'drizzle':   () => solidCircle('#C5F74F', 'Dr', '#000'),
-      'hono':      () => solidCircle('#E36002', 'H'),
-      'sqlalchemy':() => solidCircle('#D71F1F', 'SA'),
-      'celery':    () => solidCircle('#37B24D', 'Ce', '#000'),
-      'chromadb':  () => solidCircle('#F97316', 'Cr'),
-      'weaviate':  () => solidCircle('#FA5252', 'Wv'),
-      'qdrant':    () => solidCircle('#EF4444', 'Qd'),
-      'nextauth':  () => solidCircle('#7c3aed', 'NA'),
-      'auth0':     () => solidCircle('#EB5424', 'A0'),
-      'clerk':     () => solidCircle('#6C47FF', 'Cl'),
-      'jwt':       () => solidCircle('#d63aff', 'JWT'),
-      'passport':  () => solidCircle('#34E27A', 'P', '#000'),
-      'aws-cognito': () => solidCircle('#FF9900', 'COG', '#000'),
-      'zustand':   () => solidCircle('#443E38', 'Z'),
-      'playwright':() => solidCircle('#2EAD33', 'PW'),
-      'cypress':   () => solidCircle('#04C38E', 'Cy', '#000'),
-      'node':      () => solidCircle('#339933', 'N'),
-      'web':       () => solidCircle('#3b82f6', 'W'),
-    };
+    // 5. Testing — Beaker & Checkmark
+    if (techKey === 'playwright' || techKey === 'cypress' || techKey === 'vitest' || techKey === 'jest') {
+      ctx.fillStyle = '#2EAD33';
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - 5, cy);
+      ctx.lineTo(cx - 1, cy + 4);
+      ctx.lineTo(cx + 6, cy - 4);
+      ctx.stroke();
+      return;
+    }
 
-    if (icons[techKey]) { icons[techKey](); return; }
+    // 6. Web / Browser / Frontend
+    if (techKey === 'web' || techKey === 'react' || techKey === 'vuejs') {
+      ctx.fillStyle = '#3B82F6';
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5;
+      roundRect(ctx, cx - 8, cy - 6, 16, 12, 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx - 8, cy - 2); ctx.lineTo(cx + 8, cy - 2); ctx.stroke();
+      return;
+    }
 
-    // Generic colored circle with upper name
-    const color = '#3B82F6';
-    solidCircle(color, (techKey || 'SYS').slice(0, 3).toUpperCase());
+    // 7. Vercel — White Triangle
+    if (techKey === 'vercel') {
+      ctx.fillStyle = '#000000';
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.moveTo(cx, cy - 8); ctx.lineTo(cx + 8, cy + 6); ctx.lineTo(cx - 8, cy + 6);
+      ctx.closePath(); ctx.fill();
+      return;
+    }
+
+    // Default Vector Fallback — Blue Server Badge (NO TEXT INITIALS)
+    ctx.fillStyle = '#3B82F6';
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5;
+    roundRect(ctx, cx - 8, cy - 7, 16, 5, 1); ctx.stroke();
+    roundRect(ctx, cx - 8, cy, 16, 5, 1); ctx.stroke();
   }
 
   // Draw component icons with official colorful logos or rich vector icons

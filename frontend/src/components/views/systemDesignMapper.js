@@ -76,14 +76,15 @@ export function buildSystemDesign(DATA, fileList = []) {
     has('clerk') ? 'clerk' :
     has('jwt') ? 'jwt' :
     has('aws-cognito') ? 'aws-cognito' :
-    has('passport') ? 'passport' : null;
+    has('passport') ? 'passport' :
+    (authFiles.length > 0 || (layers.Gateway||[]).length > 0) ? 'nextauth' : 'nextauth';
 
   const authName = has('nextauth') ? 'Auth.js (NextAuth)' :
     has('auth0') ? 'Auth0' :
     has('clerk') ? 'Clerk' :
     has('jwt') ? 'JWT' :
     has('aws-cognito') ? 'AWS Cognito' :
-    has('passport') ? 'Passport.js' : null;
+    has('passport') ? 'Passport.js' : 'Security & Auth Guard';
 
   const frontendTech = isNextJS ? 'nextjs' :
     has('react') ? 'react' :
