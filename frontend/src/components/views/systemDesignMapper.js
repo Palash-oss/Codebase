@@ -263,13 +263,47 @@ export function buildSystemDesign(DATA, fileList = []) {
     add('auth', 'database', 'user lookup');
     add('api', 'bedrock', 'invoke model', 'dashed');
 
-    // DevOps flows
-    add('git', 'cicd', 'push trigger');
-    add('cicd', 'tests', 'run tests');
-    add('cicd', 'docker', 'build image');
-    add('cicd', 'deploy', 'deploy');
-    add('docker', 'k8s', 'orchestrate');
-    add('deploy', 'monitoring', 'live metrics', 'dashed');
+    // ── DevOps HLD & LLD flows ─────────────────────────────────────
+    if (has_comp('git') && has_comp('cicd')) add('git', 'cicd', 'push trigger');
+    if (has_comp('git') && has_comp('tests') && !has_comp('cicd')) add('git', 'tests', 'push trigger');
+    if (has_comp('cicd') && has_comp('tests')) add('cicd', 'tests', 'run tests');
+    if (has_comp('secrets') && has_comp('cicd')) add('secrets', 'cicd', 'build secrets', 'dashed');
+    if (has_comp('cicd') && has_comp('db-deploy')) add('cicd', 'db-deploy', 'schema migration');
+    if (has_comp('tests') && has_comp('secrets')) add('tests', 'secrets', 'test config', 'dashed');
+    if (has_comp('tests') && has_comp('db-deploy') && !has_comp('cicd')) add('tests', 'db-deploy', 'schema migration');
+    if (has_comp('git') && has_comp('db-deploy') && !has_comp('cicd') && !has_comp('tests')) add('git', 'db-deploy', 'migrate DB');
+    if (has_comp('db-deploy') && has_comp('deploy')) add('db-deploy', 'deploy', 'deploy release');
+    if (has_comp('docker') && has_comp('deploy')) add('docker', 'deploy', 'container image');
+    if (has_comp('secrets') && has_comp('deploy')) add('secrets', 'deploy', 'runtime env', 'dashed');
+    if (has_comp('deploy') && has_comp('monitoring')) add('deploy', 'monitoring', 'telemetry & logs', 'dashed');
+    if (has_comp('git') && has_comp('secrets') && !has_comp('cicd')) add('git', 'secrets', 'source secrets', 'dashed');
+    if (has_comp('secrets') && has_comp('db-deploy')) add('secrets', 'db-deploy', 'DB credentials', 'dashed');
+
+    // LLD DevOps flows
+    if (has_comp('lld-git') && has_comp('lld-ci')) add('lld-git', 'lld-ci', 'webhook trigger');
+    if (has_comp('lld-git') && has_comp('lld-tests') && !has_comp('lld-ci')) add('lld-git', 'lld-tests', 'test trigger');
+    if (has_comp('lld-ci') && has_comp('lld-tests')) add('lld-ci', 'lld-tests', 'run test suite');
+    if (has_comp('lld-ci') && has_comp('lld-iac')) add('lld-ci', 'lld-iac', 'validate config');
+    if (has_comp('lld-tests') && has_comp('lld-secrets')) add('lld-secrets', 'lld-tests', 'test env vars', 'dashed');
+    if (has_comp('lld-secrets') && has_comp('lld-db-ops')) add('lld-secrets', 'lld-db-ops', 'DB connection string', 'dashed');
+    if (has_comp('lld-db-ops') && has_comp('lld-deploy')) add('lld-db-ops', 'lld-deploy', 'post-deploy migrate');
+    if (has_comp('lld-iac') && has_comp('lld-deploy')) add('lld-iac', 'lld-deploy', 'provision host');
+    if (has_comp('lld-secrets') && has_comp('lld-deploy')) add('lld-secrets', 'lld-deploy', 'inject production secrets', 'dashed');
+    if (has_comp('lld-deploy') && has_comp('lld-monitoring')) add('lld-deploy', 'lld-monitoring', 'health checks & traces', 'dashed');
+
+    // ── Cloud LLD flows ────────────────────────────────────────────
+    if (has_comp('lld-client') && has_comp('lld-api-gw')) add('lld-client', 'lld-api-gw', 'HTTPS API request');
+    if (has_comp('lld-api-gw') && has_comp('lld-auth-cloud')) add('lld-api-gw', 'lld-auth-cloud', 'token auth');
+    if (has_comp('lld-api-gw') && has_comp('lld-db')) add('lld-api-gw', 'lld-db', 'SQL query');
+    if (has_comp('lld-api-gw') && has_comp('lld-neon')) add('lld-api-gw', 'lld-neon', 'serverless SQL query');
+    if (has_comp('lld-api-gw') && has_comp('lld-stripe')) add('lld-api-gw', 'lld-stripe', 'checkout & webhooks', 'dashed');
+    if (has_comp('lld-api-gw') && has_comp('lld-ai')) add('lld-api-gw', 'lld-ai', 'LLM API call', 'dashed');
+    if (has_comp('lld-api-gw') && has_comp('lld-pinecone')) add('lld-api-gw', 'lld-pinecone', 'vector query', 'dashed');
+    if (has_comp('lld-api-gw') && has_comp('lld-s3')) add('lld-api-gw', 'lld-s3', 'S3 presigned URL', 'dashed');
+    if (has_comp('lld-api-gw') && has_comp('lld-bullmq')) add('lld-api-gw', 'lld-bullmq', 'dispatch job', 'dashed');
+    if (has_comp('lld-secrets') && has_comp('lld-api-gw')) add('lld-secrets', 'lld-api-gw', 'config & API keys', 'dashed');
+    if (has_comp('lld-secrets') && has_comp('lld-db')) add('lld-secrets', 'lld-db', 'DB secrets', 'dashed');
+    if (has_comp('lld-secrets') && has_comp('lld-neon')) add('lld-secrets', 'lld-neon', 'Neon DB URL', 'dashed');
 
     extraConnections.forEach(ec => {
       if (has_comp(ec.from) && has_comp(ec.to)) conns.push(ec);

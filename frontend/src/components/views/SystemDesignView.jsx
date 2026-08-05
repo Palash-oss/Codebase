@@ -260,16 +260,12 @@ function SystemDesignView({ DATA, isActive }) {
     // Build system design data for selected perspective
     const rawData = buildSystemDesign(DATA, DATA?.files || []);
     const activeComponents = getActiveComponents(rawData, perspective, designLevelFilter);
-    const zKey = perspective + (designLevelFilter === 'HLD' ? 'HLD' : 'LLD');
-    // Get zone array for the current perspective+level, filter out ghost zones (w=0 means no components)
-    const zonesRaw = rawData.zones?.[zKey] || (Array.isArray(rawData.zones) ? rawData.zones : Object.values(rawData.zones || {})[0] || []);
 
-    // Run the view's computeLayout to position components within the current canvas width
-    // and simultaneously recompute zone bounds so they always match component positions
-    computeLayout(zonesRaw, activeComponents);
+    // Position components in vertical tiers
+    computeLayout([], activeComponents);
 
-    // Filter out zones that have no components (w=0 means buildZones found no matching components)
-    const zonesArray = zonesRaw.filter(z => z.w > 0 && z.h > 0);
+    // Build zone boxes dynamically around placed components
+    const zonesArray = buildDynamicZones(activeComponents);
 
     sysDataRef.current = {
       components: activeComponents,
@@ -396,24 +392,35 @@ function SystemDesignView({ DATA, isActive }) {
       }
     });
 
-    // Recompute zone bounds from placed components
+    return components;
+  };
+
+  // Dynamically create zone boundary boxes around placed components
+  const buildDynamicZones = (components) => {
     const PAD = 28;
-    const zoneMap = {};
+    const tierGroups = {};
     components.forEach(c => {
-      if (!zoneMap[c.zone]) zoneMap[c.zone] = [];
-      zoneMap[c.zone].push(c);
+      if (!tierGroups[c.zone]) tierGroups[c.zone] = [];
+      tierGroups[c.zone].push(c);
     });
-    zonesArray.forEach(zone => {
-      const comps = zoneMap[zone.id];
-      if (comps && comps.length > 0) {
-        zone.x = Math.min(...comps.map(c => c.x)) - PAD;
-        zone.y = Math.min(...comps.map(c => c.y)) - PAD - 18;
-        zone.w = Math.max(...comps.map(c => c.x + c.w)) - Math.min(...comps.map(c => c.x)) + PAD * 2;
-        zone.h = Math.max(...comps.map(c => c.y + c.h)) - Math.min(...comps.map(c => c.y)) + PAD * 2 + 18;
-      } else {
-        zone.x = 0; zone.y = 0; zone.w = 0; zone.h = 0;
-      }
+    const zones = [];
+    Object.entries(tierGroups).forEach(([zoneId, comps]) => {
+      if (comps.length === 0) return;
+      const minX = Math.min(...comps.map(c => c.x));
+      const maxX = Math.max(...comps.map(c => c.x + c.w));
+      const minY = Math.min(...comps.map(c => c.y));
+      const maxY = Math.max(...comps.map(c => c.y + c.h));
+      zones.push({
+        id: zoneId,
+        label: comps[0].zoneLabel || zoneId.toUpperCase(),
+        color: comps[0].zoneColor || '#10B981',
+        x: minX - PAD,
+        y: minY - PAD - 18,
+        w: maxX - minX + PAD * 2,
+        h: maxY - minY + PAD * 2 + 18,
+      });
     });
+    return zones;
   };
 
 
