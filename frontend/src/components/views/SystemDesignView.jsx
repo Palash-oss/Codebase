@@ -102,6 +102,70 @@ function SystemDesignView({ DATA, isActive }) {
   }, [isActive]);
 
 
+  // Build the active component list based on current perspective + level
+  const getActiveComponents = (rawData, perspective, level) => {
+    const p = rawData.perspectives[perspective];
+    if (!p) return rawData.perspectives.system.hld;
+    return level === 'HLD' ? p.hld : p.lld;
+  };
+
+  // Generate connection links between components based on active IDs
+  const buildConnections = (components) => {
+    const connections = [];
+    const ids = components.map(c => c.id);
+    const has = (id) => ids.includes(id);
+
+    // Client → API
+    if (has('client') && has('api')) connections.push({ from: 'client', to: 'api', label: 'HTTP / HTTPS', style: 'solid' });
+    if (has('client') && has('cloud-gw')) connections.push({ from: 'client', to: 'cloud-gw', label: 'HTTPS', style: 'solid' });
+
+    // API → Auth
+    if (has('api') && has('auth')) connections.push({ from: 'api', to: 'auth', label: 'Validates token', style: 'solid' });
+    if (has('cloud-gw') && has('auth')) connections.push({ from: 'cloud-gw', to: 'auth', label: 'Auth check', style: 'solid' });
+
+    // API → Domain
+    if (has('api') && has('domain')) connections.push({ from: 'api', to: 'domain', label: 'Dispatches business logic', style: 'solid' });
+
+    // API/Domain → Database
+    if (has('api') && has('database')) connections.push({ from: 'api', to: 'database', label: 'ORM Query', style: 'solid' });
+    if (has('domain') && has('database')) connections.push({ from: 'domain', to: 'database', label: 'ORM Query', style: 'solid' });
+    if (has('cloud-gw') && has('cloud-db')) connections.push({ from: 'cloud-gw', to: 'cloud-db', label: 'ORM Query', style: 'solid' });
+
+    // API → Cache
+    if (has('api') && has('cache')) connections.push({ from: 'api', to: 'cache', label: 'Cache lookup', style: 'dashed' });
+    if (has('domain') && has('cache')) connections.push({ from: 'domain', to: 'cache', label: 'Cache lookup', style: 'dashed' });
+
+    // API → AWS services
+    if (has('api') && has('s3')) connections.push({ from: 'api', to: 's3', label: 'Upload / fetch', style: 'dashed' });
+    if (has('api') && has('sqs')) connections.push({ from: 'api', to: 'sqs', label: 'Publish message', style: 'dashed' });
+    if (has('api') && has('ses')) connections.push({ from: 'api', to: 'ses', label: 'Send email', style: 'dashed' });
+    if (has('lambda') && has('sqs')) connections.push({ from: 'sqs', to: 'lambda', label: 'Triggers', style: 'solid' });
+    if (has('lambda') && has('dynamo')) connections.push({ from: 'lambda', to: 'dynamo', label: 'Read / write', style: 'solid' });
+    if (has('lambda') && has('rds')) connections.push({ from: 'lambda', to: 'rds', label: 'DB query', style: 'solid' });
+    if (has('api') && has('lambda')) connections.push({ from: 'api', to: 'lambda', label: 'Invoke', style: 'dashed' });
+    if (has('cdn') && has('cloud-gw')) connections.push({ from: 'cdn', to: 'cloud-gw', label: 'Cache miss / origin', style: 'solid' });
+    if (has('cdn') && has('api')) connections.push({ from: 'cdn', to: 'api', label: 'Cache miss / origin', style: 'solid' });
+
+    // LLD connections
+    if (has('lld-ui') && has('lld-hooks')) connections.push({ from: 'lld-ui', to: 'lld-hooks', label: 'Uses hooks', style: 'solid' });
+    if (has('lld-hooks') && has('lld-routes')) connections.push({ from: 'lld-hooks', to: 'lld-routes', label: 'HTTP Request (fetch/axios)', style: 'solid' });
+    if (has('lld-routes') && has('lld-auth')) connections.push({ from: 'lld-routes', to: 'lld-auth', label: 'Auth middleware', style: 'solid' });
+    if (has('lld-routes') && has('lld-domain')) connections.push({ from: 'lld-routes', to: 'lld-domain', label: 'Invoke method', style: 'solid' });
+    if (has('lld-domain') && has('lld-db')) connections.push({ from: 'lld-domain', to: 'lld-db', label: 'ORM query', style: 'solid' });
+    if (has('lld-domain') && has('lld-cache')) connections.push({ from: 'lld-domain', to: 'lld-cache', label: 'Cache read/write', style: 'dashed' });
+    if (has('lld-routes') && has('lld-runtime')) connections.push({ from: 'lld-runtime', to: 'lld-routes', label: 'Inject secrets & env', style: 'dashed' });
+
+    // DevOps connections
+    if (has('git') && has('cicd')) connections.push({ from: 'git', to: 'cicd', label: 'Push trigger', style: 'solid' });
+    if (has('cicd') && has('testing')) connections.push({ from: 'cicd', to: 'testing', label: 'Run tests', style: 'solid' });
+    if (has('cicd') && has('docker')) connections.push({ from: 'cicd', to: 'docker', label: 'Build image', style: 'solid' });
+    if (has('cicd') && has('deploy')) connections.push({ from: 'cicd', to: 'deploy', label: 'Deploy', style: 'solid' });
+    if (has('docker') && has('k8s')) connections.push({ from: 'docker', to: 'k8s', label: 'Orchestrate', style: 'solid' });
+    if (has('docker') && has('deploy')) connections.push({ from: 'docker', to: 'deploy', label: 'Push to registry', style: 'solid' });
+
+    return connections;
+  };
+
   const initializeCanvas = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -126,24 +190,28 @@ function SystemDesignView({ DATA, isActive }) {
     }
 
     // Build system design data for selected perspective
-    const raw = buildSystemDesign(DATA, DATA?.files || [], perspective);
+    const rawData = buildSystemDesign(DATA, DATA?.files || []);
+    const activeComponents = getActiveComponents(rawData, perspective, designLevelFilter);
+    const zonesArray = Object.values(rawData.zones || {});
 
-    // Filter to only show selected design level (HLD or LLD)
-    raw.components = raw.components.filter(c => c.designLevel === designLevelFilter);
-    const validCompIds = new Set(raw.components.map(c => c.id));
-    raw.connections = raw.connections.filter(conn => validCompIds.has(conn.from) && validCompIds.has(conn.to));
+    // Compute layout for the active components
+    computeLayout(zonesArray, activeComponents);
 
-
-    sysDataRef.current = raw;
-    computeLayout(raw.zones, raw.components);
-
+    sysDataRef.current = {
+      components: activeComponents,
+      zones: zonesArray,
+      connections: buildConnections(activeComponents),
+      externalSaaS: rawData.externalSaaS || [],
+      dbTables: rawData.dbTables || [],
+      metadata: rawData.metadata || {}
+    };
 
     // Auto-fit the diagram to the canvas with non-negative scale bounds
-    if (raw.components.length > 0) {
-      const allX = raw.components.map(c => c.x);
-      const allY = raw.components.map(c => c.y);
-      const allX2 = raw.components.map(c => c.x + c.w);
-      const allY2 = raw.components.map(c => c.y + c.h);
+    if (activeComponents.length > 0) {
+      const allX = activeComponents.map(c => c.x);
+      const allY = activeComponents.map(c => c.y);
+      const allX2 = activeComponents.map(c => c.x + c.w);
+      const allY2 = activeComponents.map(c => c.y + c.h);
       const diagramW = Math.max(...allX2) - Math.min(...allX) + 80;
       const diagramH = Math.max(...allY2) - Math.min(...allY) + 80;
 
@@ -173,21 +241,16 @@ function SystemDesignView({ DATA, isActive }) {
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-
-
     setIsInitialized(true);
     drawDiagram();
-    // NO continuous RAF loop — use on-demand requestRedraw() instead for smooth 60fps on interaction only
   };
 
 
   // Helper to re-calculate zone bounds live as nodes are interactively dragged
   const updateZoneBounds = () => {
-    if (!sysDataRef.current) return;
-    const tierOrder = ['client', 'gateway', 'service', 'data', 'devops'];
-    tierOrder.forEach(tier => {
-      const comps = sysDataRef.current.components.filter(c => c.tier === tier);
-      const zone = sysDataRef.current.zones.find(z => z.id === `${tier}-zone`);
+    if (!sysDataRef.current || !sysDataRef.current.zones) return;
+    sysDataRef.current.zones.forEach(zone => {
+      const comps = sysDataRef.current.components.filter(c => c.zone === zone.id);
       if (zone && comps.length > 0) {
         const minX = Math.min(...comps.map(c => c.x));
         const maxX = Math.max(...comps.map(c => c.x + c.w));
@@ -204,78 +267,43 @@ function SystemDesignView({ DATA, isActive }) {
 
   // Layout computation - positions components with ZERO OVERLAP
   // Fits multi-card rows cleanly across screen width
-  const computeLayout = (zones, components) => {
+  const computeLayout = (zonesArray, components) => {
     const canvas = canvasRef.current;
     const CANVAS_W = (canvas ? canvas.offsetWidth : 1200) || 1200;
-    const COMP_W = 310;  // 310px wide cards so titles like ORM Table Schemas fit cleanly
+    const COMP_W = 310;  // 310px wide cards
     const COMP_H = 115;
-    const ROW_HEIGHT = 160;
-    const COL_GAP = 60;   // gap between HLD and LLD columns
-    const TIER_GAP = 40;  // extra vertical gap between tiers
+    const TIER_GAP = 40;
 
-    const tierOrder = ['client', 'gateway', 'service', 'data', 'devops'];
-    const activeTiers = tierOrder.filter(t => components.some(c => c.tier === t));
+    // Define the sequence of zones we want to display vertically
+    const zoneOrder = ['frontend', 'backend', 'service', 'data', 'ops', 'cloud', 'devops'];
+    const activeZones = zoneOrder.filter(zKey => components.some(c => c.zone === zKey));
 
-    // Separate HLD and LLD components per tier
-    activeTiers.forEach((tier, tierIdx) => {
-      const tierHLD = components.filter(c => c.tier === tier && c.designLevel === 'HLD');
-      const tierLLD = components.filter(c => c.tier === tier && c.designLevel === 'LLD');
-      const tierAll = components.filter(c => c.tier === tier);
+    activeZones.forEach((zKey, zoneIdx) => {
+      const zoneComps = components.filter(c => c.zone === zKey);
+      const rowY = 160 + zoneIdx * (COMP_H + TIER_GAP + 60);
 
-      // Y position for this tier row (start at 160px so top bar never overlaps)
-      const rowY = 160 + tierIdx * (COMP_H + ROW_HEIGHT + TIER_GAP);
+      const count = zoneComps.length;
+      const totalW = count * COMP_W + (count - 1) * 36;
+      const startX = Math.max(40, CANVAS_W / 2 - totalW / 2);
 
-      if (tierHLD.length > 0 && tierLLD.length > 0) {
-        // Split layout: HLD on left, LLD on right
-        const totalCols = Math.max(tierHLD.length, tierLLD.length);
-        const totalW = totalCols * COMP_W + (totalCols - 1) * 20;
-        const centerX = Math.max(50, CANVAS_W / 2);
-
-        // Left side = HLD column(s)
-        tierHLD.forEach((comp, i) => {
-          comp.x = centerX - COL_GAP / 2 - COMP_W + i * (COMP_W + 16);
-          comp.y = rowY;
-          comp.w = COMP_W;
-          comp.h = COMP_H;
-          if (tierHLD.length > 1) {
-            comp.x = centerX - COL_GAP / 2 - (tierHLD.length * (COMP_W + 16)) / 2 + i * (COMP_W + 16);
-          }
-        });
-
-        // Right side = LLD column(s)
-        tierLLD.forEach((comp, i) => {
-          comp.x = centerX + COL_GAP / 2 + i * (COMP_W + 16);
-          comp.y = rowY;
-          comp.w = COMP_W;
-          comp.h = COMP_H;
-          if (tierLLD.length > 1) {
-            comp.x = centerX + COL_GAP / 2 + i * (COMP_W + 16) - (COMP_W * (tierLLD.length - 1)) / 2;
-          }
-        });
-      } else {
-        // Single view filter active (HLD or LLD): center multi-cards horizontally per tier row
-        const count = tierAll.length;
-        const totalW = count * COMP_W + (count - 1) * 36;
-        const startX = Math.max(40, CANVAS_W / 2 - totalW / 2);
-
-        tierAll.forEach((comp, i) => {
-          comp.x = startX + i * (COMP_W + 36);
-          comp.y = rowY;
-          comp.w = COMP_W;
-          comp.h = COMP_H;
-        });
-      }
+      zoneComps.forEach((comp, i) => {
+        comp.x = startX + i * (COMP_W + 36);
+        comp.y = rowY;
+        comp.w = COMP_W;
+        comp.h = COMP_H;
+      });
     });
 
     // Compute zone bounds
-    activeTiers.forEach(tier => {
-      const comps = components.filter(c => c.tier === tier);
-      const zone = zones.find(z => z.id === `${tier}-zone`);
-      if (zone && comps.length > 0) {
+    zonesArray.forEach(zone => {
+      const comps = components.filter(c => c.zone === zone.id);
+      if (comps.length > 0) {
         zone.x = Math.min(...comps.map(c => c.x)) - 28;
         zone.y = Math.min(...comps.map(c => c.y)) - 38;
         zone.w = Math.max(...comps.map(c => c.x + c.w)) - Math.min(...comps.map(c => c.x)) + 56;
         zone.h = Math.max(...comps.map(c => c.y + c.h)) - Math.min(...comps.map(c => c.y)) + 60;
+      } else {
+        zone.x = 0; zone.y = 0; zone.w = 0; zone.h = 0;
       }
     });
   };
@@ -580,7 +608,7 @@ function SystemDesignView({ DATA, isActive }) {
         ctx.fillText(levelLabel, comp.x + comp.w - pillW / 2 - 8, comp.y + 16);
 
         // Tech Brand Logo Icon on Card
-        const logoUrl = getTechLogoUrl(comp);
+        const logoUrl = getTechLogoUrl(comp.techKey);
         let hasLogo = false;
         if (logoUrl) {
           if (!logoCacheRef.current[logoUrl]) {
@@ -607,18 +635,11 @@ function SystemDesignView({ DATA, isActive }) {
           }
         }
 
-        // Fallback Number badge if logo loading or unavailable
+        // Fallback badge / drawFallbackIcon if logo is loading or unavailable
         if (!hasLogo) {
-          const badgeBg = isLight ? '#047857' : '#10B981';
-          ctx.fillStyle = badgeBg;
-          ctx.beginPath();
-          ctx.arc(comp.x + 20, comp.y + 22, 10, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#FFFFFF';
-          ctx.font = '700 9px "Space Mono", monospace';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(comp.number, comp.x + 20, comp.y + 22);
+          ctx.save();
+          drawFallbackIcon(ctx, comp.techKey, comp.x + 23, comp.y + 23, 28);
+          ctx.restore();
         }
 
         // Component title & positioning offset
@@ -673,15 +694,12 @@ function SystemDesignView({ DATA, isActive }) {
 
 
       // Render Database Schema Tables Matrix & External SaaS Integration Sidebars (Matching Reference Screenshots)
-      const tables = sysDataRef.current.detectedTables || ['Users', 'Workspaces', 'Projects', 'AnalysisCache', 'Tickets', 'SupportLogs'];
-      const saas = sysDataRef.current.externalServices || [
-        { name: 'GitHub (Users & Webhooks)', category: 'OAuth / Webhooks' },
-        { name: 'Stripe Subscription Billing', category: 'SaaS Billing' }
-      ];
+      const tables = sysDataRef.current.dbTables || [];
+      const saas = sysDataRef.current.externalSaaS || [];
 
       // Draw Scanned DB Schema Table Card at bottom center
-      const dataZone = sysDataRef.current.zones.find(z => z.id === 'data-zone');
-      if (dataZone && dataZone.w > 0) {
+      const dataZone = sysDataRef.current.zones.find(z => z.id === 'data');
+      if (dataZone && dataZone.w > 0 && tables.length > 0) {
         const dbX = dataZone.x + dataZone.w + 40;
         const dbY = dataZone.y;
         const dbW = 280;
@@ -724,8 +742,8 @@ function SystemDesignView({ DATA, isActive }) {
       }
 
       // Draw External SaaS Integrations Card at top right
-      const clientZone = sysDataRef.current.zones.find(z => z.id === 'client-zone');
-      if (clientZone && clientZone.w > 0) {
+      const clientZone = sysDataRef.current.zones.find(z => z.id === 'frontend');
+      if (clientZone && clientZone.w > 0 && saas.length > 0) {
         const saasX = clientZone.x + clientZone.w + 40;
         const saasY = clientZone.y;
         const saasW = 260;
@@ -758,11 +776,11 @@ function SystemDesignView({ DATA, isActive }) {
           ctx.fillStyle = isLight ? '#0F172A' : '#FFFFFF';
           ctx.textAlign = 'left';
           ctx.textBaseline = 'top';
-          ctx.fillText(s.name, saasX + 22, sy + 6);
+          ctx.fillText(s.name || s.label || '', saasX + 22, sy + 6);
 
           ctx.font = '600 9px "Space Mono", monospace';
           ctx.fillStyle = isLight ? '#6D28D9' : '#A78BFA';
-          ctx.fillText(s.category, saasX + 22, sy + 23);
+          ctx.fillText(s.category || s.sublabel || '', saasX + 22, sy + 23);
         });
         ctx.restore();
       }
@@ -818,120 +836,170 @@ function SystemDesignView({ DATA, isActive }) {
 
   // Official Tech & Cloud Logo Loader Cache
   const logoCacheRef = useRef({});
-  const getTechLogoUrl = (comp) => {
-    const k = (comp.techKey || comp.label || comp.provider || comp.sublabel || '').toLowerCase();
+  const DEVICON = 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons';
 
-    // Specific AWS Service & Cloud Icon Mappings
-    if (k.includes('dynamodb')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/dynamodb/dynamodb-original.svg';
-    }
-    if (k.includes('s3') || k.includes('bucket') || k.includes('object storage')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-original-wordmark.svg';
-    }
-    if (k.includes('lambda') || k.includes('serverless')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-plain-wordmark.svg';
-    }
-    if (k.includes('cloudfront') || k.includes('route53')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-line-wordmark.svg';
-    }
-    if (k.includes('rds') || k.includes('aurora')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg';
-    }
-    if (k.includes('aws') || k.includes('amazon') || k.includes('ec2') || k.includes('ecs') || k.includes('eks') || k.includes('sqs') || k.includes('sns') || k.includes('iam') || k.includes('cloudwatch')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-original.svg';
-    }
+  function getTechLogoUrl(techKey) {
+    const map = {
+      // Frameworks
+      'nextjs':      `${DEVICON}/nextjs/nextjs-original.svg`,
+      'react':       `${DEVICON}/react/react-original.svg`,
+      'vuejs':       `${DEVICON}/vuejs/vuejs-original.svg`,
+      'express':     `${DEVICON}/express/express-original.svg`,
+      'nestjs':      `${DEVICON}/nestjs/nestjs-original.svg`,
+      'fastify':     `${DEVICON}/fastify/fastify-original.svg`,
+      'node':        `${DEVICON}/nodejs/nodejs-original.svg`,
 
-    // Other Major Cloud Providers & Hosting
-    if (k.includes('gcp') || k.includes('google cloud') || k.includes('firebase')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/googlecloud/googlecloud-original.svg';
-    }
-    if (k.includes('azure')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/azure/azure-original.svg';
-    }
-    if (k.includes('vercel')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/vercel/vercel-original.svg';
-    }
-    if (k.includes('next')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nextjs/nextjs-original.svg';
-    }
+      // Databases — SPECIFIC, never fallback to postgres
+      'postgresql':  `${DEVICON}/postgresql/postgresql-original.svg`,
+      'mysql':       `${DEVICON}/mysql/mysql-original.svg`,
+      'mongodb':     `${DEVICON}/mongodb/mongodb-original.svg`,
+      'sqlite':      `${DEVICON}/sqlite/sqlite-original.svg`,
+      'redis':       `${DEVICON}/redis/redis-original.svg`,
+      'firebase':    `${DEVICON}/firebase/firebase-plain.svg`,
 
-    // Containers & DevOps Infrastructure
-    if (k.includes('docker')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg';
-    }
-    if (k.includes('k8s') || k.includes('kubernetes')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/kubernetes/kubernetes-plain.svg';
-    }
-    if (k.includes('github') || k.includes('octokit') || k.includes('actions') || k.includes('event')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg';
-    }
+      // ORMs
+      'prisma':      `${DEVICON}/prisma/prisma-original.svg`,
 
-    // Frameworks & Runtimes
-    if (k.includes('react')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg';
-    }
-    if (k.includes('express')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/express/express-original.svg';
-    }
-    if (k.includes('node')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nodejs/nodejs-original.svg';
-    }
-    if (k.includes('openai') || k.includes('llm') || k.includes('rag') || k.includes('chat') || k.includes('ai') || k.includes('prompt')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/openai/openai-original.svg';
-    }
-    if (k.includes('python')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg';
-    }
-    if (k.includes('go') || k.includes('golang')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/go/go-original.svg';
-    }
-    if (k.includes('java') || k.includes('spring')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg';
-    }
-    if (k.includes('typescript') || k.includes('ts')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/typescript/typescript-original.svg';
-    }
-    if (k.includes('javascript') || k.includes('js')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/javascript/javascript-original.svg';
-    }
+      // Auth
+      'nextauth':    null, // use letter fallback
+      'auth0':       null,
+      'clerk':       null,
+      'jwt':         null,
 
-    // Databases & Caching
-    if (k.includes('prisma')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/prisma/prisma-original.svg';
-    }
-    if (k.includes('postgres') || k.includes('sql')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg';
-    }
-    if (k.includes('mongo')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/mongodb/mongodb-original.svg';
-    }
-    if (k.includes('redis')) {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/redis/redis-original.svg';
-    }
+      // State
+      'zustand':     null,
+      'redux':       `${DEVICON}/redux/redux-original.svg`,
 
-    // Tier-based Defaults so EVERY node gets a recognizable tech icon
-    if (comp.tier === 'client') {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg';
-    }
-    if (comp.tier === 'gateway') {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/express/express-original.svg';
-    }
-    if (comp.tier === 'service') {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nodejs/nodejs-original.svg';
-    }
-    if (comp.tier === 'data') {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg';
-    }
-    if (comp.tier === 'devops') {
-      return 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg';
+      // DevOps
+      'docker':      `${DEVICON}/docker/docker-original.svg`,
+      'github':      `${DEVICON}/github/github-original.svg`,
+      'gha':         `${DEVICON}/github/github-original.svg`,
+      'kubernetes':  `${DEVICON}/kubernetes/kubernetes-plain.svg`,
+      'vitejs':      `${DEVICON}/vitejs/vitejs-original.svg`,
+
+      // Testing
+      'jest':        `${DEVICON}/jest/jest-plain.svg`,
+      'vitest':      `${DEVICON}/vitejs/vitejs-original.svg`,
+      'playwright':  null,
+      'cypress':     null,
+
+      // UI
+      'tailwindcss': `${DEVICON}/tailwindcss/tailwindcss-original.svg`,
+      'tailwind':    `${DEVICON}/tailwindcss/tailwindcss-original.svg`,
+      'mui':         `${DEVICON}/materialui/materialui-original.svg`,
+
+      // Cloud — Supabase/Firebase already covered above
+      'supabase':    null, // letter fallback S in green
+      'vercel':      null, // triangle SVG
+
+      // AWS Services — all return null (use inline SVG with AWS logo)
+      'aws-s3':         null,
+      'aws-lambda':     null,
+      'aws-sqs':        null,
+      'aws-ses':        null,
+      'aws-dynamo':     null,
+      'aws-ec2':        null,
+      'aws-rds':        null,
+      'aws-cognito':    null,
+      'aws-cloudfront': null,
+      'aws-apigateway': null,
+      'aws-ecs':        null,
+      'aws-eks':        null,
+      'aws-sns':        null,
+      'aws-elasticache':null,
+    };
+
+    return map[techKey] || null;
+  }
+
+  // When icon fails to load or URL is null, show this fallback:
+  function drawFallbackIcon(ctx, techKey, cx, cy, size = 28) {
+    // AWS services — draw orange AWS badge
+    if (techKey && techKey.startsWith('aws-')) {
+      const service = techKey.replace('aws-', '').toUpperCase();
+      // Draw orange rectangle
+      ctx.fillStyle = '#FF9900';
+      ctx.beginPath();
+      roundRect(ctx, cx - 22, cy - 12, 44, 24, 4);
+      ctx.fill();
+      // AWS text
+      ctx.font = `700 9px "Space Mono", monospace`;
+      ctx.fillStyle = '#000000';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('AWS', cx, cy - 4);
+      // Service name
+      ctx.font = `600 7px "Space Grotesk", sans-serif`;
+      ctx.fillText(service.slice(0, 8), cx, cy + 6);
+      return;
     }
 
-    return null;
-  };
+    // Supabase — green S circle
+    if (techKey === 'supabase') {
+      ctx.fillStyle = '#3FCF8E';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.font = '700 14px "Space Grotesk"';
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('S', cx, cy);
+      return;
+    }
+
+    // Vercel — white triangle
+    if (techKey === 'vercel') {
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 12);
+      ctx.lineTo(cx + 14, cy + 10);
+      ctx.lineTo(cx - 14, cy + 10);
+      ctx.closePath();
+      ctx.fill();
+      return;
+    }
+
+    // Auth providers
+    const authColors = {
+      'nextauth': '#7c3aed', 'auth0': '#EB5424', 'clerk': '#6C47FF',
+      'jwt': '#d63aff', 'passport': '#34E27A'
+    };
+    if (authColors[techKey]) {
+      ctx.fillStyle = authColors[techKey];
+      ctx.beginPath();
+      ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+      ctx.fill();
+      const labels = { nextauth:'NA', auth0:'A0', clerk:'Cl', jwt:'JWT', passport:'P' };
+      ctx.font = '700 10px "Space Mono"';
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(labels[techKey] || techKey[0].toUpperCase(), cx, cy);
+      return;
+    }
+
+    // Generic fallback — colored circle with first letter
+    const genericColors = {
+      'zustand': '#443E38', 'turborepo': '#EF4444', 'playwright': '#2EAD33',
+      'cypress': '#04C38E', 'hono': '#E36002', 'drizzle': '#C5F74F',
+      'node': '#339933', 'web': '#3b82f6',
+    };
+    const color = genericColors[techKey] || '#666666';
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = '700 13px "Space Grotesk"';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText((techKey || '?')[0].toUpperCase(), cx, cy);
+  }
 
   // Draw component icons with official colorful logos or rich vector icons
   const drawComponentIcon = (ctx, comp, cx, cy, isLight = false) => {
-    const logoUrl = getTechLogoUrl(comp);
+    const logoUrl = getTechLogoUrl(comp.techKey);
     if (logoUrl) {
       if (!logoCacheRef.current[logoUrl]) {
         const img = new Image();
@@ -953,143 +1021,8 @@ function SystemDesignView({ DATA, isActive }) {
       }
     }
 
-    const strokeColor = isLight
-      ? '#047857'
-      : (comp.badgeColor && comp.badgeColor !== '#FFFFFF' && !comp.badgeColor.includes('255,255,255') ? comp.badgeColor : '#10B981');
-
-    ctx.strokeStyle = strokeColor;
-    ctx.fillStyle = strokeColor;
-    ctx.lineWidth = 1.8;
-
-    switch (comp.icon) {
-      case 'browser': {
-        roundRect(ctx, cx - 14, cy - 8, 28, 18, 4);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(cx - 14, cy - 2);
-        ctx.lineTo(cx + 14, cy - 2);
-        ctx.stroke();
-        // Browser dots
-        ctx.beginPath();
-        ctx.arc(cx - 9, cy - 5, 1.2, 0, Math.PI * 2);
-        ctx.arc(cx - 5, cy - 5, 1.2, 0, Math.PI * 2);
-        ctx.arc(cx - 1, cy - 5, 1.2, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-      }
-      case 'mobile': {
-        roundRect(ctx, cx - 8, cy - 12, 16, 24, 4);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(cx, cy + 8, 1.5, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-      }
-      case 'database': {
-        ctx.beginPath();
-        ctx.ellipse(cx, cy - 6, 12, 4, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(cx - 12, cy - 6);
-        ctx.lineTo(cx - 12, cy + 6);
-        ctx.moveTo(cx + 12, cy - 6);
-        ctx.lineTo(cx + 12, cy + 6);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, 12, 4, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.ellipse(cx, cy + 6, 12, 4, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        break;
-      }
-      case 'network': {
-        // Service Mesh Router Hexagon
-        ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-          const a = (Math.PI / 3) * i - Math.PI / 6;
-          const x = cx + 12 * Math.cos(a);
-          const y = cy + 12 * Math.sin(a);
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.closePath();
-        ctx.stroke();
-        // Inner core
-        ctx.beginPath();
-        ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-      }
-      case 'service': {
-        // Microservice API Controller Node (Hexagon with cross lines)
-        roundRect(ctx, cx - 11, cy - 11, 22, 22, 5);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-      }
-      case 'monitor': {
-        // APM Monitor Screen with Chart Line
-        roundRect(ctx, cx - 12, cy - 9, 24, 16, 3);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(cx - 4, cy + 7);
-        ctx.lineTo(cx + 4, cy + 7);
-        ctx.moveTo(cx, cy + 7);
-        ctx.lineTo(cx, cy + 10);
-        ctx.stroke();
-        // Line chart inside
-        ctx.beginPath();
-        ctx.moveTo(cx - 8, cy + 2);
-        ctx.lineTo(cx - 4, cy - 3);
-        ctx.lineTo(cx, cy + 1);
-        ctx.lineTo(cx + 4, cy - 5);
-        ctx.lineTo(cx + 8, cy - 1);
-        ctx.stroke();
-        break;
-      }
-      case 'cloud': {
-        // Cloud Dome
-        ctx.beginPath();
-        ctx.arc(cx - 4, cy - 1, 6, Math.PI * 0.8, Math.PI * 1.9);
-        ctx.arc(cx + 4, cy - 3, 7, Math.PI * 1.1, Math.PI * 2.1);
-        ctx.arc(cx + 9, cy + 3, 5, Math.PI * 1.6, Math.PI * 0.5);
-        ctx.lineTo(cx - 10, cy + 8);
-        ctx.arc(cx - 9, cy + 3, 5, Math.PI * 0.5, Math.PI * 1.3);
-        ctx.closePath();
-        ctx.stroke();
-        break;
-      }
-      case 'cache': {
-        // Memory Cache Grid Stack
-        roundRect(ctx, cx - 11, cy - 10, 22, 6, 2);
-        ctx.stroke();
-        roundRect(ctx, cx - 11, cy - 2, 22, 6, 2);
-        ctx.stroke();
-        roundRect(ctx, cx - 11, cy + 6, 22, 6, 2);
-        ctx.stroke();
-        break;
-      }
-      default: {
-        // Universal Subsystem Core Icon (Hexagon Node + Center Core)
-        ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-          const a = (Math.PI / 3) * i;
-          const x = cx + 11 * Math.cos(a);
-          const y = cy + 11 * Math.sin(a);
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.closePath();
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-      }
-    }
+    // If no logo or logo image loading, draw fallback icon
+    drawFallbackIcon(ctx, comp.techKey, cx, cy, 28);
   };
 
   // Legend
