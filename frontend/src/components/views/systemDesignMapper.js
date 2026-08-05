@@ -1091,8 +1091,8 @@ export function buildSystemDesign(DATA, fileList = []) {
         lld: sysLLDWithLayout
       },
       cloud: {
-        hld: cloudHLDWithLayout,
-        lld: cloudLLDWithLayout
+        hld: cloudHLDLayout,
+        lld: cloudLLDLayout
       },
       devops: {
         hld: devopsHLDLayout,
@@ -1105,7 +1105,7 @@ export function buildSystemDesign(DATA, fileList = []) {
       cloudHLD: cloudHLDZones,
       cloudLLD: cloudLLDZones,
       devopsHLD: devopsHLDZones,
-      devopsLLD: devopsLLDConns
+      devopsLLD: devopsLLDZones
     },
     externalSaaS: [
       has('octokit')||has('github') ? { label:'GitHub', sublabel:'Users & Webhooks', techKey:'github' } : null,
