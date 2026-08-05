@@ -20,34 +20,56 @@ export function buildSystemDesign(DATA, fileList = []) {
   const isNestJS = has('nestjs');
   const isFastify = has('fastify');
   const isHono = has('hono');
-  const hasAnyBackend = hasAny('nextjs','express','nestjs','fastify','hono');
+  // Python backends
+  const isFlask = has('flask');
+  const isFastAPI = has('fastapi');
+  const isDjango = has('django');
+  const isPython = has('python') || isFlask || isFastAPI || isDjango;
+  const hasAnyBackend = hasAny('nextjs','express','nestjs','fastify','hono','flask','fastapi','django');
+
+  // AI / ML
+  const hasLangChain = has('langchain');
+  const hasOpenAI = has('openai');
+  const hasAnthropic = has('anthropic');
+  const hasGroq = has('groq');
+  const hasHuggingFace = has('huggingface');
+  const hasPinecone = has('pinecone');
+  const hasChromaDB = has('chromadb');
+  const hasWeaviate = has('weaviate');
+  const hasQdrant = has('qdrant');
+  const hasVectorDB = hasPinecone || hasChromaDB || hasWeaviate || hasQdrant;
+  const hasAnyAI = hasLangChain || hasOpenAI || hasAnthropic || hasGroq || hasHuggingFace;
 
   const dbTech = has('neon') ? 'neon' :
     has('postgresql') ? 'postgresql' :
+    has('psycopg2') ? 'postgresql' :
     has('mysql') ? 'mysql' :
-    has('mongodb') || has('mongoose') ? 'mongodb' :
+    has('mongodb') || has('mongoose') || has('pymongo') ? 'mongodb' :
     has('sqlite') ? 'sqlite' :
     has('supabase') ? 'supabase' :
     has('firebase') ? 'firebase' :
     has('aws-dynamo') ? 'aws-dynamo' :
     has('upstash') ? 'upstash' :
-    has('prisma') ? 'postgresql' : null;
+    has('prisma') ? 'postgresql' :
+    has('sqlalchemy') ? 'postgresql' : null;
 
   const dbName = has('neon') ? 'Neon Serverless Postgres' :
-    has('postgresql') ? 'PostgreSQL' :
+    has('postgresql') || has('psycopg2') ? 'PostgreSQL' :
     has('mysql') ? 'MySQL' :
-    has('mongodb') || has('mongoose') ? 'MongoDB' :
+    has('mongodb') || has('mongoose') || has('pymongo') ? 'MongoDB' :
     has('sqlite') ? 'SQLite' :
     has('supabase') ? 'Supabase DB' :
     has('firebase') ? 'Firestore' :
     has('aws-dynamo') ? 'DynamoDB' :
     has('upstash') ? 'Upstash Redis' :
-    has('prisma') ? 'PostgreSQL' : null;
+    has('prisma') ? 'PostgreSQL' :
+    has('sqlalchemy') ? 'PostgreSQL / SQLAlchemy' : null;
 
   const ormSuffix = has('prisma') ? ' · Prisma ORM' :
     has('drizzle') ? ' · Drizzle ORM' :
     has('mongoose') ? ' · Mongoose' :
-    has('typeorm') ? ' · TypeORM' : '';
+    has('typeorm') ? ' · TypeORM' :
+    has('sqlalchemy') ? ' · SQLAlchemy' : '';
 
   const authTech = has('nextauth') ? 'nextauth' :
     has('auth0') ? 'auth0' :
@@ -71,13 +93,20 @@ export function buildSystemDesign(DATA, fileList = []) {
     has('react') ? 'React SPA' :
     has('vuejs') ? 'Vue.js App' : 'Web Client';
 
+  // Backend API name & tech (prefer Python if detected alongside JS frontend)
   const apiName = isNextJS ? 'Next.js API Routes' :
+    isFlask ? 'Flask API Server' :
+    isFastAPI ? 'FastAPI Server' :
+    isDjango ? 'Django REST API' :
     isNestJS ? 'NestJS Controller' :
     isExpress ? 'Express Router' :
     isFastify ? 'Fastify Server' :
     isHono ? 'Hono API' : 'API Server';
 
   const apiTech = isNextJS ? 'nextjs' :
+    isFlask ? 'flask' :
+    isFastAPI ? 'fastapi' :
+    isDjango ? 'django' :
     isNestJS ? 'nestjs' :
     isExpress ? 'express' :
     isFastify ? 'fastify' : 'node';
@@ -136,14 +165,30 @@ export function buildSystemDesign(DATA, fileList = []) {
 
   // ── Layout engine ─────────────────────────────────────────────
   function computeLayout(components, canvasW = 1400) {
-    const COMP_W = 160;
-    const COMP_H = 110;
-    const COMP_GAP = 24;
-    const TIER_GAP = 40;
-    const ZONE_EXTRA = 50;
+    const COMP_W = 280;
+    const COMP_H = 120;
+    const COMP_GAP = 36;
+    const TIER_GAP = 60;
+    const ZONE_EXTRA = 40;
 
-    const zoneOrder = ['client','network','edge','gateway','backend',
-      'service','data','cache','queue','cloud','observability','devops','ops'];
+    // ALL zone IDs actually used by any component must be here, in top-to-bottom order
+    const zoneOrder = [
+      'client',    // HLD: frontend tier
+      'frontend',  // LLD: same tier but different zone id
+      'network',   // DNS
+      'edge',      // CDN / Vercel Edge
+      'gateway',   // API Gateway + Auth
+      'backend',   // Business logic / workers
+      'service',
+      'data',      // DB / Pinecone
+      'cache',     // Redis
+      'queue',     // BullMQ / Kafka
+      'cloud',     // Cloud boundary / AWS
+      'external',  // SaaS (Stripe, Slack, Discord...)
+      'observability',
+      'devops',    // DevOps perspective all-in-one
+      'ops',       // Runtime config
+    ];
 
     const grouped = {};
     components.forEach(c => {
@@ -156,7 +201,7 @@ export function buildSystemDesign(DATA, fileList = []) {
       const comps = grouped[zone];
       if (!comps || comps.length === 0) return;
       const rowW = comps.length * COMP_W + (comps.length - 1) * COMP_GAP;
-      const startX = Math.max(20, (canvasW - rowW) / 2);
+      const startX = Math.max(40, (canvasW - rowW) / 2);
       comps.forEach((c, i) => {
         c.x = startX + i * (COMP_W + COMP_GAP);
         c.y = currentY;
@@ -164,6 +209,17 @@ export function buildSystemDesign(DATA, fileList = []) {
         c.h = COMP_H;
       });
       currentY += COMP_H + TIER_GAP + ZONE_EXTRA;
+    });
+
+    // Safety: any component whose zone is NOT in zoneOrder still gets a position
+    components.forEach(c => {
+      if (c.x === undefined) {
+        c.x = 40;
+        c.y = currentY;
+        c.w = COMP_W;
+        c.h = COMP_H;
+        currentY += COMP_H + TIER_GAP;
+      }
     });
 
     return components;
@@ -318,33 +374,66 @@ export function buildSystemDesign(DATA, fileList = []) {
     });
   }
 
-  // AI Services
-  if (has('openai')) {
+  // AI Services — HuggingFace / LangChain / OpenAI / Anthropic / Groq
+  if (hasHuggingFace) {
+    sysHLD.push({ id:'huggingface', number:num(),
+      label:'HuggingFace', sublabel:'Transformers · Embeddings · Inference',
+      zone:'cloud', zoneLabel:'EXTERNAL AI SERVICES', zoneColor:'#FF9D00',
+      techKey:'huggingface', isDetected:true, files:[]
+    });
+  }
+  if (hasLangChain) {
+    sysHLD.push({ id:'langchain', number:num(),
+      label:'LangChain', sublabel:'RAG · Chains · Agents',
+      zone:'backend', zoneLabel:'TIER 3 — BUSINESS LOGIC & DOMAIN', zoneColor:'#10B981',
+      techKey:'langchain', isDetected:true,
+      files: getFilesMatching('chain', 'agent', 'prompt', 'rag', 'retriev')
+    });
+  }
+  if (hasOpenAI) {
     sysHLD.push({ id:'ai', number:num(),
       label:'OpenAI', sublabel:'GPT · Embeddings',
-      zone:'cloud', zoneLabel:'EXTERNAL SERVICES', zoneColor:'#FF9900',
+      zone:'cloud', zoneLabel:'EXTERNAL AI SERVICES', zoneColor:'#FF9D00',
       techKey:'openai', isDetected:true, files:[]
     });
-  } else if (has('anthropic')) {
+  } else if (hasAnthropic) {
     sysHLD.push({ id:'ai', number:num(),
       label:'Anthropic Claude', sublabel:'AI API',
-      zone:'cloud', zoneLabel:'EXTERNAL SERVICES', zoneColor:'#FF9900',
+      zone:'cloud', zoneLabel:'EXTERNAL AI SERVICES', zoneColor:'#FF9D00',
       techKey:'anthropic', isDetected:true, files:[]
     });
-  } else if (has('groq')) {
+  } else if (hasGroq) {
     sysHLD.push({ id:'ai', number:num(),
       label:'Groq', sublabel:'Fast Inference API',
-      zone:'cloud', zoneLabel:'EXTERNAL SERVICES', zoneColor:'#FF9900',
+      zone:'cloud', zoneLabel:'EXTERNAL AI SERVICES', zoneColor:'#FF9D00',
       techKey:'groq', isDetected:true, files:[]
     });
   }
 
   // Vector DB
-  if (has('pinecone')) {
+  if (hasPinecone) {
     sysHLD.push({ id:'vector-db', number:num(),
-      label:'Pinecone', sublabel:'Vector Database',
+      label:'Pinecone', sublabel:'Vector Database · Semantic Search',
       zone:'data', zoneLabel:'TIER 4 — DATA & PERSISTENCE', zoneColor:'#22C55E',
       techKey:'pinecone', isDetected:true, files:[]
+    });
+  } else if (hasChromaDB) {
+    sysHLD.push({ id:'vector-db', number:num(),
+      label:'ChromaDB', sublabel:'Local Vector Store',
+      zone:'data', zoneLabel:'TIER 4 — DATA & PERSISTENCE', zoneColor:'#22C55E',
+      techKey:'chromadb', isDetected:true, files:[]
+    });
+  } else if (hasWeaviate) {
+    sysHLD.push({ id:'vector-db', number:num(),
+      label:'Weaviate', sublabel:'Vector Search Engine',
+      zone:'data', zoneLabel:'TIER 4 — DATA & PERSISTENCE', zoneColor:'#22C55E',
+      techKey:'weaviate', isDetected:true, files:[]
+    });
+  } else if (hasQdrant) {
+    sysHLD.push({ id:'vector-db', number:num(),
+      label:'Qdrant', sublabel:'Vector DB · Similarity Search',
+      zone:'data', zoneLabel:'TIER 4 — DATA & PERSISTENCE', zoneColor:'#22C55E',
+      techKey:'qdrant', isDetected:true, files:[]
     });
   }
 
@@ -451,6 +540,8 @@ export function buildSystemDesign(DATA, fileList = []) {
   const sysLLD = [];
 
   const presentationFiles = getLayerFiles('Presentation');
+  // For Python projects, the 'Presentation' layer may be in JS (React frontend)
+  const hasPyBackendOnly = isPython && !has('react') && !has('vuejs') && !isNextJS;
   if (presentationFiles.length > 0) {
     sysLLD.push({ id:'lld-ui', number:num(),
       label: 'UI Components & Views',
@@ -458,6 +549,13 @@ export function buildSystemDesign(DATA, fileList = []) {
       zone:'frontend', zoneLabel:'TIER 1 — FRONTEND & PRESENTATION', zoneColor:'#3B82F6',
       techKey: frontendTech, isDetected:true,
       files: presentationFiles
+    });
+  } else if (hasPyBackendOnly) {
+    // Pure Python backend — show as client (browser)
+    sysLLD.push({ id:'lld-ui', number:num(),
+      label: 'Browser Client', sublabel: 'HTTP requests to Flask/FastAPI',
+      zone:'frontend', zoneLabel:'TIER 1 — FRONTEND & PRESENTATION', zoneColor:'#3B82F6',
+      techKey: 'web', isDetected:true, files:[]
     });
   }
 
@@ -480,6 +578,18 @@ export function buildSystemDesign(DATA, fileList = []) {
       zone:'gateway', zoneLabel:'TIER 2 — API GATEWAY & AUTH', zoneColor:'#8B5CF6',
       techKey: apiTech, isDetected:true,
       files: gatewayFiles
+    });
+  } else if (isPython) {
+    // Python backend — show Flask/FastAPI/Django route layer even without layer detection
+    const pyFiles = files.filter(f => f.relativePath && f.relativePath.endsWith('.py')).slice(0,4).map(f => f.relativePath);
+    sysLLD.push({ id:'lld-routes', number:num(),
+      label: apiName,
+      sublabel: isFlask ? 'Flask routes · Blueprint endpoints' :
+                isFastAPI ? 'FastAPI routers · Pydantic models' :
+                isDjango ? 'Django views · DRF serializers' : 'API Server routes',
+      zone:'gateway', zoneLabel:'TIER 2 — API GATEWAY & AUTH', zoneColor:'#8B5CF6',
+      techKey: apiTech, isDetected:true,
+      files: pyFiles
     });
   }
 
@@ -547,14 +657,45 @@ export function buildSystemDesign(DATA, fileList = []) {
     });
   }
 
+  // AI/ML LLD Nodes
+  if (hasLangChain) {
+    sysLLD.push({ id:'lld-langchain', number:num(),
+      label:'LangChain RAG Pipeline',
+      sublabel: 'Chains · Agents · Prompt Templates · Vector Retrieval',
+      zone:'backend', zoneLabel:'TIER 3 — BUSINESS LOGIC & DOMAIN', zoneColor:'#10B981',
+      techKey:'langchain', isDetected:true,
+      files: getFilesMatching('chain', 'agent', 'prompt', 'rag', 'retriev', 'embed')
+    });
+  }
+  if (hasHuggingFace) {
+    sysLLD.push({ id:'lld-hf', number:num(),
+      label:'HuggingFace Transformers',
+      sublabel: 'sentence-transformers · Embeddings · Model Inference',
+      zone:'backend', zoneLabel:'TIER 3 — BUSINESS LOGIC & DOMAIN', zoneColor:'#10B981',
+      techKey:'huggingface', isDetected:true,
+      files: getFilesMatching('embed', 'model', 'transform', 'infer', 'predict')
+    });
+  }
+  if (hasVectorDB) {
+    const vectorTech = hasPinecone ? 'pinecone' : hasChromaDB ? 'chromadb' : hasWeaviate ? 'weaviate' : 'qdrant';
+    const vectorName = hasPinecone ? 'Pinecone' : hasChromaDB ? 'ChromaDB' : hasWeaviate ? 'Weaviate' : 'Qdrant';
+    sysLLD.push({ id:'lld-vector', number:num(),
+      label:`${vectorName} Vector Store`,
+      sublabel: 'Embeddings Index · Semantic Search · k-NN Retrieval',
+      zone:'data', zoneLabel:'TIER 4 — DATA & PERSISTENCE', zoneColor:'#22C55E',
+      techKey: vectorTech, isDetected:true,
+      files: getFilesMatching('vector', 'embed', 'index', 'pinecone', 'chroma', 'weaviate')
+    });
+  }
+
   sysLLD.push({ id:'lld-runtime', number:num(),
     label:'Environment Variable Injector',
     sublabel: envVars.length > 0
       ? `${envVars.length} env vars: ${envVars.slice(0,3).join(', ')}${envVars.length > 3 ? '...' : ''}`
       : 'Runtime config & secrets',
     zone:'ops', zoneLabel:'TIER 5 — RUNTIME & OPERATIONS', zoneColor:'#6B7280',
-    techKey:'node', isDetected:true,
-    files: getFilesMatching('.env', 'config', 'constants')
+    techKey: isPython ? 'python' : 'node', isDetected:true,
+    files: getFilesMatching('.env', 'config', 'constants', 'settings')
   });
 
   const sysLLDWithLayout = computeLayout(sysLLD);
@@ -563,7 +704,6 @@ export function buildSystemDesign(DATA, fileList = []) {
 
   // ═══════════════════════════════════════════════════════════════
   // CLOUD ARCHITECT — HLD
-  // Shows ONLY detected cloud/SaaS services, NOT generic boxes
   // ═══════════════════════════════════════════════════════════════
   n = 0;
   const cloudHLD = [];
@@ -572,31 +712,22 @@ export function buildSystemDesign(DATA, fileList = []) {
   cloudHLD.push({ id:'client', number:num(),
     label: 'Client Dashboard',
     sublabel: frontendName + ' · Real-Time Observability',
-    zone:'client', zoneLabel:'CLIENT', zoneColor:'#3B82F6',
+    zone:'client', zoneLabel:'1. CLIENT / USER INTERFACE', zoneColor:'#3B82F6',
     techKey: frontendTech, isDetected:true,
     files: getLayerFiles('Presentation', 2)
   });
 
-  // GitHub integration
-  if (has('octokit') || has('github')) {
-    cloudHLD.push({ id:'github-ext', number:num(),
-      label:'GitHub', sublabel:'Users & Webhooks · OAuth 2.0 Flow',
-      zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
-      techKey:'github', isDetected:true, files:[]
-    });
-  }
-
-  // Vercel/CDN
+  // Vercel/CDN / DNS
   if (has('vercel')) {
     cloudHLD.push({ id:'cdn', number:num(),
-      label:'Vercel Edge CDN', sublabel:'Edge Network · x-hub-signature-256',
-      zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
+      label:'Vercel Edge CDN', sublabel:'Edge Network · Serverless CDN',
+      zone:'edge', zoneLabel:'2. EDGE & NETWORK', zoneColor:'#06B6D4',
       techKey:'vercel', isDetected:true, files:[]
     });
   } else if (has('aws-cloudfront')) {
     cloudHLD.push({ id:'cdn', number:num(),
-      label:'AWS CloudFront', sublabel:'Edge CDN · Cache',
-      zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
+      label:'AWS CloudFront', sublabel:'Edge CDN · Global Cache',
+      zone:'edge', zoneLabel:'2. EDGE & NETWORK', zoneColor:'#06B6D4',
       techKey:'aws-cloudfront', isDetected:true, files:[]
     });
   }
@@ -604,8 +735,8 @@ export function buildSystemDesign(DATA, fileList = []) {
   // API
   cloudHLD.push({ id:'api', number:num(),
     label: apiName,
-    sublabel: 'Routes & Webhooks · ' + (authName || 'API'),
-    zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
+    sublabel: 'Routes & Webhooks · ' + (authName || 'API Gateway'),
+    zone:'cloud', zoneLabel:'3. CLOUD COMPUTATION & ROUTING', zoneColor:'#FF9900',
     techKey: apiTech, isDetected:true,
     files: getLayerFiles('Gateway', 2)
   });
@@ -613,9 +744,18 @@ export function buildSystemDesign(DATA, fileList = []) {
   // Auth inside cloud boundary
   if (authTech) {
     cloudHLD.push({ id:'auth', number:num(),
-      label: authName, sublabel:'GitHub OAuth · Session',
-      zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
+      label: authName, sublabel:'Identity Provider · Session Validation',
+      zone:'cloud', zoneLabel:'3. CLOUD COMPUTATION & ROUTING', zoneColor:'#FF9900',
       techKey: authTech, isDetected:true, files:[]
+    });
+  }
+
+  // GitHub integration
+  if (has('octokit') || has('github')) {
+    cloudHLD.push({ id:'github-ext', number:num(),
+      label:'GitHub', sublabel:'OAuth 2.0 Flow · Webhooks API',
+      zone:'cloud', zoneLabel:'3. CLOUD COMPUTATION & ROUTING', zoneColor:'#FF9900',
+      techKey:'github', isDetected:true, files:[]
     });
   }
 
@@ -624,7 +764,7 @@ export function buildSystemDesign(DATA, fileList = []) {
     cloudHLD.push({ id:'rules', number:num(),
       label:'Rules & Triage Logic',
       sublabel: `${(layers.Domain||[]).length} service modules`,
-      zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
+      zone:'cloud', zoneLabel:'3. CLOUD COMPUTATION & ROUTING', zoneColor:'#FF9900',
       techKey: apiTech, isDetected:true,
       files: getLayerFiles('Domain', 2)
     });
@@ -635,7 +775,7 @@ export function buildSystemDesign(DATA, fileList = []) {
     cloudHLD.push({ id:'feature-gate', number:num(),
       label:'Subscription Feature Gating',
       sublabel:'Plan checks · Usage limits',
-      zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
+      zone:'cloud', zoneLabel:'3. CLOUD COMPUTATION & ROUTING', zoneColor:'#FF9900',
       techKey:'stripe', isDetected:true, files:[]
     });
   }
@@ -645,117 +785,99 @@ export function buildSystemDesign(DATA, fileList = []) {
     cloudHLD.push({ id:'bg-jobs', number:num(),
       label:'Background Jobs',
       sublabel: has('bullmq') ? 'BullMQ Workers' : 'Cron · Async tasks',
-      zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
+      zone:'cloud', zoneLabel:'3. CLOUD COMPUTATION & ROUTING', zoneColor:'#FF9900',
       techKey: has('bullmq') ? 'bullmq' : apiTech, isDetected: has('bullmq'),
       files: getFilesMatching('cron', 'worker', 'job')
     });
   }
 
-  // Neon/Supabase/DB
+  // Managed Databases
   if (dbTech) {
     cloudHLD.push({ id:'database', number:num(),
       label: dbName,
       sublabel: schemaFiles.length > 0
         ? `Schema: ${schemaFiles.slice(0,2).map(f=>f.split('/').pop().replace(/\.(ts|js|prisma)$/,'')).join(', ')}`
         : (ormSuffix.trim() ? ormSuffix.trim().replace(' · ','') : 'Primary DB'),
-      zone:'data', zoneLabel:'DATABASE LAYER', zoneColor:'#22C55E',
+      zone:'data', zoneLabel:'4. MANAGED DATABASES', zoneColor:'#22C55E',
       techKey: dbTech, isDetected:true,
       files: schemaFiles.slice(0,3)
     });
   }
 
-  // Stripe
+  if (has('pinecone')) {
+    cloudHLD.push({ id:'vector-db', number:num(),
+      label:'Pinecone', sublabel:'Vector DB · Semantic search',
+      zone:'data', zoneLabel:'4. MANAGED DATABASES', zoneColor:'#22C55E',
+      techKey:'pinecone', isDetected:true, files:[]
+    });
+  }
+
+  // External SaaS Services
   if (has('stripe')) {
     cloudHLD.push({ id:'stripe', number:num(),
       label:'Stripe', sublabel:'Subscription Billing · Webhooks',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
+      zone:'external', zoneLabel:'5. EXTERNAL SAAS & APIs', zoneColor:'#635BFF',
       techKey:'stripe', isDetected:true, files:[]
     });
   }
 
-  // Slack
   if (has('slack')) {
     cloudHLD.push({ id:'slack-ext', number:num(),
       label:'Slack Workspace', sublabel:'Block Kit · Interactions',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
+      zone:'external', zoneLabel:'5. EXTERNAL SAAS & APIs', zoneColor:'#635BFF',
       techKey:'slack', isDetected:true, files:[]
     });
   }
 
-  // Discord
   if (has('discord')) {
     cloudHLD.push({ id:'discord-ext', number:num(),
       label:'Discord', sublabel:'Bot · Guild webhooks',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
+      zone:'external', zoneLabel:'5. EXTERNAL SAAS & APIs', zoneColor:'#635BFF',
       techKey:'discord', isDetected:true, files:[]
     });
   }
 
-  // AI
   if (has('openai') || has('anthropic') || has('groq')) {
     cloudHLD.push({ id:'ai', number:num(),
       label: has('openai') ? 'OpenAI' : has('anthropic') ? 'Anthropic Claude' : 'Groq',
       sublabel: has('openai') ? 'GPT · Embeddings · Moderation' : 'Claude AI · API',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
+      zone:'external', zoneLabel:'5. EXTERNAL SAAS & APIs', zoneColor:'#635BFF',
       techKey: has('openai') ? 'openai' : has('anthropic') ? 'anthropic' : 'groq',
       isDetected:true, files:[]
     });
   }
 
-  // Pinecone
-  if (has('pinecone')) {
-    cloudHLD.push({ id:'vector-db', number:num(),
-      label:'Pinecone', sublabel:'Vector DB · Semantic search',
-      zone:'data', zoneLabel:'DATABASE LAYER', zoneColor:'#22C55E',
-      techKey:'pinecone', isDetected:true, files:[]
-    });
-  }
-
-  // S3
   if (has('aws-s3')) {
     cloudHLD.push({ id:'storage', number:num(),
       label:'AWS S3', sublabel:'Object storage',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
+      zone:'external', zoneLabel:'5. EXTERNAL SAAS & APIs', zoneColor:'#635BFF',
       techKey:'aws-s3', isDetected:true, files:[]
     });
   }
 
-  // Lambda
   if (has('aws-lambda')) {
     cloudHLD.push({ id:'worker', number:num(),
       label:'AWS Lambda', sublabel:'Serverless functions',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
+      zone:'external', zoneLabel:'5. EXTERNAL SAAS & APIs', zoneColor:'#635BFF',
       techKey:'aws-lambda', isDetected:true, files:[]
     });
   }
 
-  // SQS
   if (has('aws-sqs')) {
     cloudHLD.push({ id:'queue', number:num(),
       label:'AWS SQS', sublabel:'Message queue',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
+      zone:'external', zoneLabel:'5. EXTERNAL SAAS & APIs', zoneColor:'#635BFF',
       techKey:'aws-sqs', isDetected:true, files:[]
     });
   }
 
-  // Email
   if (has('resend') || has('sendgrid') || has('aws-ses')) {
     cloudHLD.push({ id:'email', number:num(),
       label: has('resend') ? 'Resend' : has('sendgrid') ? 'SendGrid' : 'AWS SES',
       sublabel:'Transactional email',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
+      zone:'external', zoneLabel:'5. EXTERNAL SAAS & APIs', zoneColor:'#635BFF',
       techKey: has('resend') ? 'resend' : has('sendgrid') ? 'sendgrid' : 'aws-ses',
       isDetected:true, files:[]
-    });
-  }
-
-  // If NO cloud services at all, add a note
-  if (cloudHLD.filter(c => c.zone === 'external').length === 0) {
-    cloudHLD.push({ id:'no-cloud-note', number:num(),
-      label:'Self-Hosted Infrastructure',
-      sublabel:'No external SaaS services detected',
-      zone:'observability', zoneLabel:'INFRASTRUCTURE', zoneColor:'#6B7280',
-      techKey:'', isDetected:false, files:[]
     });
   }
 
@@ -765,148 +887,133 @@ export function buildSystemDesign(DATA, fileList = []) {
 
   // ═══════════════════════════════════════════════════════════════
   // CLOUD — LLD
-  // Real implementation details for each cloud service
   // ═══════════════════════════════════════════════════════════════
   n = 0;
   const cloudLLD = [];
 
-  // If no AWS detected, fall back to system LLD
-  const hasAnyCloud = hasAny('aws-s3','aws-lambda','aws-sqs','aws-ses','aws-dynamo',
-    'aws-ec2','aws-rds','aws-cloudfront','aws-apigateway','aws-ecs','aws-eks',
-    'aws-cognito','aws-bedrock','pinecone','openai','anthropic','stripe','slack',
-    'discord','resend','sendgrid','groq','neon','upstash');
+  // Always include client & API gateway in Cloud LLD
+  cloudLLD.push({ id:'lld-client', number:num(),
+    label: frontendName + ' Client',
+    sublabel: 'Client Tier · Dynamic Routing',
+    zone:'client', zoneLabel:'1. CLIENT INTERFACE', zoneColor:'#3B82F6',
+    techKey: frontendTech, isDetected:true,
+    files: getLayerFiles('Presentation', 2)
+  });
 
-  if (!hasAnyCloud) {
-    // Mirror system LLD but with different zone labels
-    cloudLLD.push(...sysLLD.map((c,i) => ({
-      ...c, id:'cloud-'+c.id, number:i+1,
-      sublabel: c.sublabel + ' · No cloud services detected'
-    })));
-  } else {
-    // Show LLD for each detected cloud service
-    if (has('aws-s3')) {
-      cloudLLD.push({ id:'lld-s3', number:num(),
-        label:'S3 Bucket Configuration',
-        sublabel:'Versioning · Lifecycle · CORS policies',
-        zone:'cloud', zoneLabel:'AWS SERVICES', zoneColor:'#FF9900',
-        techKey:'aws-s3', isDetected:true,
-        files: getFilesMatching('s3','storage','upload')
-      });
-    }
-    if (has('aws-lambda')) {
-      cloudLLD.push({ id:'lld-lambda', number:num(),
-        label:'Lambda Function Handlers',
-        sublabel:'Serverless · Event-driven · Cold start optimized',
-        zone:'cloud', zoneLabel:'AWS SERVICES', zoneColor:'#FF9900',
-        techKey:'aws-lambda', isDetected:true,
-        files: getFilesMatching('lambda','handler','function')
-      });
-    }
-    if (has('aws-sqs')) {
-      cloudLLD.push({ id:'lld-sqs', number:num(),
-        label:'SQS Queue Producer & Consumer',
-        sublabel:'Async messaging · DLQ · Retry policies',
-        zone:'cloud', zoneLabel:'AWS SERVICES', zoneColor:'#FF9900',
-        techKey:'aws-sqs', isDetected:true,
-        files: getFilesMatching('queue','sqs','worker')
-      });
-    }
-    if (has('aws-ses') || has('resend') || has('sendgrid')) {
-      cloudLLD.push({ id:'lld-email', number:num(),
-        label: has('aws-ses') ? 'SES Email Templates & Sender' : has('resend') ? 'Resend Email Service' : 'SendGrid Email Service',
-        sublabel:'Transactional email · Bounce handling · Templates',
-        zone:'cloud', zoneLabel:'AWS SERVICES', zoneColor:'#FF9900',
-        techKey: has('aws-ses') ? 'aws-ses' : has('resend') ? 'resend' : 'sendgrid',
-        isDetected:true,
-        files: getFilesMatching('email','mail','ses','resend')
-      });
-    }
-    if (has('aws-dynamo')) {
-      cloudLLD.push({ id:'lld-dynamo', number:num(),
-        label:'DynamoDB Table Design',
-        sublabel:'Partition key · Sort key · GSI indexes',
-        zone:'cloud', zoneLabel:'AWS SERVICES', zoneColor:'#FF9900',
-        techKey:'aws-dynamo', isDetected:true,
-        files: getFilesMatching('dynamo','table')
-      });
-    }
-    if (has('pinecone')) {
-      cloudLLD.push({ id:'lld-pinecone', number:num(),
-        label:'Pinecone Vector Index',
-        sublabel:'Embeddings · Semantic search · Namespace isolation',
-        zone:'cloud', zoneLabel:'AI SERVICES', zoneColor:'#5C4EFF',
-        techKey:'pinecone', isDetected:true,
-        files: getFilesMatching('pinecone','vector','embed','retriev')
-      });
-    }
-    if (has('openai') || has('anthropic') || has('groq')) {
-      cloudLLD.push({ id:'lld-ai', number:num(),
-        label: has('openai') ? 'OpenAI Client Config' : has('anthropic') ? 'Anthropic Client Config' : 'Groq Client Config',
-        sublabel: has('openai') ? 'GPT-4 · text-embedding-3-small · streaming' : 'claude-3-5-sonnet · streaming',
-        zone:'cloud', zoneLabel:'AI SERVICES', zoneColor:'#5C4EFF',
-        techKey: has('openai') ? 'openai' : has('anthropic') ? 'anthropic' : 'groq',
-        isDetected:true,
-        files: getFilesMatching('openai','anthropic','ai','llm','groq','gemini')
-      });
-    }
-    if (has('stripe')) {
-      cloudLLD.push({ id:'lld-stripe', number:num(),
-        label:'Stripe Webhook & Billing Logic',
-        sublabel:'Checkout · Customer Portal · Subscription management',
-        zone:'external', zoneLabel:'PAYMENT SERVICES', zoneColor:'#635BFF',
-        techKey:'stripe', isDetected:true,
-        files: getFilesMatching('stripe','billing','payment','subscription','webhook')
-      });
-    }
-    if (has('slack')) {
-      cloudLLD.push({ id:'lld-slack', number:num(),
-        label:'Slack Bot & Block Kit',
-        sublabel:'Event subscriptions · Slash commands · Interactive components',
-        zone:'external', zoneLabel:'NOTIFICATION SERVICES', zoneColor:'#4A154B',
-        techKey:'slack', isDetected:true,
-        files: getFilesMatching('slack','block','bot','notification')
-      });
-    }
-    if (has('neon')) {
-      cloudLLD.push({ id:'lld-neon', number:num(),
-        label:'Neon Serverless Postgres',
-        sublabel: schemaFiles.length > 0
-          ? `Schema (Multi-Tenant): ${schemaFiles.slice(0,3).map(f=>f.split('/').pop().replace(/\.(ts|js|prisma)$/,'')).join(', ')}`
-          : 'Serverless Postgres · Connection pooling',
-        zone:'data', zoneLabel:'DATABASE SERVICES', zoneColor:'#00E599',
-        techKey:'neon', isDetected:true,
-        files: schemaFiles.slice(0,4)
-      });
-    } else if (dbTech && schemaFiles.length > 0) {
-      cloudLLD.push({ id:'lld-db', number:num(),
-        label: dbName + ' Schema',
-        sublabel: schemaFiles.length > 0
-          ? `Tables: ${schemaFiles.slice(0,3).map(f=>f.split('/').pop().replace(/\.(ts|js|prisma)$/,'')).join(', ')}`
-          : ormSuffix.trim() ? ormSuffix.trim().replace(' · ','') : 'Database schema',
-        zone:'data', zoneLabel:'DATABASE SERVICES', zoneColor:'#22C55E',
-        techKey: dbTech, isDetected:true,
-        files: schemaFiles.slice(0,4)
-      });
-    }
-    if (has('bullmq')) {
-      cloudLLD.push({ id:'lld-bullmq', number:num(),
-        label:'BullMQ Job Queues & Workers',
-        sublabel:'Redis-backed · Retry · Priority queues',
-        zone:'backend', zoneLabel:'ASYNC PROCESSING', zoneColor:'#F59E0B',
-        techKey:'bullmq', isDetected:true,
-        files: getFilesMatching('queue','worker','job','bull')
-      });
-    }
-    if (envVars.length > 0) {
-      cloudLLD.push({ id:'lld-secrets', number:num(),
-        label:'Secrets & Environment Variables',
-        sublabel: `${envVars.length} vars: ${envVars.slice(0,4).join(', ')}${envVars.length > 4 ? '...' : ''}`,
-        zone:'ops', zoneLabel:'CONFIGURATION', zoneColor:'#6B7280',
-        techKey:'node', isDetected:true,
-        files: getFilesMatching('.env','config','secret')
-      });
-    }
+  cloudLLD.push({ id:'lld-api-gw', number:num(),
+    label: apiName + ' Handlers',
+    sublabel: 'Cloud Endpoint Controllers & Router',
+    zone:'gateway', zoneLabel:'2. API GATEWAY & ROUTING', zoneColor:'#8B5CF6',
+    techKey: apiTech, isDetected:true,
+    files: getLayerFiles('Gateway', 2)
+  });
+
+  if (authTech) {
+    cloudLLD.push({ id:'lld-auth-cloud', number:num(),
+      label: authName + ' Auth Module',
+      sublabel: 'OAuth 2.0 Tokens & Session Handler',
+      zone:'gateway', zoneLabel:'2. API GATEWAY & ROUTING', zoneColor:'#8B5CF6',
+      techKey: authTech, isDetected:true, files:[]
+    });
   }
+
+  if (has('neon')) {
+    cloudLLD.push({ id:'lld-neon', number:num(),
+      label:'Neon Serverless Postgres',
+      sublabel: schemaFiles.length > 0
+        ? `Schema (Multi-Tenant): ${schemaFiles.slice(0,3).map(f=>f.split('/').pop().replace(/\.(ts|js|prisma)$/,'')).join(', ')}`
+        : 'Serverless Postgres · Connection pooling',
+      zone:'data', zoneLabel:'3. DATABASE SERVICES', zoneColor:'#00E599',
+      techKey:'neon', isDetected:true,
+      files: schemaFiles.slice(0,4)
+    });
+  } else if (dbTech) {
+    cloudLLD.push({ id:'lld-db', number:num(),
+      label: dbName + ' Schema',
+      sublabel: schemaFiles.length > 0
+        ? `Tables: ${schemaFiles.slice(0,3).map(f=>f.split('/').pop().replace(/\.(ts|js|prisma)$/,'')).join(', ')}`
+        : (ormSuffix.trim() ? ormSuffix.trim().replace(' · ','') : 'Database schema'),
+      zone:'data', zoneLabel:'3. DATABASE SERVICES', zoneColor:'#22C55E',
+      techKey: dbTech, isDetected:true,
+      files: schemaFiles.slice(0,4)
+    });
+  }
+
+  if (has('bullmq')) {
+    cloudLLD.push({ id:'lld-bullmq', number:num(),
+      label:'BullMQ Job Queues & Workers',
+      sublabel:'Redis-backed · Retry · Priority queues',
+      zone:'backend', zoneLabel:'4. ASYNC WORKERS', zoneColor:'#F59E0B',
+      techKey:'bullmq', isDetected:true,
+      files: getFilesMatching('queue','worker','job','bull')
+    });
+  }
+
+  if (has('aws-s3')) {
+    cloudLLD.push({ id:'lld-s3', number:num(),
+      label:'S3 Bucket Configuration',
+      sublabel:'Versioning · Lifecycle · CORS policies',
+      zone:'cloud', zoneLabel:'5. AWS & CLOUD INTEGRATIONS', zoneColor:'#FF9900',
+      techKey:'aws-s3', isDetected:true,
+      files: getFilesMatching('s3','storage','upload')
+    });
+  }
+  if (has('aws-lambda')) {
+    cloudLLD.push({ id:'lld-lambda', number:num(),
+      label:'Lambda Function Handlers',
+      sublabel:'Serverless · Event-driven · Cold start optimized',
+      zone:'cloud', zoneLabel:'5. AWS & CLOUD INTEGRATIONS', zoneColor:'#FF9900',
+      techKey:'aws-lambda', isDetected:true,
+      files: getFilesMatching('lambda','handler','function')
+    });
+  }
+  if (has('pinecone')) {
+    cloudLLD.push({ id:'lld-pinecone', number:num(),
+      label:'Pinecone Vector Index',
+      sublabel:'Embeddings · Semantic search · Namespace isolation',
+      zone:'cloud', zoneLabel:'5. AWS & CLOUD INTEGRATIONS', zoneColor:'#5C4EFF',
+      techKey:'pinecone', isDetected:true,
+      files: getFilesMatching('pinecone','vector','embed','retriev')
+    });
+  }
+  if (has('openai') || has('anthropic') || has('groq')) {
+    cloudLLD.push({ id:'lld-ai', number:num(),
+      label: has('openai') ? 'OpenAI Client Config' : has('anthropic') ? 'Anthropic Client Config' : 'Groq Client Config',
+      sublabel: has('openai') ? 'GPT-4 · text-embedding-3-small · streaming' : 'claude-3-5-sonnet · streaming',
+      zone:'cloud', zoneLabel:'5. AWS & CLOUD INTEGRATIONS', zoneColor:'#5C4EFF',
+      techKey: has('openai') ? 'openai' : has('anthropic') ? 'anthropic' : 'groq',
+      isDetected:true,
+      files: getFilesMatching('openai','anthropic','ai','llm','groq','gemini')
+    });
+  }
+  if (has('stripe')) {
+    cloudLLD.push({ id:'lld-stripe', number:num(),
+      label:'Stripe Webhook & Billing Logic',
+      sublabel:'Checkout · Customer Portal · Subscription management',
+      zone:'external', zoneLabel:'6. PAYMENT & SAAS SERVICES', zoneColor:'#635BFF',
+      techKey:'stripe', isDetected:true,
+      files: getFilesMatching('stripe','billing','payment','subscription','webhook')
+    });
+  }
+  if (has('slack')) {
+    cloudLLD.push({ id:'lld-slack', number:num(),
+      label:'Slack Bot & Block Kit',
+      sublabel:'Event subscriptions · Slash commands · Interactive components',
+      zone:'external', zoneLabel:'6. PAYMENT & SAAS SERVICES', zoneColor:'#4A154B',
+      techKey:'slack', isDetected:true,
+      files: getFilesMatching('slack','block','bot','notification')
+    });
+  }
+
+  cloudLLD.push({ id:'lld-secrets', number:num(),
+    label:'Secrets & Environment Variables',
+    sublabel: envVars.length > 0
+      ? `${envVars.length} vars: ${envVars.slice(0,4).join(', ')}${envVars.length > 4 ? '...' : ''}`
+      : 'Encrypted environment secrets',
+    zone:'ops', zoneLabel:'7. CONFIGURATION & SECRETS', zoneColor:'#6B7280',
+    techKey:'secrets', isDetected:true,
+    files: getFilesMatching('.env','config','secret')
+  });
 
   const cloudLLDLayout = computeLayout(cloudLLD);
   const cloudLLDZones = buildZones(cloudLLDLayout);
@@ -920,7 +1027,7 @@ export function buildSystemDesign(DATA, fileList = []) {
 
   devopsHLD.push({ id:'git', number:num(),
     label:'Git Repository', sublabel:'Source control · Branches',
-    zone:'devops', zoneLabel:'CODE SOURCE', zoneColor:'#24292F',
+    zone:'client', zoneLabel:'1. CODE SOURCE', zoneColor:'#24292F',
     techKey:'github', isDetected:true,
     files: getFilesMatching('.github','gitignore')
   });
@@ -928,7 +1035,7 @@ export function buildSystemDesign(DATA, fileList = []) {
   if (has('gha')) {
     devopsHLD.push({ id:'cicd', number:num(),
       label:'GitHub Actions', sublabel:'CI/CD Pipeline',
-      zone:'devops', zoneLabel:'CONTINUOUS INTEGRATION', zoneColor:'#2088FF',
+      zone:'gateway', zoneLabel:'2. CI PIPELINE & TESTING', zoneColor:'#2088FF',
       techKey:'gha', isDetected:true,
       files: getFilesMatching('.github/workflows')
     });
@@ -939,16 +1046,34 @@ export function buildSystemDesign(DATA, fileList = []) {
     devopsHLD.push({ id:'tests', number:num(),
       label: (testTech.charAt(0).toUpperCase() + testTech.slice(1)) + ' Test Suite',
       sublabel: `${(layers.Test||[]).length} test files · Unit + Integration`,
-      zone:'devops', zoneLabel:'CONTINUOUS INTEGRATION', zoneColor:'#2088FF',
+      zone:'gateway', zoneLabel:'2. CI PIPELINE & TESTING', zoneColor:'#2088FF',
       techKey: testTech, isDetected:true,
       files: getLayerFiles('Test', 4)
+    });
+  }
+
+  devopsHLD.push({ id:'secrets', number:num(),
+    label: has('aws-secrets') ? 'AWS Secrets Manager' : 'Environment Secrets',
+    sublabel: envVars.length > 0 ? `${envVars.length} environment variables` : 'Encrypted secrets',
+    zone:'data', zoneLabel:'3. CONFIG & DATABASE OPS', zoneColor:'#F59E0B',
+    techKey: has('aws-secrets') ? 'aws-secrets' : 'secrets', isDetected: true,
+    files: []
+  });
+
+  if (dbTech) {
+    devopsHLD.push({ id:'db-deploy', number:num(),
+      label: has('prisma') ? 'Prisma Migrate' : has('drizzle') ? 'Drizzle Push' : 'Database Deploy',
+      sublabel: `${dbName} · Schema migrations`,
+      zone:'data', zoneLabel:'3. CONFIG & DATABASE OPS', zoneColor:'#22C55E',
+      techKey: has('prisma') ? 'prisma' : dbTech, isDetected:true,
+      files: schemaFiles.slice(0,2)
     });
   }
 
   if (has('docker')) {
     devopsHLD.push({ id:'docker', number:num(),
       label:'Docker', sublabel:'Container runtime',
-      zone:'devops', zoneLabel:'CONTINUOUS DEPLOYMENT', zoneColor:'#0db7ed',
+      zone:'cloud', zoneLabel:'4. DEPLOYMENT & DEVOPS', zoneColor:'#0db7ed',
       techKey:'docker', isDetected:true,
       files: getFilesMatching('Dockerfile','docker-compose')
     });
@@ -957,7 +1082,7 @@ export function buildSystemDesign(DATA, fileList = []) {
   if (has('vercel')) {
     devopsHLD.push({ id:'deploy', number:num(),
       label:'Vercel', sublabel:'Edge deployment · Preview · Production',
-      zone:'devops', zoneLabel:'CONTINUOUS DEPLOYMENT', zoneColor:'#0db7ed',
+      zone:'cloud', zoneLabel:'4. DEPLOYMENT & DEVOPS', zoneColor:'#0db7ed',
       techKey:'vercel', isDetected:true,
       files: getFilesMatching('vercel','next.config')
     });
@@ -965,36 +1090,22 @@ export function buildSystemDesign(DATA, fileList = []) {
     devopsHLD.push({ id:'deploy', number:num(),
       label: has('aws-ecs') ? 'AWS ECS' : 'AWS EC2',
       sublabel:'Cloud deployment',
-      zone:'devops', zoneLabel:'CONTINUOUS DEPLOYMENT', zoneColor:'#0db7ed',
+      zone:'cloud', zoneLabel:'4. DEPLOYMENT & DEVOPS', zoneColor:'#0db7ed',
       techKey: has('aws-ecs') ? 'aws-ecs' : 'aws-ec2', isDetected:true, files:[]
     });
-  }
-
-  if (has('aws-secrets') || envVars.length > 0) {
-    devopsHLD.push({ id:'secrets', number:num(),
-      label: has('aws-secrets') ? 'AWS Secrets Manager' : 'Environment Secrets',
-      sublabel: envVars.length > 0 ? `${envVars.length} environment variables` : 'Encrypted secrets',
-      zone:'devops', zoneLabel:'SECRETS & CONFIG', zoneColor:'#F59E0B',
-      techKey: has('aws-secrets') ? 'aws-secrets' : 'node', isDetected: has('aws-secrets'),
-      files: []
-    });
-  }
-
-  if (dbTech) {
-    devopsHLD.push({ id:'db-deploy', number:num(),
-      label: has('prisma') ? 'Prisma Migrate' : has('drizzle') ? 'Drizzle Push' : 'Database Deploy',
-      sublabel: `${dbName} · Schema migrations`,
-      zone:'devops', zoneLabel:'DATABASE OPERATIONS', zoneColor:'#22C55E',
-      techKey: has('prisma') ? 'prisma' : dbTech, isDetected:true,
-      files: schemaFiles.slice(0,2)
+  } else if (!has('docker')) {
+    devopsHLD.push({ id:'deploy', number:num(),
+      label:'Production Deploy Target', sublabel:'Build & Host runtime',
+      zone:'cloud', zoneLabel:'4. DEPLOYMENT & DEVOPS', zoneColor:'#0db7ed',
+      techKey: isPython ? 'python' : 'node', isDetected:true, files:[]
     });
   }
 
   devopsHLD.push({ id:'monitoring', number:num(),
     label:'Observability & Feedback',
     sublabel: has('vercel') ? 'Vercel Dashboard · CI/CD Control' : 'Logs · Metrics · Traces',
-    zone:'devops', zoneLabel:'OBSERVABILITY', zoneColor:'#6B7280',
-    techKey:'', isDetected:false, files:[]
+    zone:'observability', zoneLabel:'5. OBSERVABILITY', zoneColor:'#6B7280',
+    techKey:'monitoring', isDetected:true, files:[]
   });
 
   const devopsHLDLayout = computeLayout(devopsHLD);
@@ -1007,12 +1118,20 @@ export function buildSystemDesign(DATA, fileList = []) {
   n = 0;
   const devopsLLD = [];
 
+  devopsLLD.push({ id:'lld-git', number:num(),
+    label:'Git Source Control',
+    sublabel: 'Branch rules · Pull requests · Triggers',
+    zone:'client', zoneLabel:'1. SOURCE CONTROL', zoneColor:'#24292F',
+    techKey:'github', isDetected:true,
+    files: getFilesMatching('.github','gitignore')
+  });
+
   if (has('gha')) {
     const workflowFiles = getFilesMatching('.github/workflows');
     devopsLLD.push({ id:'lld-ci', number:num(),
       label:'Continuous Integration (CI)',
-      sublabel: 'Vercel Build Pipeline · Setup & Install (npm)',
-      zone:'devops', zoneLabel:'CI PIPELINE', zoneColor:'#2088FF',
+      sublabel: 'GitHub Actions · Setup & Install · Build & Lint',
+      zone:'gateway', zoneLabel:'2. AUTOMATED TESTING & CI', zoneColor:'#2088FF',
       techKey:'gha', isDetected:true,
       files: workflowFiles
     });
@@ -1022,7 +1141,7 @@ export function buildSystemDesign(DATA, fileList = []) {
     devopsLLD.push({ id:'lld-tests', number:num(),
       label: `${testTech.charAt(0).toUpperCase()+testTech.slice(1)} Test Suite`,
       sublabel: 'Unit Tests · Integration Tests · ' + (has('stripe') ? 'Billing Logic Tests' : 'E2E Tests'),
-      zone:'devops', zoneLabel:'CI PIPELINE', zoneColor:'#2088FF',
+      zone:'gateway', zoneLabel:'2. AUTOMATED TESTING & CI', zoneColor:'#2088FF',
       techKey: testTech, isDetected:true,
       files: getLayerFiles('Test', 4)
     });
@@ -1031,8 +1150,8 @@ export function buildSystemDesign(DATA, fileList = []) {
   if (has('vercel') || has('docker')) {
     devopsLLD.push({ id:'lld-iac', number:num(),
       label:'Infrastructure as Code (IaC)',
-      sublabel: has('vercel') ? 'Vercel Project Config · Manage vol' : 'Docker Compose · Container config',
-      zone:'devops', zoneLabel:'CD & SECRETS', zoneColor:'#0db7ed',
+      sublabel: has('vercel') ? 'Vercel Project Config · Environment setup' : 'Docker Compose · Container config',
+      zone:'backend', zoneLabel:'3. INFRASTRUCTURE & SECRETS', zoneColor:'#0db7ed',
       techKey: has('vercel') ? 'vercel' : 'docker', isDetected:true,
       files: getFilesMatching('vercel.json','next.config','docker-compose','k8s','kubernetes')
     });
@@ -1043,36 +1162,34 @@ export function buildSystemDesign(DATA, fileList = []) {
     sublabel: envVars.length > 0
       ? `${envVars.length} variables: ${envVars.slice(0,3).join(', ')}${envVars.length > 3 ? '...' : ''}`
       : 'Encrypted environment variables',
-    zone:'devops', zoneLabel:'CD & SECRETS', zoneColor:'#0db7ed',
-    techKey:'node', isDetected:true,
-    files: getFilesMatching('.env.example','.env.local.example')
+    zone:'backend', zoneLabel:'3. INFRASTRUCTURE & SECRETS', zoneColor:'#0db7ed',
+    techKey: 'secrets', isDetected:true,
+    files: getFilesMatching('.env.example','.env.local.example','.env')
   });
 
   if (dbTech) {
     devopsLLD.push({ id:'lld-db-ops', number:num(),
       label: has('prisma') ? 'Database (Prisma)' : `Database (${dbName})`,
       sublabel: has('prisma') ? 'npx prisma db push · Migrations · Seed' : 'Schema management · Migrations',
-      zone:'devops', zoneLabel:'CD & SECRETS', zoneColor:'#0db7ed',
+      zone:'data', zoneLabel:'4. DATABASE OPERATIONS', zoneColor:'#22C55E',
       techKey: has('prisma') ? 'prisma' : dbTech, isDetected:true,
       files: schemaFiles.slice(0,3)
     });
   }
 
-  if (has('vercel')) {
-    devopsLLD.push({ id:'lld-deploy', number:num(),
-      label:'Vercel Deployment Pipeline',
-      sublabel:'Preview Deploy · Conditional merge to main · Production Deploy',
-      zone:'devops', zoneLabel:'DEPLOYMENT', zoneColor:'#22C55E',
-      techKey:'vercel', isDetected:true,
-      files: getFilesMatching('vercel','next.config')
-    });
-  }
+  devopsLLD.push({ id:'lld-deploy', number:num(),
+    label: has('vercel') ? 'Vercel Deployment Pipeline' : 'Container / Cloud Deployment',
+    sublabel: has('vercel') ? 'Preview Deploy · Conditional merge to main · Production Deploy' : 'Docker build · Registry push · Rolling deploy',
+    zone:'cloud', zoneLabel:'5. DEPLOYMENT TARGET', zoneColor:'#22C55E',
+    techKey: has('vercel') ? 'vercel' : 'docker', isDetected:true,
+    files: getFilesMatching('vercel','next.config','k8s','kubernetes')
+  });
 
   devopsLLD.push({ id:'lld-monitoring', number:num(),
     label: has('vercel') ? 'Vercel Analytics & Speed Insights' : 'Runtime Observability & Logs',
     sublabel: 'Build metrics · Health checks · Performance traces',
-    zone:'devops', zoneLabel:'OBSERVABILITY', zoneColor:'#6B7280',
-    techKey: has('vercel') ? 'vercel' : '', isDetected:true,
+    zone:'observability', zoneLabel:'6. OBSERVABILITY & METRICS', zoneColor:'#6B7280',
+    techKey: 'monitoring', isDetected:true,
     files: []
   });
 

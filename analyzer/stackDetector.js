@@ -12,6 +12,7 @@ function matchAny(str, needles) {
 
 export function detectStack(packageJson, files) {
   const deps = {};
+  // ── JavaScript / Node package detection (package.json) ─────────────────
   if (files) {
     for (const f of files) {
       if (f.name === 'package.json' && typeof f.content === 'string') {
@@ -29,6 +30,54 @@ export function detectStack(packageJson, files) {
   if (Object.keys(deps).length === 0) {
     Object.assign(deps, packageJson.dependencies || {});
     Object.assign(deps, packageJson.devDependencies || {});
+  }
+
+  // ── Python package detection (requirements.txt, Pipfile, pyproject.toml) ──
+  // Normalise a Python package name to a lowercase key without version specifiers
+  const pyDeps = new Set();
+  if (files) {
+    for (const f of files) {
+      const fName = (f.name || '').toLowerCase();
+      const content = f.content || '';
+
+      // requirements.txt  /  requirements-dev.txt  /  requirements/*.txt
+      if (fName === 'requirements.txt' || fName.startsWith('requirements') && fName.endsWith('.txt')) {
+        content.split('\n').forEach(line => {
+          const pkg = line.trim().split(/[>=<!;#\s]/)[0].toLowerCase().replace(/-/g, '_');
+          if (pkg) pyDeps.add(pkg);
+        });
+      }
+
+      // Pipfile — [packages] section
+      if (fName === 'pipfile') {
+        let inPackages = false;
+        content.split('\n').forEach(line => {
+          if (/^\[packages\]/i.test(line)) { inPackages = true; return; }
+          if (/^\[/.test(line)) { inPackages = false; return; }
+          if (inPackages) {
+            const m = line.match(/^([a-z0-9_-]+)/i);
+            if (m) pyDeps.add(m[1].toLowerCase().replace(/-/g, '_'));
+          }
+        });
+      }
+
+      // pyproject.toml — [tool.poetry.dependencies] or [project] dependencies
+      if (fName === 'pyproject.toml') {
+        content.split('\n').forEach(line => {
+          const m = line.match(/^([a-z0-9_-]+)\s*=/i);
+          if (m && m[1].toLowerCase() !== 'python') pyDeps.add(m[1].toLowerCase().replace(/-/g, '_'));
+        });
+      }
+
+      // Python source files — extract "import X" / "from X import" statements
+      if ((f.extension === '.py' || fName.endsWith('.py')) && content) {
+        const importRx = /^(?:import|from)\s+([a-z0-9_]+)/gim;
+        let m;
+        while ((m = importRx.exec(content)) !== null) {
+          pyDeps.add(m[1].toLowerCase());
+        }
+      }
+    }
   }
 
   const allImports = new Set();
@@ -66,11 +115,56 @@ export function detectStack(packageJson, files) {
     { key: 'svelte', name: 'Svelte', logoKey: 'svelte', brandColor: '#FF3E00', category: 'framework', test: () => hasDep(deps, 'svelte') || allImports.has('svelte') },
     { key: 'angular', name: 'Angular', logoKey: 'angular', brandColor: '#DD0031', category: 'framework', test: () => hasDep(deps, '@angular/core') || hasDep(deps, '@angular/cli') || allImports.has('@angular/core') },
 
-    // Backend frameworks / HTTP servers
+    // Backend frameworks / HTTP servers — Node.js
     { key: 'express', name: 'Express', logoKey: 'express', brandColor: '#ffffff', category: 'framework', test: () => hasDep(deps, 'express') || allImports.has('express') },
     { key: 'fastify', name: 'Fastify', logoKey: 'fastify', brandColor: '#ffffff', category: 'framework', test: () => hasDep(deps, 'fastify') || allImports.has('fastify') },
     { key: 'koa', name: 'Koa', logoKey: 'koa', brandColor: '#1e9dff', category: 'framework', test: () => hasDep(deps, 'koa') || allImports.has('koa') },
     { key: 'nestjs', name: 'NestJS', logoKey: 'nestjs', brandColor: '#E0234E', category: 'framework', test: () => hasDep(deps, '@nestjs/core') || allImports.has('@nestjs/core') },
+    { key: 'hono', name: 'Hono', logoKey: 'hono', brandColor: '#E36002', category: 'framework', test: () => hasDep(deps, 'hono') || allImports.has('hono') },
+
+    // ── Python backend frameworks ──────────────────────────────────────────
+    { key: 'flask', name: 'Flask', logoKey: 'flask', brandColor: '#000000', category: 'framework',
+      test: () => pyDeps.has('flask') || pyDeps.has('flask_restful') || pyDeps.has('flask_cors') || pyDeps.has('flask_sqlalchemy') || Array.from(fileNames).some(n => n === 'app.py' || n === 'run.py') && pyDeps.size > 0 },
+    { key: 'fastapi', name: 'FastAPI', logoKey: 'fastapi', brandColor: '#009688', category: 'framework',
+      test: () => pyDeps.has('fastapi') || pyDeps.has('uvicorn') },
+    { key: 'django', name: 'Django', logoKey: 'django', brandColor: '#0C4B33', category: 'framework',
+      test: () => pyDeps.has('django') || pyDeps.has('djangorestframework') || Array.from(fileNames).some(n => n === 'manage.py') },
+    { key: 'python', name: 'Python', logoKey: 'python', brandColor: '#3776AB', category: 'framework',
+      test: () => pyDeps.size > 0 || Array.from(filePaths).some(p => p.endsWith('.py')) },
+
+    // ── Python AI / ML / LLM ──────────────────────────────────────────────
+    { key: 'langchain', name: 'LangChain', logoKey: 'langchain', brandColor: '#1C3C3C', category: 'cloud',
+      test: () => hasDep(deps, 'langchain') || hasDep(deps, '@langchain/core') || allImports.has('langchain') || allImports.has('@langchain/core') || pyDeps.has('langchain') || pyDeps.has('langchain_core') || pyDeps.has('langchain_community') || pyDeps.has('langchain_openai') || pyDeps.has('langchain_anthropic') },
+    { key: 'openai', name: 'OpenAI', logoKey: 'openai', brandColor: '#412991', category: 'cloud',
+      test: () => hasDep(deps, 'openai') || allImports.has('openai') || pyDeps.has('openai') },
+    { key: 'anthropic', name: 'Anthropic Claude', logoKey: 'anthropic', brandColor: '#D97757', category: 'cloud',
+      test: () => hasDep(deps, '@anthropic-ai/sdk') || hasDep(deps, 'anthropic') || allImports.has('@anthropic-ai/sdk') || pyDeps.has('anthropic') },
+    { key: 'groq', name: 'Groq', logoKey: 'groq', brandColor: '#F55036', category: 'cloud',
+      test: () => hasDep(deps, 'groq-sdk') || hasDep(deps, 'groq') || allImports.has('groq-sdk') || pyDeps.has('groq') },
+    { key: 'huggingface', name: 'HuggingFace', logoKey: 'huggingface', brandColor: '#FF9D00', category: 'cloud',
+      test: () => pyDeps.has('transformers') || pyDeps.has('sentence_transformers') || pyDeps.has('huggingface_hub') || pyDeps.has('datasets') || pyDeps.has('diffusers') },
+    { key: 'pinecone', name: 'Pinecone', logoKey: 'pinecone', brandColor: '#5C4EFF', category: 'database',
+      test: () => hasDep(deps, '@pinecone-database/pinecone') || hasDep(deps, 'pinecone') || allImports.has('@pinecone-database/pinecone') || allImports.has('pinecone') || pyDeps.has('pinecone') || pyDeps.has('pinecone_client') },
+    { key: 'chromadb', name: 'ChromaDB', logoKey: 'chromadb', brandColor: '#F97316', category: 'database',
+      test: () => pyDeps.has('chromadb') || pyDeps.has('chroma') },
+    { key: 'weaviate', name: 'Weaviate', logoKey: 'weaviate', brandColor: '#FA5252', category: 'database',
+      test: () => pyDeps.has('weaviate_client') || pyDeps.has('weaviate') },
+    { key: 'qdrant', name: 'Qdrant', logoKey: 'qdrant', brandColor: '#EF4444', category: 'database',
+      test: () => pyDeps.has('qdrant_client') },
+
+    // ── Python data / ORM ────────────────────────────────────────────────
+    { key: 'sqlalchemy', name: 'SQLAlchemy', logoKey: 'sqlalchemy', brandColor: '#D71F1F', category: 'database',
+      test: () => pyDeps.has('sqlalchemy') || pyDeps.has('flask_sqlalchemy') },
+    { key: 'pymongo', name: 'PyMongo / MongoDB', logoKey: 'mongodb', brandColor: '#47A248', category: 'database',
+      test: () => pyDeps.has('pymongo') || pyDeps.has('motor') },
+    { key: 'psycopg2', name: 'PostgreSQL (psycopg2)', logoKey: 'postgresql', brandColor: '#4169E1', category: 'database',
+      test: () => pyDeps.has('psycopg2') || pyDeps.has('psycopg2_binary') || pyDeps.has('asyncpg') },
+    { key: 'redis-py', name: 'Redis (Python)', logoKey: 'redis', brandColor: '#DC382D', category: 'database',
+      test: () => pyDeps.has('redis') && pyDeps.size > 0 },
+
+    // ── Python async / task queues ────────────────────────────────────────
+    { key: 'celery', name: 'Celery', logoKey: 'celery', brandColor: '#37B24D', category: 'queue',
+      test: () => pyDeps.has('celery') },
 
     // Bundler / build tool
     { key: 'vitejs', name: 'Vite', logoKey: 'vitejs', brandColor: '#646CFF', category: 'framework', test: () => hasDep(deps, 'vite') || allImports.has('vite') || Array.from(fileNames).some(n => n.includes('vite.config')) },
