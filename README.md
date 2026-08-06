@@ -1,4 +1,4 @@
-# ⚡ CodeBase X-Ray v3.0 — Static Analysis & Architecture Refactoring Platform
+# ⚡ CodeBase X-Ray — Static Analysis & Architecture Refactoring Platform
 
 **CodeBase X-Ray** is a professional, AST-driven source code analysis and architecture visualization platform. It parses local repositories or GitHub URLs to generate evidence-based **System Design Topologies**, **Architecture Diffing & Time-Travel Commit Tracking**, **Blast Radius Radar**, **Interactive Refactoring Simulations**, **Code Story Guides**, and exportable **Mermaid.js Architecture Documentation**.
 
@@ -33,7 +33,7 @@
 * **Server-Side Anti-Bypass Rate Limiting:** IP + Device Fingerprint rate limiting prevents free tier bypasses via Incognito mode or multi-browser abuse.
 
 ### 8. ✨ Clean Professional Design System & Full Responsiveness
-* High-contrast Pure White (`#FFFFFF`) & Sunset Orange (`#FF5E1A`) design system with crisp vector SVG icon badges, smooth micro-animations, and full mobile/tablet/desktop responsiveness.
+* High-contrast Pure White (`#FFFFFF`) & Light Green(`#FF5E1A`) design system with crisp vector SVG icon badges, smooth micro-animations, and full mobile/tablet/desktop responsiveness.
 
 ---
 
