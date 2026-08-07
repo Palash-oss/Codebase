@@ -68,5 +68,4 @@ The repository includes a pre-configured `vercel.json` for seamless Vercel deplo
 
 ---
 
-## 📄 License
-[MIT](https://choosealicense.com/licenses/mit/)
+
