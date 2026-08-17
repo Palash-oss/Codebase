@@ -7,48 +7,54 @@ import { buildGraph, detectLayerViolations, computeSystemHealth } from './graphB
 import { mapArchitecture } from './archMapper.js';
 import { generateSystemSpec } from './specGenerator.js';
 
-export async function analyzeProject(projectRoot) {
+export async function analyzeProject(projectRoot, onProgress = null) {
   console.log(`[X-RAY] Initiating analysis on project root: ${projectRoot}`);
   
   // Phase 1: Scan files
-  console.log('[X-RAY] Phase 2: Scanning files...');
+  console.log('[X-RAY] Phase 1: Scanning files...');
+  onProgress?.('scan', 15, 'Scanning source files & directory structure...');
   const { files, packageJson, tsconfigPaths, baseUrl } = await scanFiles(projectRoot);
   
   if (!files || files.length === 0) {
-    throw new Error('No JavaScript or TypeScript files found in this project.');
+    throw new Error('No supported source files found in this project.');
   }
   console.log(`[X-RAY] Found ${files.length} source files.`);
 
-  // Phase 3: Parse imports
-  console.log('[X-RAY] Phase 4: Parsing imports & AST structure...');
+  // Phase 2: Parse imports
+  console.log('[X-RAY] Phase 2: Parsing multi-language imports & AST structure...');
+  onProgress?.('parse', 35, `Parsing AST & imports across ${files.length} files...`);
   const parsedFiles = parseImports(files, projectRoot, tsconfigPaths || null);
 
-
-  // Phase 2: Detect stack
-  console.log('[X-RAY] Phase 3: Detecting stack...');
+  // Phase 3: Detect stack
+  console.log('[X-RAY] Phase 3: Detecting tech stack...');
+  onProgress?.('stack', 50, 'Fingerprinting frameworks & tech stack...');
   const stack = detectStack(packageJson || {}, parsedFiles);
 
   // Phase 4: Detect layers
-  console.log('[X-RAY] Phase 6: Detecting layers...');
+  console.log('[X-RAY] Phase 4: Classifying architectural layers...');
+  onProgress?.('layers', 65, 'Classifying domain layers & architecture...');
   const layeredFiles = detectLayers(parsedFiles);
 
   // Phase 5: Build graph
   console.log('[X-RAY] Phase 5: Building dependency graph & finding issues...');
+  onProgress?.('graph', 80, 'Building dependency graph & detecting circular cycles...');
   const graph = buildGraph(layeredFiles);
 
   // Phase 6: Map architecture
-  console.log('[X-RAY] Phase 7: Mapping system architecture components...');
+  console.log('[X-RAY] Phase 6: Mapping system architecture components...');
   const arch = mapArchitecture(stack, layeredFiles, graph);
 
-  // Phase 8: Detect layer violations (Pillar 1)
-  console.log('[X-RAY] Phase 8: Detecting layer violations...');
+  // Phase 7: Detect layer violations (Pillar 1)
+  console.log('[X-RAY] Phase 7: Detecting layer violations...');
+  onProgress?.('metrics', 90, 'Computing coupling metrics & layer violations...');
   const layerViolations = detectLayerViolations(layeredFiles, graph.edges);
 
-  // Phase 9: Compute system health metrics (Pillar 3)
-  console.log('[X-RAY] Phase 9: Computing system health metrics...');
+  // Phase 8: Compute system health metrics (Pillar 3)
+  console.log('[X-RAY] Phase 8: Computing system health metrics...');
   const healthData = computeSystemHealth(graph.nodes, graph.edges, layeredFiles);
 
   console.log('[X-RAY] Analysis complete. Building response payload...');
+  onProgress?.('spec', 98, 'Generating living system specification...');
 
   // Compute real language breakdown by total bytes (like GitHub's language bar)
   const langExtMap = {

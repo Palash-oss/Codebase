@@ -7,7 +7,6 @@
     "dev": "npm run build && node server.js",
     "build": "cd frontend && npm run build"
   },
-
   "dependencies": {
     "@typescript-eslint/typescript-estree": "^6.7.0",
     "adm-zip": "^0.5.10",
@@ -18,7 +17,8 @@
     "node-fetch": "^3.3.2",
     "open": "^9.1.0",
     "razorpay": "^2.9.8",
-    "simple-git": "^3.19.1"
+    "simple-git": "^3.19.1",
+    "web-tree-sitter": "^0.20.8"
   },
   "devDependencies": {
     "typescript": "^5.3.3"

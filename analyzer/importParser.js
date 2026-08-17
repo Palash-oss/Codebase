@@ -28,7 +28,11 @@ function findFileByPath(resolvedPath, filePathMap) {
   const absolutePath = path.resolve(resolvedPath).toLowerCase().replace(/\\/g, '/');
   if (filePathMap.has(absolutePath)) return filePathMap.get(absolutePath);
 
-  const exts = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+  const exts = [
+    '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
+    '.py', '.go', '.rs', '.java', '.kt', '.cs', '.php',
+    '.c', '.cpp', '.h', '.hpp', '.cc', '.rb'
+  ];
   for (const ext of exts) {
     if (filePathMap.has(absolutePath + ext)) return filePathMap.get(absolutePath + ext);
   }
@@ -36,6 +40,10 @@ function findFileByPath(resolvedPath, filePathMap) {
   for (const ext of exts) {
     const target = (absolutePath + '/index' + ext).replace(/\/+/g, '/');
     if (filePathMap.has(target)) return filePathMap.get(target);
+    const modTarget = (absolutePath + '/mod' + ext).replace(/\/+/g, '/');
+    if (filePathMap.has(modTarget)) return filePathMap.get(modTarget);
+    const initTarget = (absolutePath + '/__init__' + ext).replace(/\/+/g, '/');
+    if (filePathMap.has(initTarget)) return filePathMap.get(initTarget);
   }
 
   return null;
@@ -98,7 +106,11 @@ function resolveSpecifier(specifier, currentFilePath, filePathMap, tsconfigPaths
       }
       const candidates = [
         path.resolve(projectRoot, 'src', cleanSpec),
-        path.resolve(projectRoot, cleanSpec)
+        path.resolve(projectRoot, cleanSpec),
+        path.resolve(projectRoot, 'lib', cleanSpec),
+        path.resolve(projectRoot, 'app', cleanSpec),
+        path.resolve(projectRoot, 'pkg', cleanSpec),
+        path.resolve(projectRoot, 'internal', cleanSpec)
       ];
       for (const cand of candidates) {
         const foundFile = findFileByPath(cand, filePathMap);
@@ -137,11 +149,17 @@ export function parseImports(files, projectRoot, tsconfigPaths = null) {
     const envVars = [];
     
     // Determine apiRoute
-    const apiRoute = file.relativePath.includes('/api/') || file.name.startsWith('route.');
-    const ext = path.extname(file.name).toLowerCase();
-    const parsableExts = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs'];
+    const relLower = file.relativePath.toLowerCase();
+    const apiRoute = relLower.includes('/api/') ||
+                     relLower.includes('/routes/') ||
+                     relLower.includes('/controllers/') ||
+                     file.name.startsWith('route.');
 
-    if (parsableExts.includes(ext) && file.content) {
+    const ext = path.extname(file.name).toLowerCase();
+    const jsExts = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs'];
+
+    // 1. JavaScript & TypeScript (AST Parsing via ESTree)
+    if (jsExts.includes(ext) && file.content) {
       try {
         const ast = parse(file.content, {
           jsx: true,
@@ -290,45 +308,197 @@ export function parseImports(files, projectRoot, tsconfigPaths = null) {
       }
     }
 
-    // Fallback regex import extraction for non-JS or unparsable files (Python, Go, Java, C/C++, CSS, etc.)
-    if (file.content && imports.length === 0) {
+    // 2. Multi-Language Parsing Pipeline (Python, Go, Rust, Java, C#, PHP, C/C++, Ruby)
+    if (file.content) {
       const content = file.content;
-      // JS / TS regex fallback (import ... from '...', require('...'))
-      const jsImportRegex = /(?:import\s+[\s\S]*?\s+from\s+['"]([^'"]+)['"]|require\s*\(\s*['"]([^'"]+)['"]\s*\))/g;
-      let m;
-      while ((m = jsImportRegex.exec(content)) !== null) {
-        const spec = m[1] || m[2];
-        if (spec && !imports.some(i => i.specifier === spec)) {
-          const { status, resolvedPath } = resolveSpecifier(spec, file.path, filePathMap, tsconfigPaths, projectRoot);
-          imports.push({ specifier: spec, type: 'static', names: [], status, resolvedPath });
-        }
-      }
 
-      // Python import fallback (import foo, from bar import baz)
+      // --- PYTHON (.py) ---
       if (ext === '.py') {
-        const pyRegex = /^\s*(?:from\s+([a-zA-Z0-9_\.]+)\s+import|import\s+([a-zA-Z0-9_\.]+))/gm;
-        while ((m = pyRegex.exec(content)) !== null) {
-          const spec = m[1] || m[2];
-          if (spec && !imports.some(i => i.specifier === spec)) {
-            const { status, resolvedPath } = resolveSpecifier('./' + spec.replace(/\./g, '/'), file.path, filePathMap, tsconfigPaths, projectRoot);
-            imports.push({ specifier: spec, type: 'python', names: [], status, resolvedPath });
+        // Imports: from x.y import z, import foo, import foo as bar
+        const pyImportRegex = /^\s*(?:from\s+([a-zA-Z0-9_\.]+)\s+import\s+([^\n]+)|import\s+([a-zA-Z0-9_\.]+))/gm;
+        let m;
+        while ((m = pyImportRegex.exec(content)) !== null) {
+          const modPath = m[1] || m[3];
+          let importedItems = ['*'];
+          if (m[2]) {
+            const rawItems = m[2].split('#')[0].replace(/[\(\)\s]/g, '');
+            importedItems = rawItems.split(',').filter(Boolean);
           }
-        }
-      }
-
-      // Go import fallback
-      if (ext === '.go') {
-        const goRegex = /import\s+(?:\(\s*([\s\S]*?)\s*\)|"([^"]+)")/g;
-        while ((m = goRegex.exec(content)) !== null) {
-          const specs = m[1] ? m[1].match(/"([^"]+)"/g) : [m[2]];
-          if (specs) {
-            specs.forEach(rawSpec => {
-              const spec = rawSpec.replace(/"/g, '');
-              if (spec && !imports.some(i => i.specifier === spec)) {
-                imports.push({ specifier: spec, type: 'go', names: [], status: 'external', resolvedPath: null });
-              }
+          if (modPath) {
+            let relativeCandidate = './' + modPath.replace(/\./g, '/');
+            if (modPath.startsWith('.')) {
+              relativeCandidate = modPath.replace(/\./g, '/');
+            }
+            const { status, resolvedPath } = resolveSpecifier(relativeCandidate, file.path, filePathMap, tsconfigPaths, projectRoot);
+            imports.push({
+              specifier: modPath,
+              type: 'python',
+              names: importedItems,
+              status: status === 'resolved' ? 'resolved' : 'external',
+              resolvedPath: status === 'resolved' ? resolvedPath : null
             });
           }
+        }
+
+        // Python Functions / Classes Exports: def foo(), class Bar:
+        const pyExportRegex = /^\s*(?:def|class)\s+([a-zA-Z0-9_]+)/gm;
+        let m2;
+        while ((m2 = pyExportRegex.exec(content)) !== null) {
+          exports.push({ name: m2[1], kind: content.includes(`class ${m2[1]}`) ? 'class' : 'function' });
+        }
+
+        // Python Env Vars: os.getenv('FOO') or os.environ.get('FOO')
+        const pyEnvRegex = /os\.(?:getenv|environ\.get|environ\[['"])\s*\(?\s*['"]([A-Z0-9_]+)['"]/g;
+        let m3;
+        while ((m3 = pyEnvRegex.exec(content)) !== null) {
+          if (!envVars.includes(m3[1])) envVars.push(m3[1]);
+        }
+
+        // Python FastAPI / Flask Route Decorators: @app.get('/path'), @router.post(...)
+        const pyRouteRegex = /@(?:app|router|api)\.(get|post|put|delete|patch)\s*\(\s*['"]([^'"]+)['"]/gi;
+        let m4;
+        while ((m4 = pyRouteRegex.exec(content)) !== null) {
+          httpMethods.add(m4[1].toUpperCase());
+          fetchUrls.push(m4[2]);
+        }
+      }
+
+      // --- GO (.go) ---
+      if (ext === '.go') {
+        // Imports: import "fmt" or import ("foo" "bar")
+        const goBlockRegex = /import\s*\(\s*([\s\S]*?)\s*\)/g;
+        let m;
+        while ((m = goBlockRegex.exec(content)) !== null) {
+          const block = m[1];
+          const lines = block.split('\n');
+          for (const line of lines) {
+            const specMatch = line.match(/"([^"]+)"/);
+            if (specMatch) {
+              const spec = specMatch[1];
+              const { status, resolvedPath } = resolveSpecifier('./' + spec, file.path, filePathMap, tsconfigPaths, projectRoot);
+              imports.push({ specifier: spec, type: 'go', names: [], status, resolvedPath });
+            }
+          }
+        }
+        const goSingleRegex = /import\s+"([^"]+)"/g;
+        while ((m = goSingleRegex.exec(content)) !== null) {
+          const spec = m[1];
+          if (!imports.some(i => i.specifier === spec)) {
+            const { status, resolvedPath } = resolveSpecifier('./' + spec, file.path, filePathMap, tsconfigPaths, projectRoot);
+            imports.push({ specifier: spec, type: 'go', names: [], status, resolvedPath });
+          }
+        }
+
+        // Go Exports: Functions/Types starting with Capital Letter
+        const goExportRegex = /^func\s+([A-Z][a-zA-Z0-9_]+)|^type\s+([A-Z][a-zA-Z0-9_]+)/gm;
+        while ((m = goExportRegex.exec(content)) !== null) {
+          exports.push({ name: m[1] || m[2], kind: m[1] ? 'function' : 'struct' });
+        }
+
+        // Go HTTP handlers (Gin, Echo, Fiber): r.GET('/path', handler)
+        const goRouteRegex = /\.(GET|POST|PUT|DELETE|PATCH)\s*\(\s*["']([^"']+)["']/gi;
+        while ((m = goRouteRegex.exec(content)) !== null) {
+          httpMethods.add(m[1].toUpperCase());
+          fetchUrls.push(m[2]);
+        }
+      }
+
+      // --- RUST (.rs) ---
+      if (ext === '.rs') {
+        // use crate::foo::bar; or mod foo;
+        const rustUseRegex = /^\s*(?:pub\s+)?use\s+([^;]+);|^\s*(?:pub\s+)?mod\s+([a-zA-Z0-9_]+);/gm;
+        let m;
+        while ((m = rustUseRegex.exec(content)) !== null) {
+          const spec = m[1] || m[2];
+          if (spec) {
+            const cleanSpec = spec.replace(/^crate::/, './').replace(/::/g, '/');
+            const { status, resolvedPath } = resolveSpecifier(cleanSpec, file.path, filePathMap, tsconfigPaths, projectRoot);
+            imports.push({ specifier: spec, type: 'rust', names: [], status, resolvedPath });
+          }
+        }
+
+        // Rust Public Functions/Structs: pub fn foo(), pub struct Bar
+        const rustExportRegex = /pub\s+(?:fn|struct|enum|trait)\s+([a-zA-Z0-9_]+)/g;
+        while ((m = rustExportRegex.exec(content)) !== null) {
+          exports.push({ name: m[1], kind: 'pub' });
+        }
+      }
+
+      // --- JAVA & KOTLIN (.java, .kt) ---
+      if (ext === '.java' || ext === '.kt') {
+        const javaImportRegex = /^\s*import\s+([a-zA-Z0-9_\.]+);?/gm;
+        let m;
+        while ((m = javaImportRegex.exec(content)) !== null) {
+          const spec = m[1];
+          const cleanSpec = './' + spec.replace(/\./g, '/');
+          const { status, resolvedPath } = resolveSpecifier(cleanSpec, file.path, filePathMap, tsconfigPaths, projectRoot);
+          imports.push({ specifier: spec, type: 'java', names: [], status, resolvedPath });
+        }
+
+        // Spring Boot route annotations
+        const springRouteRegex = /@(Get|Post|Put|Delete|Patch)Mapping\s*\(\s*(?:value\s*=\s*)?["']([^"']+)["']/gi;
+        while ((m = springRouteRegex.exec(content)) !== null) {
+          httpMethods.add(m[1].toUpperCase());
+          fetchUrls.push(m[2]);
+        }
+      }
+
+      // --- C# (.cs) ---
+      if (ext === '.cs') {
+        const csUsingRegex = /^\s*using\s+(?:static\s+)?([a-zA-Z0-9_\.]+);/gm;
+        let m;
+        while ((m = csUsingRegex.exec(content)) !== null) {
+          const spec = m[1];
+          const cleanSpec = './' + spec.replace(/\./g, '/');
+          const { status, resolvedPath } = resolveSpecifier(cleanSpec, file.path, filePathMap, tsconfigPaths, projectRoot);
+          imports.push({ specifier: spec, type: 'csharp', names: [], status, resolvedPath });
+        }
+
+        // ASP.NET Route Attributes: [HttpGet("api/users")]
+        const csRouteRegex = /\[Http(Get|Post|Put|Delete|Patch)\s*\(\s*["']([^"']+)["']\)/gi;
+        while ((m = csRouteRegex.exec(content)) !== null) {
+          httpMethods.add(m[1].toUpperCase());
+          fetchUrls.push(m[2]);
+        }
+      }
+
+      // --- PHP (.php) ---
+      if (ext === '.php') {
+        const phpUseRegex = /^\s*(?:use|require|require_once|include|include_once)\s+['"]?([a-zA-Z0-9_\\/\.]+)/gm;
+        let m;
+        while ((m = phpUseRegex.exec(content)) !== null) {
+          const spec = m[1];
+          const cleanSpec = './' + spec.replace(/\\/g, '/');
+          const { status, resolvedPath } = resolveSpecifier(cleanSpec, file.path, filePathMap, tsconfigPaths, projectRoot);
+          imports.push({ specifier: spec, type: 'php', names: [], status, resolvedPath });
+        }
+      }
+
+      // --- C / C++ (.c, .cpp, .h, .hpp, .cc) ---
+      if (['.c', '.cpp', '.h', '.hpp', '.cc'].includes(ext)) {
+        const cppIncludeRegex = /^\s*#include\s+["<]([^">]+)[">]/gm;
+        let m;
+        while ((m = cppIncludeRegex.exec(content)) !== null) {
+          const spec = m[1];
+          const { status, resolvedPath } = resolveSpecifier('./' + spec, file.path, filePathMap, tsconfigPaths, projectRoot);
+          imports.push({
+            specifier: spec,
+            type: 'cpp',
+            names: [],
+            status: status === 'resolved' ? 'resolved' : 'external',
+            resolvedPath: status === 'resolved' ? resolvedPath : null
+          });
+        }
+      }
+
+      // --- RUBY (.rb) ---
+      if (ext === '.rb') {
+        const rbRequireRegex = /^\s*(?:require|require_relative)\s+['"]([^'"]+)['"]/gm;
+        let m;
+        while ((m = rbRequireRegex.exec(content)) !== null) {
+          const spec = m[1];
+          const { status, resolvedPath } = resolveSpecifier(spec.startsWith('.') ? spec : './' + spec, file.path, filePathMap, tsconfigPaths, projectRoot);
+          imports.push({ specifier: spec, type: 'ruby', names: [], status, resolvedPath });
         }
       }
     }
@@ -354,3 +524,4 @@ export function parseImports(files, projectRoot, tsconfigPaths = null) {
     };
   });
 }
+
