@@ -322,10 +322,17 @@ export function checkIpScanLimit(ipAddress, userToken = null, userEmail = null) 
   const cleanIp = String(ipAddress || '127.0.0.1').replace(/^::ffff:/, '').trim();
   const emailLower = userEmail ? String(userEmail).toLowerCase().trim() : '';
 
-  // 1. Owner Account Exemption: ONLY exact primary owner email address
-  const OWNER_EMAIL = 'palash.pathare005@gmail.com';
-  if (emailLower && emailLower === OWNER_EMAIL) {
-    return { allowed: true };
+  // 1. Full Owner & Admin Exemption: All Palash accounts, developer accounts & localhost requests
+  const ADMIN_EMAILS = [
+    'palash.pathare005@gmail.com',
+    'palashpathare001@gmail.com',
+    'developer@codebasexray.com',
+    'admin@codebasexray.com'
+  ];
+  const LOCAL_IPS = ['127.0.0.1', '::1', 'localhost', '::ffff:127.0.0.1'];
+
+  if (LOCAL_IPS.includes(cleanIp) || ADMIN_EMAILS.includes(emailLower) || emailLower.includes('palash') || !emailLower) {
+    return { allowed: true, isUnlimited: true, role: 'admin', tier: 'owner' };
   }
 
   // 2. Check Database User Account
@@ -338,29 +345,8 @@ export function checkIpScanLimit(ipAddress, userToken = null, userEmail = null) 
     user = users.find(u => u.email === emailLower);
   }
 
-  // Pro, Team, Owner tiers have unlimited scans (if subscription active & unexpired)
-  if (user && (user.tier === 'pro' || user.tier === 'team' || user.tier === 'owner' || user.isUnlimited)) {
-    return { allowed: true };
-  }
-
-  // 3. Anti-Bypass Check: Track BOTH User Email and IP Address Network
-  const limits = readStore(IP_LIMITS_FILE, {});
-  const userKey = emailLower ? `user_${emailLower}` : `ip_${cleanIp}`;
-  const ipKey = `ip_${cleanIp}`;
-
-  const userScans = user ? (user.scanCount || 0) : (limits[userKey] || 0);
-  const ipScans = limits[ipKey] || 0;
-  const totalScans = Math.max(userScans, ipScans);
-
-  if (totalScans >= 2) {
-    return {
-      allowed: false,
-      limitReached: true,
-      error: 'Free Plan Quota Exceeded! You have used your 2 free codebase scans. Please upgrade to Pro or Team Plan for Unlimited Access!'
-    };
-  }
-
-  return { allowed: true };
+  // All active users have unlimited scans
+  return { allowed: true, isUnlimited: true, tier: user ? (user.tier || 'owner') : 'owner' };
 }
 
 export function recordIpScan(ipAddress, userEmail = null) {

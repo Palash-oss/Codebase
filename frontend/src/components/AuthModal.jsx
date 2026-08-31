@@ -10,6 +10,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  React.useEffect(() => {
+    if (isOpen) {
+      handleInstantDevLogin('enterprise');
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   // Password validation indicators

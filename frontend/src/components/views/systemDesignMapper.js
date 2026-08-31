@@ -1,1126 +1,566 @@
-// systemDesignMapper.js — Complete rewrite. Dynamic. No hardcoding.
+// systemDesignMapper.js
+// Fully data-driven. Reads DATA.files, DATA.stack.detected, DATA.layers
+// to build accurate architecture diagrams for ANY codebase.
+// Component IDs match buildConnections() in SystemDesignView.jsx exactly.
 
 export function buildSystemDesign(DATA, fileList = []) {
-  if (!DATA) return { perspectives: {}, zones: {}, metadata: {} };
+  if (!DATA) return { perspectives: {}, zones: {}, metadata: {}, connections: [], externalSaaS: [], dbTables: [] };
 
-  const detected = DATA?.stack?.detected || [];
-  const layers = DATA?.layers || {};
-  const files = fileList.length > 0 ? fileList : (DATA?.files || []);
+  const detected  = DATA?.stack?.detected || [];
+  const layers    = DATA?.layers  || {};
+  const allFiles  = fileList.length > 0 ? fileList : (DATA?.files || []);
 
-  // ── Detection helpers ──────────────────────────────────────────
-  const has = (key) => detected.some(t => t.key === key);
+  // ── Detection helpers ────────────────────────────────────────────
+  const has    = (key) => detected.some(t => t.key === key);
   const hasAny = (...keys) => keys.some(k => has(k));
-  const getTech = (key) => detected.find(t => t.key === key);
-  const hasCategory = (cat) => detected.some(t => t.category === cat);
-  const hasAWSAny = () => detected.some(t => t.key && t.key.startsWith('aws-'));
 
-  // ── Derived facts about the project ──────────────────────────
-  const isNextJS = has('nextjs');
-  const isExpress = has('express');
-  const isNestJS = has('nestjs');
-  const isFastify = has('fastify');
-  const isHono = has('hono');
-  const hasAnyBackend = hasAny('nextjs','express','nestjs','fastify','hono');
+  // ── File helpers ─────────────────────────────────────────────────
+  const matchPath = (f, frag) =>
+    f.relativePath.toLowerCase().replace(/\\/g, '/').includes(frag.toLowerCase());
 
-  const dbTech = has('neon') ? 'neon' :
-    has('postgresql') ? 'postgresql' :
-    has('mysql') ? 'mysql' :
-    has('mongodb') || has('mongoose') ? 'mongodb' :
-    has('sqlite') ? 'sqlite' :
-    has('supabase') ? 'supabase' :
-    has('firebase') ? 'firebase' :
-    has('aws-dynamo') ? 'aws-dynamo' :
-    has('upstash') ? 'upstash' :
-    has('prisma') ? 'postgresql' : null;
+  const filesFor = (max, ...fragments) =>
+    allFiles.filter(f => fragments.some(frag => matchPath(f, frag)))
+      .slice(0, max).map(f => f.relativePath);
 
-  const dbName = has('neon') ? 'Neon Serverless Postgres' :
-    has('postgresql') ? 'PostgreSQL' :
-    has('mysql') ? 'MySQL' :
-    has('mongodb') || has('mongoose') ? 'MongoDB' :
-    has('sqlite') ? 'SQLite' :
-    has('supabase') ? 'Supabase DB' :
-    has('firebase') ? 'Firestore' :
-    has('aws-dynamo') ? 'DynamoDB' :
-    has('upstash') ? 'Upstash Redis' :
-    has('prisma') ? 'PostgreSQL' : null;
-
-  const ormSuffix = has('prisma') ? ' · Prisma ORM' :
-    has('drizzle') ? ' · Drizzle ORM' :
-    has('mongoose') ? ' · Mongoose' :
-    has('typeorm') ? ' · TypeORM' : '';
-
-  const authTech = has('nextauth') ? 'nextauth' :
-    has('auth0') ? 'auth0' :
-    has('clerk') ? 'clerk' :
-    has('jwt') ? 'jwt' :
-    has('aws-cognito') ? 'aws-cognito' :
-    has('passport') ? 'passport' : null;
-
-  const authName = has('nextauth') ? 'Auth.js (NextAuth)' :
-    has('auth0') ? 'Auth0' :
-    has('clerk') ? 'Clerk' :
-    has('jwt') ? 'JWT' :
-    has('aws-cognito') ? 'AWS Cognito' :
-    has('passport') ? 'Passport.js' : null;
-
-  const frontendTech = isNextJS ? 'nextjs' :
-    has('react') ? 'react' :
-    has('vuejs') ? 'vuejs' : 'web';
-
-  const frontendName = isNextJS ? 'Next.js App Router' :
-    has('react') ? 'React SPA' :
-    has('vuejs') ? 'Vue.js App' : 'Web Client';
-
-  const apiName = isNextJS ? 'Next.js API Routes' :
-    isNestJS ? 'NestJS Controller' :
-    isExpress ? 'Express Router' :
-    isFastify ? 'Fastify Server' :
-    isHono ? 'Hono API' : 'API Server';
-
-  const apiTech = isNextJS ? 'nextjs' :
-    isNestJS ? 'nestjs' :
-    isExpress ? 'express' :
-    isFastify ? 'fastify' : 'node';
-
-  // File helpers
-  const getLayerFiles = (layerName, max = 4) =>
-    (layers[layerName] || []).slice(0, max);
-
-  const getFilesMatching = (...keywords) =>
-    files.filter(f => f.relativePath && keywords.some(k =>
-      f.relativePath.toLowerCase().includes(k.toLowerCase())
-    )).slice(0, 4).map(f => f.relativePath);
-
-  const schemaFiles = getFilesMatching('schema', 'model', 'migration', 'prisma', 'entity', 'table');
-  const apiRouteFiles = getLayerFiles('Gateway', 6);
-  const authFiles = getFilesMatching('auth', 'session', 'middleware', 'guard');
-
-  const envVars = [];
-  files.forEach(f => {
-    if (f.envVars) f.envVars.forEach(v => {
-      if (!envVars.includes(v)) envVars.push(v);
-    });
+  // ── Classify files from raw paths ────────────────────────────────
+  // Only JS/TS files go into presentation — never Python files
+  const presentationFiles = allFiles.filter(f => {
+    const p = f.relativePath.toLowerCase().replace(/\\/g, '/');
+    const ext = f.extension || '';
+    if (ext === '.py') return false; // Python files are never UI
+    return ext === '.tsx' || ext === '.jsx' ||
+      p.includes('/pages/') || p.includes('/components/') ||
+      p.includes('/views/') || p.includes('/screens/') || p.includes('/ui/') ||
+      (p.includes('/app/') && (ext === '.tsx' || ext === '.jsx' || p.startsWith('src/')));
   });
 
-  // ── Component counter ─────────────────────────────────────────
+  const gatewayFiles = allFiles.filter(f => {
+    const p = f.relativePath.toLowerCase().replace(/\\/g, '/');
+    return f.apiRoute ||
+      p.includes('/api/') || p.includes('/routes/') || p.includes('/controllers/') ||
+      p.includes('/handlers/') || p.includes('/resolvers/') || p.includes('/endpoints/') ||
+      p.includes('/routers/') || p.includes('/graphql/');
+  });
+
+  const domainFiles = allFiles.filter(f => {
+    const p = f.relativePath.toLowerCase().replace(/\\/g, '/');
+    return p.includes('/services/') || p.includes('/domain/') ||
+      p.includes('/usecases/') || p.includes('/business/') ||
+      p.includes('/agents/') || p.includes('/tasks/') || p.includes('/workers/');
+  });
+
+  const persistenceFiles = allFiles.filter(f => {
+    const p = f.relativePath.toLowerCase().replace(/\\/g, '/');
+    // Use PATH-based detection only — ORM import check is too broad
+    // (FastAPI projects import SQLAlchemy in almost every file)
+    return p.includes('/models/') || p.includes('/schemas/') || p.includes('/db/') ||
+      p.includes('/repositories/') || p.includes('/migrations/') ||
+      p.includes('/entities/') || p.includes('/prisma/') ||
+      (f.extension === '.prisma') || (f.extension === '.sql') ||
+      // For .py files: name must literally contain model/schema/entity
+      ((f.extension === '.py') && (
+        f.name === 'models.py' || f.name === 'schema.py' || f.name === 'schemas.py' ||
+        f.name === 'entity.py' || f.name === 'entities.py' || f.name === 'base.py' ||
+        p.includes('/models/') || p.includes('/schemas/') || p.includes('/entities/')
+      )) ||
+      // For JS/TS: use ORM import check
+      ((f.extension === '.ts' || f.extension === '.js') && f.imports && f.imports.some(imp => {
+        const s = (imp?.specifier || '').toLowerCase();
+        return s.includes('@prisma') || s.includes('drizzle') || s.includes('typeorm') ||
+          s.includes('mongoose') || s.startsWith('mongoose/');
+      }));
+  });
+
+  const envVarList = [];
+  allFiles.forEach(f => {
+    if (f.envVars) f.envVars.forEach(v => { if (!envVarList.includes(v)) envVarList.push(v); });
+  });
+
+  // ── Tech detection ───────────────────────────────────────────────
+  const frontendTech = has('nextjs') ? 'nextjs' : has('react') ? 'react' : has('vuejs') ? 'vuejs' : has('angular') ? 'angular' : has('svelte') ? 'svelte' : 'web';
+  const frontendName = has('nextjs') ? 'Next.js' : has('react') ? 'React' : has('vuejs') ? 'Vue.js' : has('angular') ? 'Angular' : has('svelte') ? 'Svelte' : 'Web App';
+  const apiTech = has('express') ? 'express' : has('nestjs') ? 'nestjs' : has('fastify') ? 'fastify' : has('hono') ? 'hono' : has('fastapi') ? 'fastapi' : has('flask') ? 'flask' : has('django') ? 'django' : has('nextjs') ? 'nextjs' : 'node';
+  const apiName = has('express') ? 'Express.js' : has('nestjs') ? 'NestJS' : has('fastify') ? 'Fastify' : has('hono') ? 'Hono' : has('fastapi') ? 'FastAPI' : has('flask') ? 'Flask' : has('django') ? 'Django' : has('nextjs') ? 'Next.js API' : 'API Server';
+  const authTech = has('nextauth') ? 'nextauth' : has('auth0') ? 'auth0' : has('clerk') ? 'clerk' : has('supabase') ? 'supabase' : has('firebase') ? 'firebase' : (has('bcrypt') || has('jwt')) ? 'jwt' : null;
+  const authName = has('nextauth') ? 'NextAuth.js' : has('auth0') ? 'Auth0' : has('clerk') ? 'Clerk' : has('supabase') ? 'Supabase Auth' : has('firebase') ? 'Firebase Auth' : (has('bcrypt') || has('jwt')) ? 'JWT / bcrypt Auth' : null;
+  const dbTech = (has('postgresql') || has('psycopg2') || has('sqlalchemy')) ? 'postgresql' : has('mysql') ? 'mysql' : (has('mongodb') || has('mongoose') || has('pymongo')) ? 'mongodb' : has('sqlite') ? 'sqlite' : has('neon') ? 'postgresql' : has('supabase') ? 'supabase' : has('firebase') ? 'firebase' : has('prisma') ? 'prisma' : null;
+  const dbName = has('neon') ? 'Neon Postgres' : (has('postgresql') || has('psycopg2') || has('sqlalchemy')) ? 'PostgreSQL' : has('mysql') ? 'MySQL' : (has('mongodb') || has('mongoose') || has('pymongo')) ? 'MongoDB' : has('sqlite') ? 'SQLite' : has('supabase') ? 'Supabase DB' : has('firebase') ? 'Firestore' : has('prisma') ? 'PostgreSQL' : null;
+  const vectorTech = has('pinecone') ? 'pinecone' : has('chromadb') ? 'chromadb' : has('weaviate') ? 'weaviate' : has('qdrant') ? 'qdrant' : null;
+  const vectorName = has('pinecone') ? 'Pinecone' : has('chromadb') ? 'ChromaDB' : has('weaviate') ? 'Weaviate' : has('qdrant') ? 'Qdrant' : null;
+
+  const hasFrontend  = presentationFiles.length > 0 || hasAny('nextjs', 'react', 'vuejs', 'angular', 'svelte');
+  const hasBackend   = gatewayFiles.length > 0 || hasAny('express', 'nestjs', 'fastapi', 'flask', 'django', 'fastify', 'hono');
+  const hasDB        = !!dbTech;
+  const hasAuth      = !!authTech;
+  const hasLangChain = has('langchain');
+  const hasAI        = hasAny('openai', 'anthropic', 'groq', 'gemini');
+  const hasHF        = has('huggingface');
+  const hasVectorDB  = !!vectorTech;
+  const hasRedis     = hasAny('redis', 'upstash', 'ioredis');
+  const hasBullMQ    = has('bullmq');
+  const hasDocker    = has('docker');
+  const hasVercel    = has('vercel');
+  const hasStripe    = has('stripe');
+
   let n = 0;
   const num = () => ++n;
 
-  // ── Zone builder ──────────────────────────────────────────────
-  function buildZones(components) {
-    const ZONE_PAD = 20;
-    const zones = [];
-    const tierGroups = {};
-    components.forEach(c => {
-      if (!tierGroups[c.zone]) tierGroups[c.zone] = [];
-      tierGroups[c.zone].push(c);
-    });
-    Object.entries(tierGroups).forEach(([zoneId, comps]) => {
-      if (comps.length === 0) return;
-      const xs = comps.map(c => c.x);
-      const ys = comps.map(c => c.y);
-      const xe = comps.map(c => c.x + c.w);
-      const ye = comps.map(c => c.y + c.h);
-      zones.push({
-        id: zoneId,
-        label: comps[0].zoneLabel || zoneId,
-        color: comps[0].zoneColor || '#888',
-        x: Math.min(...xs) - ZONE_PAD,
-        y: Math.min(...ys) - ZONE_PAD - 18,
-        w: Math.max(...xe) - Math.min(...xs) + ZONE_PAD * 2,
-        h: Math.max(...ye) - Math.min(...ys) + ZONE_PAD * 2 + 18,
-      });
-    });
-    return zones;
-  }
-
-  // ── Layout engine ─────────────────────────────────────────────
-  function computeLayout(components, canvasW = 1400) {
-    const COMP_W = 160;
-    const COMP_H = 110;
-    const COMP_GAP = 24;
-    const TIER_GAP = 40;
-    const ZONE_EXTRA = 50;
-
-    const zoneOrder = ['client','network','edge','gateway','backend',
-      'service','data','cache','queue','cloud','observability','devops','ops'];
-
-    const grouped = {};
-    components.forEach(c => {
-      if (!grouped[c.zone]) grouped[c.zone] = [];
-      grouped[c.zone].push(c);
-    });
-
-    let currentY = 60;
-    zoneOrder.forEach(zone => {
-      const comps = grouped[zone];
-      if (!comps || comps.length === 0) return;
-      const rowW = comps.length * COMP_W + (comps.length - 1) * COMP_GAP;
-      const startX = Math.max(20, (canvasW - rowW) / 2);
-      comps.forEach((c, i) => {
-        c.x = startX + i * (COMP_W + COMP_GAP);
-        c.y = currentY;
-        c.w = COMP_W;
-        c.h = COMP_H;
-      });
-      currentY += COMP_H + TIER_GAP + ZONE_EXTRA;
-    });
-
-    return components;
-  }
-
-  // ── Connection builder ────────────────────────────────────────
-  function buildConnections(components, extraConnections = []) {
-    const ids = new Set(components.map(c => c.id));
-    const has_comp = id => ids.has(id);
-    const conns = [];
-    const add = (from, to, label, style = 'solid') => {
-      if (has_comp(from) && has_comp(to)) {
-        conns.push({ from, to, label, style });
-      }
-    };
-
-    // Standard flows
-    add('client', 'dns', 'DNS lookup');
-    add('github-ext', 'api', 'Webhooks (HMAC-Signed)', 'solid');
-    if (has_comp('cdn')) {
-      add('dns', 'cdn', 'resolves to');
-      add('cdn', 'api', 'cache miss / origin');
-    } else {
-      add('dns', 'api', 'HTTPS request');
-    }
-    add('api', 'auth', 'validates token');
-    add('api', 'database', ormSuffix.trim() ? ormSuffix.trim().replace(' · ','') + ' query' : 'DB query');
-    add('api', 'cache', 'cache lookup', 'dashed');
-    add('cache', 'database', 'cache miss → DB', 'dashed');
-    add('api', 'queue', 'publish message');
-    add('queue', 'worker', 'consume');
-    add('worker', 'database', 'write', 'dashed');
-    add('api', 'storage', 'upload/fetch', 'dashed');
-    add('api', 'email', 'send email', 'dashed');
-    add('api', 'ai', 'AI API call', 'dashed');
-    add('api', 'vector-db', 'vector search', 'dashed');
-    add('api', 'stripe', 'billing API', 'dashed');
-    add('api', 'slack-ext', 'notify', 'dashed');
-    add('api', 'monitoring', 'logs/traces', 'dashed');
-    add('auth', 'database', 'user lookup');
-    add('api', 'bedrock', 'invoke model', 'dashed');
-
-    // DevOps flows
-    add('git', 'cicd', 'push trigger');
-    add('cicd', 'tests', 'run tests');
-    add('cicd', 'docker', 'build image');
-    add('cicd', 'deploy', 'deploy');
-    add('docker', 'k8s', 'orchestrate');
-    add('deploy', 'monitoring', 'live metrics', 'dashed');
-
-    extraConnections.forEach(ec => {
-      if (has_comp(ec.from) && has_comp(ec.to)) conns.push(ec);
-    });
-
-    return conns;
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  // SYSTEM ARCHITECT — HLD
-  // Shows the high-level architecture of the application
-  // ═══════════════════════════════════════════════════════════════
+  // =================================================================
+  // SYSTEM HLD — IDs must match SystemDesignView.jsx buildConnections()
+  // =================================================================
   n = 0;
   const sysHLD = [];
 
-  // Client
-  sysHLD.push({ id:'client', number:num(),
-    label: frontendName,
-    sublabel: has('tailwindcss')||has('tailwind') ? 'with Tailwind CSS' :
-              has('mui') ? 'with Material UI' : 'Client Tier',
-    zone:'client', zoneLabel:'TIER 1 — FRONTEND & PRESENTATION', zoneColor:'#3B82F6',
-    techKey: frontendTech, isDetected:true,
-    files: getLayerFiles('Presentation')
-  });
-
-  // DNS — only if not Vercel (Vercel handles DNS internally)
-  if (!has('vercel')) {
-    sysHLD.push({ id:'dns', number:num(),
-      label:'DNS', sublabel:'Domain resolution',
-      zone:'network', zoneLabel:'NETWORK LAYER', zoneColor:'#6B7280',
-      techKey:'', isDetected:true, files:[]
+  if (hasFrontend) {
+    sysHLD.push({
+      id: 'client', number: num(),
+      label: frontendName,
+      sublabel: (presentationFiles.length > 0 ? presentationFiles.length + ' UI files · ' : '') + (has('tailwind') ? 'Tailwind CSS' : 'Styled Components'),
+      zone: 'client', zoneLabel: 'Client & Frontend', zoneColor: '#3B82F6',
+      techKey: frontendTech, isDetected: true,
+      files: presentationFiles.slice(0, 3).map(f => f.relativePath)
     });
   }
 
-  // CDN/Edge
-  if (has('vercel')) {
-    sysHLD.push({ id:'cdn', number:num(),
-      label:'Vercel Edge CDN', sublabel:'Edge Network · Serverless',
-      zone:'edge', zoneLabel:'EDGE LAYER', zoneColor:'#06B6D4',
-      techKey:'vercel', isDetected:true, files:[]
-    });
-  } else if (has('aws-cloudfront')) {
-    sysHLD.push({ id:'cdn', number:num(),
-      label:'CloudFront CDN', sublabel:'AWS Edge Network',
-      zone:'edge', zoneLabel:'EDGE LAYER', zoneColor:'#06B6D4',
-      techKey:'aws-cloudfront', isDetected:true, files:[]
+  if (hasBackend || gatewayFiles.length > 0) {
+    sysHLD.push({
+      id: 'api', number: num(),
+      label: apiName,
+      sublabel: gatewayFiles.length + ' route handlers' + (authName ? ' · ' + authName : ''),
+      zone: 'gateway', zoneLabel: 'API Gateway & Auth', zoneColor: '#8B5CF6',
+      techKey: apiTech, isDetected: true,
+      files: gatewayFiles.slice(0, 3).map(f => f.relativePath)
     });
   }
 
-  // API Gateway
-  sysHLD.push({ id:'api', number:num(),
-    label: apiName,
-    sublabel: `${apiRouteFiles.length} route handlers`,
-    zone:'gateway', zoneLabel:'TIER 2 — API GATEWAY & AUTH', zoneColor:'#8B5CF6',
-    techKey: apiTech, isDetected:true,
-    files: getLayerFiles('Gateway')
-  });
-
-  // Auth — only if detected
-  if (authTech) {
-    sysHLD.push({ id:'auth', number:num(),
+  if (hasAuth && hasAny('nextauth', 'auth0', 'clerk')) {
+    sysHLD.push({
+      id: 'auth', number: num(),
       label: authName,
-      sublabel: 'Authentication & Sessions',
-      zone:'gateway', zoneLabel:'TIER 2 — API GATEWAY & AUTH', zoneColor:'#8B5CF6',
-      techKey: authTech, isDetected:true,
-      files: authFiles
+      sublabel: 'Identity & session management',
+      zone: 'gateway', zoneLabel: 'API Gateway & Auth', zoneColor: '#8B5CF6',
+      techKey: authTech, isDetected: true, files: []
     });
   }
 
-  // External: GitHub (if octokit detected)
-  if (has('octokit') || has('github')) {
-    sysHLD.push({ id:'github-ext', number:num(),
-      label:'GitHub', sublabel:'Users & Webhooks',
-      zone:'cloud', zoneLabel:'EXTERNAL SERVICES', zoneColor:'#FF9900',
-      techKey:'github', isDetected:true, files:[]
-    });
-  }
-
-  // Slack (if detected)
-  if (has('slack')) {
-    sysHLD.push({ id:'slack-ext', number:num(),
-      label:'Slack Workspace', sublabel:'Block Kit · Interactions',
-      zone:'cloud', zoneLabel:'EXTERNAL SERVICES', zoneColor:'#FF9900',
-      techKey:'slack', isDetected:true, files:[]
-    });
-  }
-
-  // Discord
-  if (has('discord')) {
-    sysHLD.push({ id:'discord-ext', number:num(),
-      label:'Discord', sublabel:'Bot · Webhooks',
-      zone:'cloud', zoneLabel:'EXTERNAL SERVICES', zoneColor:'#FF9900',
-      techKey:'discord', isDetected:true, files:[]
-    });
-  }
-
-  // Stripe
-  if (has('stripe')) {
-    sysHLD.push({ id:'stripe', number:num(),
-      label:'Stripe', sublabel:'Subscription Billing',
-      zone:'cloud', zoneLabel:'EXTERNAL SERVICES', zoneColor:'#FF9900',
-      techKey:'stripe', isDetected:true, files:[]
-    });
-  }
-
-  // AI Services
-  if (has('openai')) {
-    sysHLD.push({ id:'ai', number:num(),
-      label:'OpenAI', sublabel:'GPT · Embeddings',
-      zone:'cloud', zoneLabel:'EXTERNAL SERVICES', zoneColor:'#FF9900',
-      techKey:'openai', isDetected:true, files:[]
-    });
-  } else if (has('anthropic')) {
-    sysHLD.push({ id:'ai', number:num(),
-      label:'Anthropic Claude', sublabel:'AI API',
-      zone:'cloud', zoneLabel:'EXTERNAL SERVICES', zoneColor:'#FF9900',
-      techKey:'anthropic', isDetected:true, files:[]
-    });
-  } else if (has('groq')) {
-    sysHLD.push({ id:'ai', number:num(),
-      label:'Groq', sublabel:'Fast Inference API',
-      zone:'cloud', zoneLabel:'EXTERNAL SERVICES', zoneColor:'#FF9900',
-      techKey:'groq', isDetected:true, files:[]
-    });
-  }
-
-  // Vector DB
-  if (has('pinecone')) {
-    sysHLD.push({ id:'vector-db', number:num(),
-      label:'Pinecone', sublabel:'Vector Database',
-      zone:'data', zoneLabel:'TIER 4 — DATA & PERSISTENCE', zoneColor:'#22C55E',
-      techKey:'pinecone', isDetected:true, files:[]
-    });
-  }
-
-  // Domain/Business Logic layer — only if files exist
-  const domainFiles = getLayerFiles('Domain');
   if (domainFiles.length > 0) {
-    sysHLD.push({ id:'domain', number:num(),
-      label:'Business Logic Layer',
-      sublabel: `${domainFiles.length} service modules`,
-      zone:'backend', zoneLabel:'TIER 3 — BUSINESS LOGIC & DOMAIN', zoneColor:'#10B981',
-      techKey: apiTech, isDetected:true,
-      files: domainFiles
+    const agentCount   = domainFiles.filter(f => f.relativePath.toLowerCase().includes('/agents/')).length;
+    const serviceCount = domainFiles.filter(f => f.relativePath.toLowerCase().includes('/services/')).length;
+    sysHLD.push({
+      id: 'domain', number: num(),
+      label: agentCount > 0 ? 'AI Agents & Services' : 'Business Logic Services',
+      sublabel: agentCount > 0
+        ? agentCount + ' AI agents · ' + serviceCount + ' service modules'
+        : domainFiles.length + ' service modules',
+      zone: 'backend', zoneLabel: 'Business Logic', zoneColor: '#10B981',
+      techKey: hasLangChain ? 'langchain' : apiTech, isDetected: true,
+      files: domainFiles.slice(0, 3).map(f => f.relativePath)
     });
   }
 
-  // BullMQ / Queue
-  if (has('bullmq') || has('kafka')) {
-    sysHLD.push({ id:'queue', number:num(),
-      label: has('kafka') ? 'Apache Kafka' : 'BullMQ Queue',
-      sublabel: has('kafka') ? 'Event streaming' : 'Background jobs · Redis-backed',
-      zone:'backend', zoneLabel:'TIER 3 — BUSINESS LOGIC & DOMAIN', zoneColor:'#10B981',
-      techKey: has('kafka') ? 'kafka' : 'bullmq', isDetected:true, files:[]
+  if (hasLangChain) {
+    sysHLD.push({
+      id: 'langchain', number: num(),
+      label: 'LangChain RAG Pipeline',
+      sublabel: 'Chains · Agents · Vector retrieval',
+      zone: 'backend', zoneLabel: 'Business Logic', zoneColor: '#10B981',
+      techKey: 'langchain', isDetected: true,
+      files: filesFor(3, 'chain', 'rag', 'retriev', 'embed')
     });
   }
 
-  // Database — only the actual detected one
-  if (dbTech) {
-    sysHLD.push({ id:'database', number:num(),
+  if (hasAI) {
+    const aiKey  = has('openai') ? 'openai' : has('anthropic') ? 'anthropic' : 'groq';
+    const aiLabel = has('openai') ? 'OpenAI' : has('anthropic') ? 'Anthropic Claude' : 'Groq';
+    sysHLD.push({
+      id: 'ai', number: num(),
+      label: aiLabel,
+      sublabel: 'LLM API · Completions · Embeddings',
+      zone: 'cloud', zoneLabel: 'External AI & Cloud', zoneColor: '#FF9900',
+      techKey: aiKey, isDetected: true, files: []
+    });
+  }
+
+  if (hasHF) {
+    sysHLD.push({
+      id: 'huggingface', number: num(),
+      label: 'HuggingFace',
+      sublabel: 'Transformers · Embeddings · Inference',
+      zone: 'cloud', zoneLabel: 'External AI & Cloud', zoneColor: '#FF9900',
+      techKey: 'huggingface', isDetected: true, files: []
+    });
+  }
+
+  if (hasVectorDB) {
+    sysHLD.push({
+      id: 'vector-db', number: num(),
+      label: vectorName,
+      sublabel: 'Vector store · Semantic k-NN search',
+      zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E',
+      techKey: vectorTech, isDetected: true, files: []
+    });
+  }
+
+  if (hasDB) {
+    sysHLD.push({
+      id: 'database', number: num(),
       label: dbName,
-      sublabel: ormSuffix.trim() ? ormSuffix.trim().replace(' · ','') : 'Primary datastore',
-      zone:'data', zoneLabel:'TIER 4 — DATA & PERSISTENCE', zoneColor:'#22C55E',
-      techKey: dbTech, isDetected:true,
-      files: schemaFiles
+      sublabel: persistenceFiles.length > 0
+        ? persistenceFiles.length + ' models' + (has('sqlalchemy') ? ' · SQLAlchemy' : has('prisma') ? ' · Prisma ORM' : has('mongoose') ? ' · Mongoose' : '')
+        : 'Primary datastore',
+      zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E',
+      techKey: dbTech, isDetected: true,
+      files: persistenceFiles.slice(0, 3).map(f => f.relativePath)
     });
   }
 
-  // Redis — only if detected
-  if (has('redis') || has('upstash')) {
-    sysHLD.push({ id:'cache', number:num(),
-      label: has('upstash') ? 'Upstash Redis' : 'Redis Cache',
-      sublabel: 'In-memory cache & sessions',
-      zone:'cache', zoneLabel:'CACHE LAYER', zoneColor:'#F59E0B',
-      techKey: has('upstash') ? 'upstash' : 'redis', isDetected:true, files:[]
+  if (hasRedis) {
+    sysHLD.push({
+      id: 'cache', number: num(),
+      label: has('upstash') ? 'Upstash Redis' : hasBullMQ ? 'Redis + BullMQ' : 'Redis Cache',
+      sublabel: hasBullMQ ? 'Job queue · Cache · Pub/Sub' : 'In-memory cache · Sessions',
+      zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E',
+      techKey: has('upstash') ? 'upstash' : 'redis', isDetected: true, files: []
     });
   }
 
-  // Email
-  if (has('resend') || has('sendgrid')) {
-    sysHLD.push({ id:'email', number:num(),
-      label: has('resend') ? 'Resend' : 'SendGrid',
-      sublabel: 'Transactional email',
-      zone:'cloud', zoneLabel:'EXTERNAL SERVICES', zoneColor:'#FF9900',
-      techKey: has('resend') ? 'resend' : 'sendgrid', isDetected:true, files:[]
+  if (hasBullMQ && !hasRedis) {
+    sysHLD.push({
+      id: 'queue', number: num(),
+      label: 'BullMQ Job Queue',
+      sublabel: 'Async task queue · Worker pool',
+      zone: 'backend', zoneLabel: 'Business Logic', zoneColor: '#10B981',
+      techKey: 'bullmq', isDetected: true, files: []
     });
   }
 
-  // AWS S3
-  if (has('aws-s3')) {
-    sysHLD.push({ id:'storage', number:num(),
-      label:'AWS S3', sublabel:'Object storage',
-      zone:'cloud', zoneLabel:'EXTERNAL SERVICES', zoneColor:'#FF9900',
-      techKey:'aws-s3', isDetected:true, files:[]
+  if (hasStripe) {
+    sysHLD.push({
+      id: 'stripe', number: num(),
+      label: 'Stripe',
+      sublabel: 'Payment processing · Webhooks · Billing',
+      zone: 'cloud', zoneLabel: 'External AI & Cloud', zoneColor: '#FF9900',
+      techKey: 'stripe', isDetected: true, files: []
     });
   }
 
-  // AWS Lambda
-  if (has('aws-lambda')) {
-    sysHLD.push({ id:'worker', number:num(),
-      label:'AWS Lambda', sublabel:'Serverless functions',
-      zone:'cloud', zoneLabel:'EXTERNAL SERVICES', zoneColor:'#FF9900',
-      techKey:'aws-lambda', isDetected:true, files:[]
+  if (hasAny('resend', 'sendgrid', 'nodemailer')) {
+    sysHLD.push({
+      id: 'email', number: num(),
+      label: has('resend') ? 'Resend' : has('sendgrid') ? 'SendGrid' : 'Email Service',
+      sublabel: 'Transactional email delivery',
+      zone: 'cloud', zoneLabel: 'External AI & Cloud', zoneColor: '#FF9900',
+      techKey: has('resend') ? 'resend' : 'sendgrid', isDetected: true, files: []
     });
   }
 
-  // AWS Bedrock
-  if (has('aws-bedrock')) {
-    sysHLD.push({ id:'bedrock', number:num(),
-      label:'AWS Bedrock', sublabel:'Foundation models',
-      zone:'cloud', zoneLabel:'EXTERNAL SERVICES', zoneColor:'#FF9900',
-      techKey:'aws-bedrock', isDetected:true, files:[]
+  if (hasAny('aws-s3', 's3', 'cloudinary')) {
+    sysHLD.push({
+      id: 'storage', number: num(),
+      label: has('cloudinary') ? 'Cloudinary' : 'AWS S3',
+      sublabel: 'Object / media storage',
+      zone: 'cloud', zoneLabel: 'External AI & Cloud', zoneColor: '#FF9900',
+      techKey: has('cloudinary') ? 'cloudinary' : 'aws-s3', isDetected: true, files: []
     });
   }
 
-  // Monitoring (always inferred)
-  sysHLD.push({ id:'monitoring', number:num(),
-    label:'Monitoring',
-    sublabel: envVars.length > 0
-      ? `${envVars.length} env vars tracked`
-      : 'Logs · Metrics · Traces',
-    zone:'observability', zoneLabel:'TIER 5 — RUNTIME & OPERATIONS', zoneColor:'#6B7280',
-    techKey:'', isDetected:false,
-    files: getFilesMatching('.env', 'config', 'constants', 'logger')
-  });
+  if (sysHLD.length === 0) {
+    sysHLD.push({
+      id: 'client', number: num(),
+      label: 'Application', sublabel: allFiles.length + ' source files',
+      zone: 'client', zoneLabel: 'Application', zoneColor: '#3B82F6',
+      techKey: 'web', isDetected: false, files: []
+    });
+  }
 
-  const sysHLDWithLayout = computeLayout(sysHLD);
-  const sysHLDZones = buildZones(sysHLDWithLayout);
-  const sysHLDConns = buildConnections(sysHLDWithLayout);
-
-  // ═══════════════════════════════════════════════════════════════
-  // SYSTEM ARCHITECT — LLD
-  // Shows actual implementation files in each tier
-  // ═══════════════════════════════════════════════════════════════
+  // =================================================================
+  // SYSTEM LLD — IDs must match SystemDesignView.jsx buildConnections()
+  // =================================================================
   n = 0;
   const sysLLD = [];
 
-  const presentationFiles = getLayerFiles('Presentation');
   if (presentationFiles.length > 0) {
-    sysLLD.push({ id:'lld-ui', number:num(),
-      label: 'UI Components & Views',
-      sublabel: `${(layers.Presentation||[]).length} components · ${has('tailwindcss')||has('tailwind') ? 'Tailwind CSS' : has('mui') ? 'Material UI' : 'CSS'}`,
-      zone:'frontend', zoneLabel:'TIER 1 — FRONTEND & PRESENTATION', zoneColor:'#3B82F6',
-      techKey: frontendTech, isDetected:true,
-      files: presentationFiles
+    sysLLD.push({
+      id: 'lld-ui', number: num(),
+      label: frontendName + ' UI Components',
+      sublabel: presentationFiles.length + ' pages & components',
+      zone: 'client', zoneLabel: 'Client & Frontend', zoneColor: '#3B82F6',
+      techKey: frontendTech, isDetected: true,
+      files: presentationFiles.slice(0, 4).map(f => f.relativePath)
     });
   }
 
-  const interactionFiles = getLayerFiles('Interaction');
-  if (interactionFiles.length > 0) {
-    sysLLD.push({ id:'lld-hooks', number:num(),
-      label: has('zustand') ? 'React Hooks & Zustand Store' : has('redux') ? 'React Hooks & Redux Toolkit' : 'React Custom Hooks & Context API',
-      sublabel: `${(layers.Interaction||[]).length} state modules`,
-      zone:'frontend', zoneLabel:'TIER 1 — FRONTEND & PRESENTATION', zoneColor:'#3B82F6',
-      techKey: has('zustand') ? 'zustand' : has('redux') ? 'redux' : frontendTech,
-      isDetected:true, files: interactionFiles
+  const hooksFiles = filesFor(4, '/hooks/', '/context/', '/store/');
+  if (hooksFiles.length > 0 || hasAny('zustand', 'redux', 'jotai', 'recoil')) {
+    sysLLD.push({
+      id: 'lld-hooks', number: num(),
+      label: has('zustand') ? 'Zustand State Stores' : has('redux') ? 'Redux Store' : 'React Hooks & Context',
+      sublabel: (hooksFiles.length > 0 ? hooksFiles.length + ' modules · ' : '') + 'Client-side state management',
+      zone: 'client', zoneLabel: 'Client & Frontend', zoneColor: '#3B82F6',
+      techKey: has('zustand') ? 'zustand' : has('redux') ? 'redux' : 'react',
+      isDetected: true, files: hooksFiles
     });
   }
 
-  const gatewayFiles = getLayerFiles('Gateway');
   if (gatewayFiles.length > 0) {
-    sysLLD.push({ id:'lld-routes', number:num(),
-      label:'API Route Controllers & Methods',
-      sublabel: `${(layers.Gateway||[]).length} endpoints · GET/POST/PUT/DELETE`,
-      zone:'gateway', zoneLabel:'TIER 2 — API GATEWAY & AUTH', zoneColor:'#8B5CF6',
-      techKey: apiTech, isDetected:true,
-      files: gatewayFiles
+    sysLLD.push({
+      id: 'lld-routes', number: num(),
+      label: apiName + ' Route Controllers',
+      sublabel: gatewayFiles.length + ' endpoint handlers · GET/POST/PUT/DELETE',
+      zone: 'gateway', zoneLabel: 'API Gateway & Auth', zoneColor: '#8B5CF6',
+      techKey: apiTech, isDetected: true,
+      files: gatewayFiles.slice(0, 4).map(f => f.relativePath)
     });
   }
 
-  if (authTech) {
-    sysLLD.push({ id:'lld-auth', number:num(),
-      label:'Middleware Security & Auth Guard',
-      sublabel: `Guarded by ${authName} · CORS Policy`,
-      zone:'gateway', zoneLabel:'TIER 2 — API GATEWAY & AUTH', zoneColor:'#8B5CF6',
-      techKey: authTech, isDetected:true,
-      files: authFiles
+  const authMidFiles = filesFor(3, '/auth/', 'middleware', 'guard', 'security', 'session');
+  if (hasAuth || authMidFiles.length > 0) {
+    sysLLD.push({
+      id: 'lld-auth', number: num(),
+      label: authName || 'Auth Middleware',
+      sublabel: (authName ? authName + ' · ' : '') + 'JWT · CORS · Rate limiting',
+      zone: 'gateway', zoneLabel: 'API Gateway & Auth', zoneColor: '#8B5CF6',
+      techKey: authTech || 'jwt', isDetected: true, files: authMidFiles
     });
   }
 
-  const domainFilesLLD = getLayerFiles('Domain');
-  if (domainFilesLLD.length > 0) {
-    sysLLD.push({ id:'lld-domain', number:num(),
-      label:'Domain Service Function Signatures',
-      sublabel: `${(layers.Domain||[]).length} service modules`,
-      zone:'backend', zoneLabel:'TIER 3 — BUSINESS LOGIC & DOMAIN', zoneColor:'#10B981',
-      techKey: apiTech, isDetected:true,
-      files: domainFilesLLD
+  if (domainFiles.length > 0) {
+    const agents   = domainFiles.filter(f => f.relativePath.toLowerCase().includes('/agents/'));
+    const services = domainFiles.filter(f => !f.relativePath.toLowerCase().includes('/agents/'));
+    sysLLD.push({
+      id: 'lld-domain', number: num(),
+      label: agents.length > 0 ? 'AI Agents & Business Services' : 'Domain Service Functions',
+      sublabel: agents.length > 0
+        ? agents.length + ' agents · ' + services.length + ' services'
+        : domainFiles.length + ' service modules',
+      zone: 'backend', zoneLabel: 'Business Logic & Domain', zoneColor: '#10B981',
+      techKey: hasLangChain ? 'langchain' : apiTech, isDetected: true,
+      files: domainFiles.slice(0, 4).map(f => f.relativePath)
     });
   }
 
-  // Worker / background jobs
-  const foundationFiles = getLayerFiles('Foundation', 6);
-  const workerFiles = getFilesMatching('worker', 'job', 'cron', 'queue', 'background');
-  if (has('bullmq') || workerFiles.length > 0) {
-    sysLLD.push({ id:'lld-worker', number:num(),
-      label: 'Async Event Queue & Worker Pool',
-      sublabel: has('bullmq') ? 'BullMQ · Background Worker Pool' : 'Background Worker Pool',
-      zone:'backend', zoneLabel:'TIER 3 — BUSINESS LOGIC & DOMAIN', zoneColor:'#10B981',
-      techKey: has('bullmq') ? 'bullmq' : apiTech, isDetected: has('bullmq'),
-      files: workerFiles.slice(0,4)
+  if (hasLangChain) {
+    sysLLD.push({
+      id: 'lld-langchain', number: num(),
+      label: 'LangChain RAG Pipeline',
+      sublabel: 'Retrieval chains · Prompt templates · Memory',
+      zone: 'backend', zoneLabel: 'Business Logic & Domain', zoneColor: '#10B981',
+      techKey: 'langchain', isDetected: true,
+      files: filesFor(4, 'chain', 'rag', 'retriev', 'embed', 'agent')
     });
   }
 
-  if (dbTech && schemaFiles.length > 0) {
-    const ormName = has('prisma') ? 'Prisma' : has('drizzle') ? 'Drizzle' : has('mongoose') ? 'Mongoose' : has('typeorm') ? 'TypeORM' : '';
-    sysLLD.push({ id:'lld-db', number:num(),
-      label: `${ormName ? ormName + ' ' : ''}ORM Table Schemas & Data Entities`,
-      sublabel: schemaFiles.length > 0
-        ? `Tables: ${schemaFiles.slice(0,3).map(f => f.split('/').pop().replace(/\.(ts|js|prisma)$/,'')).join(', ')}`
-        : `${dbName} schema definitions`,
-      zone:'data', zoneLabel:'TIER 4 — DATA & PERSISTENCE', zoneColor:'#22C55E',
-      techKey: dbTech, isDetected:true,
-      files: schemaFiles.slice(0,4)
-    });
-  } else if (dbTech) {
-    sysLLD.push({ id:'lld-db', number:num(),
-      label: dbName,
-      sublabel: ormSuffix.trim() ? ormSuffix.trim().replace(' · ','') : 'Primary datastore',
-      zone:'data', zoneLabel:'TIER 4 — DATA & PERSISTENCE', zoneColor:'#22C55E',
-      techKey: dbTech, isDetected:true,
-      files: []
+  if (hasHF) {
+    sysLLD.push({
+      id: 'lld-hf', number: num(),
+      label: 'HuggingFace Transformers',
+      sublabel: 'Embeddings · Inference · sentence-transformers',
+      zone: 'backend', zoneLabel: 'Business Logic & Domain', zoneColor: '#10B981',
+      techKey: 'huggingface', isDetected: true,
+      files: filesFor(3, 'embed', 'transform', 'infer')
     });
   }
 
-  if (has('redis') || has('upstash')) {
-    sysLLD.push({ id:'lld-cache', number:num(),
-      label:'DB Connection Pool & Node Cache',
-      sublabel: has('upstash') ? 'Upstash Redis · Primary Cache · In-Memory Cache' : 'Primary Datastore Pool · In-Memory Cache',
-      zone:'cache', zoneLabel:'TIER 4 — DATA & PERSISTENCE', zoneColor:'#22C55E',
-      techKey: has('upstash') ? 'upstash' : 'redis', isDetected:true, files:[]
+  if (hasBullMQ) {
+    sysLLD.push({
+      id: 'lld-worker', number: num(),
+      label: 'BullMQ Worker Pool',
+      sublabel: 'Async background job queue',
+      zone: 'backend', zoneLabel: 'Business Logic & Domain', zoneColor: '#10B981',
+      techKey: 'bullmq', isDetected: true,
+      files: filesFor(3, 'worker', 'job', 'queue', 'cron')
     });
   }
 
-  sysLLD.push({ id:'lld-runtime', number:num(),
-    label:'Environment Variable Injector',
-    sublabel: envVars.length > 0
-      ? `${envVars.length} env vars: ${envVars.slice(0,3).join(', ')}${envVars.length > 3 ? '...' : ''}`
-      : 'Runtime config & secrets',
-    zone:'ops', zoneLabel:'TIER 5 — RUNTIME & OPERATIONS', zoneColor:'#6B7280',
-    techKey:'node', isDetected:true,
-    files: getFilesMatching('.env', 'config', 'constants')
+  if (hasDB || persistenceFiles.length > 0) {
+    const schemaNames = persistenceFiles.slice(0, 3).map(f =>
+      f.relativePath.split('/').pop().replace(/\.(ts|js|prisma|py)$/, '')
+    );
+    sysLLD.push({
+      id: 'lld-db', number: num(),
+      label: (dbName || 'Database') + ' Schema & Models',
+      sublabel: schemaNames.length > 0
+        ? 'Tables: ' + schemaNames.join(', ') + (persistenceFiles.length > 3 ? '...' : '')
+        : 'Data models & schemas',
+      zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E',
+      techKey: dbTech || 'postgresql', isDetected: true,
+      files: persistenceFiles.slice(0, 4).map(f => f.relativePath)
+    });
+  }
+
+  if (hasVectorDB) {
+    sysLLD.push({
+      id: 'lld-vector', number: num(),
+      label: vectorName + ' Vector Store',
+      sublabel: 'Embedding index · k-NN semantic search',
+      zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E',
+      techKey: vectorTech, isDetected: true,
+      files: filesFor(3, 'vector', 'embed', 'index', 'pinecone', 'chroma')
+    });
+  }
+
+  if (hasRedis) {
+    sysLLD.push({
+      id: 'lld-cache', number: num(),
+      label: has('upstash') ? 'Upstash Redis Cache' : 'Redis Cache',
+      sublabel: 'Session store · In-memory cache · Pub/Sub',
+      zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E',
+      techKey: has('upstash') ? 'upstash' : 'redis', isDetected: true, files: []
+    });
+  }
+
+  sysLLD.push({
+    id: 'lld-runtime', number: num(),
+    label: 'Runtime Environment',
+    sublabel: envVarList.length > 0
+      ? envVarList.length + ' env vars: ' + envVarList.slice(0, 3).join(', ') + (envVarList.length > 3 ? '...' : '')
+      : 'Config & secrets',
+    zone: 'ops', zoneLabel: 'Runtime & Operations', zoneColor: '#6B7280',
+    techKey: has('python') ? 'python' : 'node', isDetected: true,
+    files: filesFor(4, '.env', 'config', 'constants', 'settings', '/core/config')
   });
 
-  const sysLLDWithLayout = computeLayout(sysLLD);
-  const sysLLDZones = buildZones(sysLLDWithLayout);
-  const sysLLDConns = buildConnections(sysLLDWithLayout);
-
-  // ═══════════════════════════════════════════════════════════════
-  // CLOUD ARCHITECT — HLD
-  // Shows ONLY detected cloud/SaaS services, NOT generic boxes
-  // ═══════════════════════════════════════════════════════════════
+  // =================================================================
+  // CLOUD HLD
+  // =================================================================
   n = 0;
   const cloudHLD = [];
 
-  // Client
-  cloudHLD.push({ id:'client', number:num(),
-    label: 'Client Dashboard',
-    sublabel: frontendName + ' · Real-Time Observability',
-    zone:'client', zoneLabel:'CLIENT', zoneColor:'#3B82F6',
-    techKey: frontendTech, isDetected:true,
-    files: getLayerFiles('Presentation', 2)
-  });
-
-  // GitHub integration
-  if (has('octokit') || has('github')) {
-    cloudHLD.push({ id:'github-ext', number:num(),
-      label:'GitHub', sublabel:'Users & Webhooks · OAuth 2.0 Flow',
-      zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
-      techKey:'github', isDetected:true, files:[]
-    });
+  if (hasFrontend) {
+    cloudHLD.push({ id: 'client', number: num(), label: frontendName, sublabel: 'Browser client · Real-time UI',
+      zone: 'client', zoneLabel: 'Client & User Interface', zoneColor: '#3B82F6', techKey: frontendTech, isDetected: true, files: [] });
   }
-
-  // Vercel/CDN
-  if (has('vercel')) {
-    cloudHLD.push({ id:'cdn', number:num(),
-      label:'Vercel Edge CDN', sublabel:'Edge Network · x-hub-signature-256',
-      zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
-      techKey:'vercel', isDetected:true, files:[]
-    });
-  } else if (has('aws-cloudfront')) {
-    cloudHLD.push({ id:'cdn', number:num(),
-      label:'AWS CloudFront', sublabel:'Edge CDN · Cache',
-      zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
-      techKey:'aws-cloudfront', isDetected:true, files:[]
-    });
+  if (hasVercel) {
+    cloudHLD.push({ id: 'cdn', number: num(), label: 'Vercel Edge CDN', sublabel: 'Edge network · Serverless hosting',
+      zone: 'edge', zoneLabel: 'Edge & Network', zoneColor: '#06B6D4', techKey: 'vercel', isDetected: true, files: [] });
   }
-
-  // API
-  cloudHLD.push({ id:'api', number:num(),
-    label: apiName,
-    sublabel: 'Routes & Webhooks · ' + (authName || 'API'),
-    zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
-    techKey: apiTech, isDetected:true,
-    files: getLayerFiles('Gateway', 2)
-  });
-
-  // Auth inside cloud boundary
-  if (authTech) {
-    cloudHLD.push({ id:'auth', number:num(),
-      label: authName, sublabel:'GitHub OAuth · Session',
-      zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
-      techKey: authTech, isDetected:true, files:[]
-    });
+  cloudHLD.push({ id: 'api', number: num(), label: apiName, sublabel: 'Routes & webhooks' + (authName ? ' · ' + authName : ''),
+    zone: 'gateway', zoneLabel: 'Cloud Compute & Routing', zoneColor: '#8B5CF6', techKey: apiTech, isDetected: true,
+    files: gatewayFiles.slice(0, 2).map(f => f.relativePath) });
+  if (hasAuth) {
+    cloudHLD.push({ id: 'auth', number: num(), label: authName, sublabel: 'Identity provider · Session validation',
+      zone: 'gateway', zoneLabel: 'Cloud Compute & Routing', zoneColor: '#8B5CF6', techKey: authTech, isDetected: true, files: [] });
   }
-
-  // Business logic modules
-  if ((layers.Domain||[]).length > 0) {
-    cloudHLD.push({ id:'rules', number:num(),
-      label:'Rules & Triage Logic',
-      sublabel: `${(layers.Domain||[]).length} service modules`,
-      zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
-      techKey: apiTech, isDetected:true,
-      files: getLayerFiles('Domain', 2)
-    });
+  if (domainFiles.length > 0 || hasLangChain) {
+    cloudHLD.push({ id: 'domain', number: num(), label: hasLangChain ? 'AI Agents & Services' : 'Business Logic',
+      sublabel: hasLangChain ? 'LangChain · Agents · Services' : domainFiles.length + ' service modules',
+      zone: 'backend', zoneLabel: 'Cloud Compute & Routing', zoneColor: '#10B981', techKey: hasLangChain ? 'langchain' : apiTech, isDetected: true, files: [] });
   }
-
-  // Feature gating / subscription — if stripe detected
-  if (has('stripe')) {
-    cloudHLD.push({ id:'feature-gate', number:num(),
-      label:'Subscription Feature Gating',
-      sublabel:'Plan checks · Usage limits',
-      zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
-      techKey:'stripe', isDetected:true, files:[]
-    });
+  if (hasDB) {
+    cloudHLD.push({ id: 'database', number: num(), label: dbName, sublabel: 'Primary datastore' + (has('neon') ? ' · Serverless' : ''),
+      zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E', techKey: dbTech, isDetected: true, files: [] });
   }
-
-  // Background jobs
-  if (has('bullmq') || (layers.Domain||[]).length > 2) {
-    cloudHLD.push({ id:'bg-jobs', number:num(),
-      label:'Background Jobs',
-      sublabel: has('bullmq') ? 'BullMQ Workers' : 'Cron · Async tasks',
-      zone:'cloud', zoneLabel:'CLOUD BOUNDARY', zoneColor:'#FF9900',
-      techKey: has('bullmq') ? 'bullmq' : apiTech, isDetected: has('bullmq'),
-      files: getFilesMatching('cron', 'worker', 'job')
-    });
+  if (hasRedis) {
+    cloudHLD.push({ id: 'cache', number: num(), label: 'Redis Cache', sublabel: 'In-memory cache · Sessions',
+      zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E', techKey: 'redis', isDetected: true, files: [] });
   }
-
-  // Neon/Supabase/DB
-  if (dbTech) {
-    cloudHLD.push({ id:'database', number:num(),
-      label: dbName,
-      sublabel: schemaFiles.length > 0
-        ? `Schema: ${schemaFiles.slice(0,2).map(f=>f.split('/').pop().replace(/\.(ts|js|prisma)$/,'')).join(', ')}`
-        : (ormSuffix.trim() ? ormSuffix.trim().replace(' · ','') : 'Primary DB'),
-      zone:'data', zoneLabel:'DATABASE LAYER', zoneColor:'#22C55E',
-      techKey: dbTech, isDetected:true,
-      files: schemaFiles.slice(0,3)
-    });
+  if (hasAI || hasLangChain) {
+    cloudHLD.push({ id: 'ai', number: num(), label: has('openai') ? 'OpenAI API' : has('anthropic') ? 'Anthropic Claude' : 'AI LLM Service',
+      sublabel: 'LLM completions · Embeddings', zone: 'cloud', zoneLabel: 'External Services', zoneColor: '#FF9900',
+      techKey: has('openai') ? 'openai' : 'anthropic', isDetected: true, files: [] });
   }
+  if (cloudHLD.length === 0) cloudHLD.push(...sysHLD.map(c => Object.assign({}, c)));
 
-  // Stripe
-  if (has('stripe')) {
-    cloudHLD.push({ id:'stripe', number:num(),
-      label:'Stripe', sublabel:'Subscription Billing · Webhooks',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
-      techKey:'stripe', isDetected:true, files:[]
-    });
-  }
-
-  // Slack
-  if (has('slack')) {
-    cloudHLD.push({ id:'slack-ext', number:num(),
-      label:'Slack Workspace', sublabel:'Block Kit · Interactions',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
-      techKey:'slack', isDetected:true, files:[]
-    });
-  }
-
-  // Discord
-  if (has('discord')) {
-    cloudHLD.push({ id:'discord-ext', number:num(),
-      label:'Discord', sublabel:'Bot · Guild webhooks',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
-      techKey:'discord', isDetected:true, files:[]
-    });
-  }
-
-  // AI
-  if (has('openai') || has('anthropic') || has('groq')) {
-    cloudHLD.push({ id:'ai', number:num(),
-      label: has('openai') ? 'OpenAI' : has('anthropic') ? 'Anthropic Claude' : 'Groq',
-      sublabel: has('openai') ? 'GPT · Embeddings · Moderation' : 'Claude AI · API',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
-      techKey: has('openai') ? 'openai' : has('anthropic') ? 'anthropic' : 'groq',
-      isDetected:true, files:[]
-    });
-  }
-
-  // Pinecone
-  if (has('pinecone')) {
-    cloudHLD.push({ id:'vector-db', number:num(),
-      label:'Pinecone', sublabel:'Vector DB · Semantic search',
-      zone:'data', zoneLabel:'DATABASE LAYER', zoneColor:'#22C55E',
-      techKey:'pinecone', isDetected:true, files:[]
-    });
-  }
-
-  // S3
-  if (has('aws-s3')) {
-    cloudHLD.push({ id:'storage', number:num(),
-      label:'AWS S3', sublabel:'Object storage',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
-      techKey:'aws-s3', isDetected:true, files:[]
-    });
-  }
-
-  // Lambda
-  if (has('aws-lambda')) {
-    cloudHLD.push({ id:'worker', number:num(),
-      label:'AWS Lambda', sublabel:'Serverless functions',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
-      techKey:'aws-lambda', isDetected:true, files:[]
-    });
-  }
-
-  // SQS
-  if (has('aws-sqs')) {
-    cloudHLD.push({ id:'queue', number:num(),
-      label:'AWS SQS', sublabel:'Message queue',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
-      techKey:'aws-sqs', isDetected:true, files:[]
-    });
-  }
-
-  // Email
-  if (has('resend') || has('sendgrid') || has('aws-ses')) {
-    cloudHLD.push({ id:'email', number:num(),
-      label: has('resend') ? 'Resend' : has('sendgrid') ? 'SendGrid' : 'AWS SES',
-      sublabel:'Transactional email',
-      zone:'external', zoneLabel:'SAAS SERVICES', zoneColor:'#635BFF',
-      techKey: has('resend') ? 'resend' : has('sendgrid') ? 'sendgrid' : 'aws-ses',
-      isDetected:true, files:[]
-    });
-  }
-
-  // If NO cloud services at all, add a note
-  if (cloudHLD.filter(c => c.zone === 'external').length === 0) {
-    cloudHLD.push({ id:'no-cloud-note', number:num(),
-      label:'Self-Hosted Infrastructure',
-      sublabel:'No external SaaS services detected',
-      zone:'observability', zoneLabel:'INFRASTRUCTURE', zoneColor:'#6B7280',
-      techKey:'', isDetected:false, files:[]
-    });
-  }
-
-  const cloudHLDLayout = computeLayout(cloudHLD);
-  const cloudHLDZones = buildZones(cloudHLDLayout);
-  const cloudHLDConns = buildConnections(cloudHLDLayout);
-
-  // ═══════════════════════════════════════════════════════════════
-  // CLOUD — LLD
-  // Real implementation details for each cloud service
-  // ═══════════════════════════════════════════════════════════════
+  // =================================================================
+  // CLOUD LLD
+  // =================================================================
   n = 0;
   const cloudLLD = [];
+  if (hasFrontend) cloudLLD.push({ id: 'lld-client', number: num(), label: frontendName + ' Client', sublabel: presentationFiles.length + ' UI components',
+    zone: 'client', zoneLabel: 'Client Layer', zoneColor: '#3B82F6', techKey: frontendTech, isDetected: true, files: presentationFiles.slice(0, 3).map(f => f.relativePath) });
+  cloudLLD.push({ id: 'lld-api-gw', number: num(), label: apiName + ' API Gateway', sublabel: gatewayFiles.length + ' route handlers · Auth middleware',
+    zone: 'gateway', zoneLabel: 'API & Auth Layer', zoneColor: '#8B5CF6', techKey: apiTech, isDetected: true, files: gatewayFiles.slice(0, 3).map(f => f.relativePath) });
+  if (hasAuth) cloudLLD.push({ id: 'lld-auth-cloud', number: num(), label: authName + ' Auth Guard', sublabel: 'Token validation · CORS · Rate limiting',
+    zone: 'gateway', zoneLabel: 'API & Auth Layer', zoneColor: '#8B5CF6', techKey: authTech, isDetected: true, files: [] });
+  if (hasDB) cloudLLD.push({ id: 'lld-db', number: num(), label: dbName + ' Instance', sublabel: persistenceFiles.length > 0 ? persistenceFiles.length + ' models' : 'Primary database',
+    zone: 'data', zoneLabel: 'Data Layer', zoneColor: '#22C55E', techKey: dbTech, isDetected: true, files: persistenceFiles.slice(0, 3).map(f => f.relativePath) });
+  if (has('neon')) cloudLLD.push({ id: 'lld-neon', number: num(), label: 'Neon Serverless Postgres', sublabel: 'Serverless SQL · DB branching',
+    zone: 'data', zoneLabel: 'Data Layer', zoneColor: '#22C55E', techKey: 'neon', isDetected: true, files: [] });
+  cloudLLD.push({ id: 'lld-secrets', number: num(), label: 'Secrets & Config', sublabel: envVarList.length > 0 ? envVarList.length + ' env vars configured' : 'Runtime secrets',
+    zone: 'ops', zoneLabel: 'Operations', zoneColor: '#6B7280', techKey: 'node', isDetected: true, files: filesFor(3, '.env', 'secrets') });
+  if (hasStripe) cloudLLD.push({ id: 'lld-stripe', number: num(), label: 'Stripe Checkout', sublabel: 'Payment gateway · Webhooks',
+    zone: 'cloud', zoneLabel: 'External Services', zoneColor: '#FF9900', techKey: 'stripe', isDetected: true, files: [] });
+  if (hasAI) cloudLLD.push({ id: 'lld-ai', number: num(), label: has('openai') ? 'OpenAI API' : 'AI Service', sublabel: 'LLM · Embeddings · Completions',
+    zone: 'cloud', zoneLabel: 'External Services', zoneColor: '#FF9900', techKey: has('openai') ? 'openai' : 'anthropic', isDetected: true, files: [] });
+  if (hasVectorDB) cloudLLD.push({ id: 'lld-pinecone', number: num(), label: vectorName, sublabel: 'Vector DB · Semantic search',
+    zone: 'data', zoneLabel: 'Data Layer', zoneColor: '#22C55E', techKey: vectorTech, isDetected: true, files: [] });
+  if (hasBullMQ) cloudLLD.push({ id: 'lld-bullmq', number: num(), label: 'BullMQ Worker Queue', sublabel: 'Async job dispatch · Worker pool',
+    zone: 'backend', zoneLabel: 'Compute Layer', zoneColor: '#10B981', techKey: 'bullmq', isDetected: true, files: filesFor(3, 'worker', 'job', 'queue') });
+  if (hasAny('aws-s3', 's3')) cloudLLD.push({ id: 'lld-s3', number: num(), label: 'AWS S3 Storage', sublabel: 'Object storage · Presigned URLs',
+    zone: 'cloud', zoneLabel: 'External Services', zoneColor: '#FF9900', techKey: 'aws-s3', isDetected: true, files: [] });
+  if (cloudLLD.length === 0) cloudLLD.push(...sysLLD.map(c => Object.assign({}, c)));
 
-  // If no AWS detected, fall back to system LLD
-  const hasAnyCloud = hasAny('aws-s3','aws-lambda','aws-sqs','aws-ses','aws-dynamo',
-    'aws-ec2','aws-rds','aws-cloudfront','aws-apigateway','aws-ecs','aws-eks',
-    'aws-cognito','aws-bedrock','pinecone','openai','anthropic','stripe','slack',
-    'discord','resend','sendgrid','groq','neon','upstash');
-
-  if (!hasAnyCloud) {
-    // Mirror system LLD but with different zone labels
-    cloudLLD.push(...sysLLD.map((c,i) => ({
-      ...c, id:'cloud-'+c.id, number:i+1,
-      sublabel: c.sublabel + ' · No cloud services detected'
-    })));
-  } else {
-    // Show LLD for each detected cloud service
-    if (has('aws-s3')) {
-      cloudLLD.push({ id:'lld-s3', number:num(),
-        label:'S3 Bucket Configuration',
-        sublabel:'Versioning · Lifecycle · CORS policies',
-        zone:'cloud', zoneLabel:'AWS SERVICES', zoneColor:'#FF9900',
-        techKey:'aws-s3', isDetected:true,
-        files: getFilesMatching('s3','storage','upload')
-      });
-    }
-    if (has('aws-lambda')) {
-      cloudLLD.push({ id:'lld-lambda', number:num(),
-        label:'Lambda Function Handlers',
-        sublabel:'Serverless · Event-driven · Cold start optimized',
-        zone:'cloud', zoneLabel:'AWS SERVICES', zoneColor:'#FF9900',
-        techKey:'aws-lambda', isDetected:true,
-        files: getFilesMatching('lambda','handler','function')
-      });
-    }
-    if (has('aws-sqs')) {
-      cloudLLD.push({ id:'lld-sqs', number:num(),
-        label:'SQS Queue Producer & Consumer',
-        sublabel:'Async messaging · DLQ · Retry policies',
-        zone:'cloud', zoneLabel:'AWS SERVICES', zoneColor:'#FF9900',
-        techKey:'aws-sqs', isDetected:true,
-        files: getFilesMatching('queue','sqs','worker')
-      });
-    }
-    if (has('aws-ses') || has('resend') || has('sendgrid')) {
-      cloudLLD.push({ id:'lld-email', number:num(),
-        label: has('aws-ses') ? 'SES Email Templates & Sender' : has('resend') ? 'Resend Email Service' : 'SendGrid Email Service',
-        sublabel:'Transactional email · Bounce handling · Templates',
-        zone:'cloud', zoneLabel:'AWS SERVICES', zoneColor:'#FF9900',
-        techKey: has('aws-ses') ? 'aws-ses' : has('resend') ? 'resend' : 'sendgrid',
-        isDetected:true,
-        files: getFilesMatching('email','mail','ses','resend')
-      });
-    }
-    if (has('aws-dynamo')) {
-      cloudLLD.push({ id:'lld-dynamo', number:num(),
-        label:'DynamoDB Table Design',
-        sublabel:'Partition key · Sort key · GSI indexes',
-        zone:'cloud', zoneLabel:'AWS SERVICES', zoneColor:'#FF9900',
-        techKey:'aws-dynamo', isDetected:true,
-        files: getFilesMatching('dynamo','table')
-      });
-    }
-    if (has('pinecone')) {
-      cloudLLD.push({ id:'lld-pinecone', number:num(),
-        label:'Pinecone Vector Index',
-        sublabel:'Embeddings · Semantic search · Namespace isolation',
-        zone:'cloud', zoneLabel:'AI SERVICES', zoneColor:'#5C4EFF',
-        techKey:'pinecone', isDetected:true,
-        files: getFilesMatching('pinecone','vector','embed','retriev')
-      });
-    }
-    if (has('openai') || has('anthropic') || has('groq')) {
-      cloudLLD.push({ id:'lld-ai', number:num(),
-        label: has('openai') ? 'OpenAI Client Config' : has('anthropic') ? 'Anthropic Client Config' : 'Groq Client Config',
-        sublabel: has('openai') ? 'GPT-4 · text-embedding-3-small · streaming' : 'claude-3-5-sonnet · streaming',
-        zone:'cloud', zoneLabel:'AI SERVICES', zoneColor:'#5C4EFF',
-        techKey: has('openai') ? 'openai' : has('anthropic') ? 'anthropic' : 'groq',
-        isDetected:true,
-        files: getFilesMatching('openai','anthropic','ai','llm','groq','gemini')
-      });
-    }
-    if (has('stripe')) {
-      cloudLLD.push({ id:'lld-stripe', number:num(),
-        label:'Stripe Webhook & Billing Logic',
-        sublabel:'Checkout · Customer Portal · Subscription management',
-        zone:'external', zoneLabel:'PAYMENT SERVICES', zoneColor:'#635BFF',
-        techKey:'stripe', isDetected:true,
-        files: getFilesMatching('stripe','billing','payment','subscription','webhook')
-      });
-    }
-    if (has('slack')) {
-      cloudLLD.push({ id:'lld-slack', number:num(),
-        label:'Slack Bot & Block Kit',
-        sublabel:'Event subscriptions · Slash commands · Interactive components',
-        zone:'external', zoneLabel:'NOTIFICATION SERVICES', zoneColor:'#4A154B',
-        techKey:'slack', isDetected:true,
-        files: getFilesMatching('slack','block','bot','notification')
-      });
-    }
-    if (has('neon')) {
-      cloudLLD.push({ id:'lld-neon', number:num(),
-        label:'Neon Serverless Postgres',
-        sublabel: schemaFiles.length > 0
-          ? `Schema (Multi-Tenant): ${schemaFiles.slice(0,3).map(f=>f.split('/').pop().replace(/\.(ts|js|prisma)$/,'')).join(', ')}`
-          : 'Serverless Postgres · Connection pooling',
-        zone:'data', zoneLabel:'DATABASE SERVICES', zoneColor:'#00E599',
-        techKey:'neon', isDetected:true,
-        files: schemaFiles.slice(0,4)
-      });
-    } else if (dbTech && schemaFiles.length > 0) {
-      cloudLLD.push({ id:'lld-db', number:num(),
-        label: dbName + ' Schema',
-        sublabel: schemaFiles.length > 0
-          ? `Tables: ${schemaFiles.slice(0,3).map(f=>f.split('/').pop().replace(/\.(ts|js|prisma)$/,'')).join(', ')}`
-          : ormSuffix.trim() ? ormSuffix.trim().replace(' · ','') : 'Database schema',
-        zone:'data', zoneLabel:'DATABASE SERVICES', zoneColor:'#22C55E',
-        techKey: dbTech, isDetected:true,
-        files: schemaFiles.slice(0,4)
-      });
-    }
-    if (has('bullmq')) {
-      cloudLLD.push({ id:'lld-bullmq', number:num(),
-        label:'BullMQ Job Queues & Workers',
-        sublabel:'Redis-backed · Retry · Priority queues',
-        zone:'backend', zoneLabel:'ASYNC PROCESSING', zoneColor:'#F59E0B',
-        techKey:'bullmq', isDetected:true,
-        files: getFilesMatching('queue','worker','job','bull')
-      });
-    }
-    if (envVars.length > 0) {
-      cloudLLD.push({ id:'lld-secrets', number:num(),
-        label:'Secrets & Environment Variables',
-        sublabel: `${envVars.length} vars: ${envVars.slice(0,4).join(', ')}${envVars.length > 4 ? '...' : ''}`,
-        zone:'ops', zoneLabel:'CONFIGURATION', zoneColor:'#6B7280',
-        techKey:'node', isDetected:true,
-        files: getFilesMatching('.env','config','secret')
-      });
-    }
-  }
-
-  const cloudLLDLayout = computeLayout(cloudLLD);
-  const cloudLLDZones = buildZones(cloudLLDLayout);
-  const cloudLLDConns = buildConnections(cloudLLDLayout);
-
-  // ═══════════════════════════════════════════════════════════════
-  // DEVOPS ENGINEER — HLD
-  // ═══════════════════════════════════════════════════════════════
+  // =================================================================
+  // DEVOPS HLD
+  // =================================================================
   n = 0;
   const devopsHLD = [];
+  const testFileList = layers.Test || [];
 
-  devopsHLD.push({ id:'git', number:num(),
-    label:'Git Repository', sublabel:'Source control · Branches',
-    zone:'devops', zoneLabel:'CODE SOURCE', zoneColor:'#24292F',
-    techKey:'github', isDetected:true,
-    files: getFilesMatching('.github','gitignore')
-  });
+  if (has('github') || has('gha') || has('octokit')) devopsHLD.push({ id: 'git', number: num(), label: 'GitHub Repository', sublabel: 'Source control · PRs · Code review',
+    zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: 'github', isDetected: true, files: [] });
+  if (has('gha')) devopsHLD.push({ id: 'cicd', number: num(), label: 'GitHub Actions', sublabel: 'CI/CD workflow · Automated testing & deploy',
+    zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: 'gha', isDetected: true, files: filesFor(3, '.github/workflows') });
+  if (testFileList.length > 0 || hasAny('jest', 'vitest', 'pytest', 'mocha')) devopsHLD.push({ id: 'tests', number: num(), label: 'Test Suite',
+    sublabel: (testFileList.length > 0 ? testFileList.length + ' test files · ' : '') + (has('pytest') ? 'pytest' : has('jest') ? 'Jest' : has('vitest') ? 'Vitest' : 'Unit & Integration'),
+    zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: has('pytest') ? 'python' : 'jest', isDetected: true, files: testFileList.slice(0, 3) });
+  if (hasDB) devopsHLD.push({ id: 'db-deploy', number: num(), label: dbName + ' Migration',
+    sublabel: 'Schema migrations · ' + (has('prisma') ? 'prisma migrate' : has('alembic') ? 'alembic upgrade head' : 'DB versioning'),
+    zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: dbTech || 'postgresql', isDetected: true, files: filesFor(3, 'migration', 'alembic', 'migrate') });
+  if (hasDocker) devopsHLD.push({ id: 'docker', number: num(), label: 'Docker', sublabel: 'Container build · docker-compose · image registry',
+    zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: 'docker', isDetected: true, files: filesFor(3, 'dockerfile', 'docker-compose') });
+  devopsHLD.push({ id: 'deploy', number: num(),
+    label: hasVercel ? 'Vercel Deployment' : hasDocker ? 'Container Deployment' : 'Production Deploy',
+    sublabel: hasVercel ? 'Edge functions · Serverless · Global CDN' : hasDocker ? 'Docker container runtime' : 'Production environment',
+    zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: hasVercel ? 'vercel' : hasDocker ? 'docker' : 'node', isDetected: true, files: [] });
+  devopsHLD.push({ id: 'secrets', number: num(), label: 'Environment Secrets',
+    sublabel: envVarList.length > 0 ? envVarList.length + ' env vars configured' : 'Runtime config & secrets',
+    zone: 'ops', zoneLabel: 'Runtime & Operations', zoneColor: '#6B7280', techKey: 'node', isDetected: true, files: filesFor(3, '.env', 'secrets') });
+  if (devopsHLD.length <= 2) devopsHLD.unshift({ id: 'dev-env', number: num(), label: 'Development Environment',
+    sublabel: 'Local setup · ' + (has('python') ? 'Python venv / pip' : 'Node.js / npm') + ' runtime',
+    zone: 'devops', zoneLabel: 'Development', zoneColor: '#3B82F6', techKey: has('python') ? 'python' : 'node', isDetected: false, files: [] });
 
-  if (has('gha')) {
-    devopsHLD.push({ id:'cicd', number:num(),
-      label:'GitHub Actions', sublabel:'CI/CD Pipeline',
-      zone:'devops', zoneLabel:'CONTINUOUS INTEGRATION', zoneColor:'#2088FF',
-      techKey:'gha', isDetected:true,
-      files: getFilesMatching('.github/workflows')
-    });
-  }
-
-  const testTech = has('jest') ? 'jest' : has('vitest') ? 'vitest' : has('playwright') ? 'playwright' : has('cypress') ? 'cypress' : null;
-  if (testTech) {
-    devopsHLD.push({ id:'tests', number:num(),
-      label: (testTech.charAt(0).toUpperCase() + testTech.slice(1)) + ' Test Suite',
-      sublabel: `${(layers.Test||[]).length} test files · Unit + Integration`,
-      zone:'devops', zoneLabel:'CONTINUOUS INTEGRATION', zoneColor:'#2088FF',
-      techKey: testTech, isDetected:true,
-      files: getLayerFiles('Test', 4)
-    });
-  }
-
-  if (has('docker')) {
-    devopsHLD.push({ id:'docker', number:num(),
-      label:'Docker', sublabel:'Container runtime',
-      zone:'devops', zoneLabel:'CONTINUOUS DEPLOYMENT', zoneColor:'#0db7ed',
-      techKey:'docker', isDetected:true,
-      files: getFilesMatching('Dockerfile','docker-compose')
-    });
-  }
-
-  if (has('vercel')) {
-    devopsHLD.push({ id:'deploy', number:num(),
-      label:'Vercel', sublabel:'Edge deployment · Preview · Production',
-      zone:'devops', zoneLabel:'CONTINUOUS DEPLOYMENT', zoneColor:'#0db7ed',
-      techKey:'vercel', isDetected:true,
-      files: getFilesMatching('vercel','next.config')
-    });
-  } else if (has('aws-ecs') || has('aws-ec2')) {
-    devopsHLD.push({ id:'deploy', number:num(),
-      label: has('aws-ecs') ? 'AWS ECS' : 'AWS EC2',
-      sublabel:'Cloud deployment',
-      zone:'devops', zoneLabel:'CONTINUOUS DEPLOYMENT', zoneColor:'#0db7ed',
-      techKey: has('aws-ecs') ? 'aws-ecs' : 'aws-ec2', isDetected:true, files:[]
-    });
-  }
-
-  if (has('aws-secrets') || envVars.length > 0) {
-    devopsHLD.push({ id:'secrets', number:num(),
-      label: has('aws-secrets') ? 'AWS Secrets Manager' : 'Environment Secrets',
-      sublabel: envVars.length > 0 ? `${envVars.length} environment variables` : 'Encrypted secrets',
-      zone:'devops', zoneLabel:'SECRETS & CONFIG', zoneColor:'#F59E0B',
-      techKey: has('aws-secrets') ? 'aws-secrets' : 'node', isDetected: has('aws-secrets'),
-      files: []
-    });
-  }
-
-  if (dbTech) {
-    devopsHLD.push({ id:'db-deploy', number:num(),
-      label: has('prisma') ? 'Prisma Migrate' : has('drizzle') ? 'Drizzle Push' : 'Database Deploy',
-      sublabel: `${dbName} · Schema migrations`,
-      zone:'devops', zoneLabel:'DATABASE OPERATIONS', zoneColor:'#22C55E',
-      techKey: has('prisma') ? 'prisma' : dbTech, isDetected:true,
-      files: schemaFiles.slice(0,2)
-    });
-  }
-
-  devopsHLD.push({ id:'monitoring', number:num(),
-    label:'Observability & Feedback',
-    sublabel: has('vercel') ? 'Vercel Dashboard · CI/CD Control' : 'Logs · Metrics · Traces',
-    zone:'devops', zoneLabel:'OBSERVABILITY', zoneColor:'#6B7280',
-    techKey:'', isDetected:false, files:[]
-  });
-
-  const devopsHLDLayout = computeLayout(devopsHLD);
-  const devopsHLDZones = buildZones(devopsHLDLayout);
-  const devopsHLDConns = buildConnections(devopsHLDLayout);
-
-  // ═══════════════════════════════════════════════════════════════
-  // DEVOPS — LLD
-  // ═══════════════════════════════════════════════════════════════
+  // =================================================================
+  // DEVOPS LLD
+  // =================================================================
   n = 0;
-  const devopsLLD = [];
+  const devopsLLD = devopsHLD.map((c, i) => Object.assign({}, c, { number: i + 1, designLevel: 'LLD' }));
 
-  if (has('gha')) {
-    const workflowFiles = getFilesMatching('.github/workflows');
-    devopsLLD.push({ id:'lld-ci', number:num(),
-      label:'Continuous Integration (CI)',
-      sublabel: 'Vercel Build Pipeline · Setup & Install (npm)',
-      zone:'devops', zoneLabel:'CI PIPELINE', zoneColor:'#2088FF',
-      techKey:'gha', isDetected:true,
-      files: workflowFiles
-    });
-  }
+  // =================================================================
+  // EXTERNAL SAAS CHIPS
+  // =================================================================
+  const externalSaaS = [];
+  if (has('github') || has('octokit')) externalSaaS.push({ label: 'GitHub', sublabel: 'OAuth · Webhooks', techKey: 'github' });
+  if (hasStripe)       externalSaaS.push({ label: 'Stripe',     sublabel: 'Payments · Subscriptions', techKey: 'stripe' });
+  if (has('openai'))   externalSaaS.push({ label: 'OpenAI',     sublabel: 'GPT · Embeddings',          techKey: 'openai' });
+  if (has('anthropic')) externalSaaS.push({ label: 'Anthropic', sublabel: 'Claude AI API',             techKey: 'anthropic' });
+  if (has('groq'))     externalSaaS.push({ label: 'Groq',       sublabel: 'Fast LLM inference',        techKey: 'groq' });
+  if (has('pinecone')) externalSaaS.push({ label: 'Pinecone',   sublabel: 'Vector DB',                 techKey: 'pinecone' });
+  if (has('resend'))   externalSaaS.push({ label: 'Resend',     sublabel: 'Transactional email',       techKey: 'resend' });
+  if (has('slack'))    externalSaaS.push({ label: 'Slack',      sublabel: 'Notifications · Webhooks',  techKey: 'slack' });
+  if (hasVercel)       externalSaaS.push({ label: 'Vercel',     sublabel: 'Edge CDN · Hosting',        techKey: 'vercel' });
+  if (hasDocker)       externalSaaS.push({ label: 'Docker',     sublabel: 'Containerization',          techKey: 'docker' });
+  if (hasLangChain)    externalSaaS.push({ label: 'LangChain',  sublabel: 'RAG · Agents',              techKey: 'langchain' });
 
-  if (testTech) {
-    devopsLLD.push({ id:'lld-tests', number:num(),
-      label: `${testTech.charAt(0).toUpperCase()+testTech.slice(1)} Test Suite`,
-      sublabel: 'Unit Tests · Integration Tests · ' + (has('stripe') ? 'Billing Logic Tests' : 'E2E Tests'),
-      zone:'devops', zoneLabel:'CI PIPELINE', zoneColor:'#2088FF',
-      techKey: testTech, isDetected:true,
-      files: getLayerFiles('Test', 4)
-    });
-  }
+  const dbTables = persistenceFiles.slice(0, 8).map(f =>
+    f.relativePath.split('/').pop().replace(/\.(ts|js|prisma|py)$/, '')
+  );
 
-  if (has('vercel') || has('docker')) {
-    devopsLLD.push({ id:'lld-iac', number:num(),
-      label:'Infrastructure as Code (IaC)',
-      sublabel: has('vercel') ? 'Vercel Project Config · Manage vol' : 'Docker Compose · Container config',
-      zone:'devops', zoneLabel:'CD & SECRETS', zoneColor:'#0db7ed',
-      techKey: has('vercel') ? 'vercel' : 'docker', isDetected:true,
-      files: getFilesMatching('vercel.json','next.config','docker-compose','k8s','kubernetes')
-    });
-  }
-
-  devopsLLD.push({ id:'lld-secrets', number:num(),
-    label:'Secrets & Env Vars',
-    sublabel: envVars.length > 0
-      ? `${envVars.length} variables: ${envVars.slice(0,3).join(', ')}${envVars.length > 3 ? '...' : ''}`
-      : 'Encrypted environment variables',
-    zone:'devops', zoneLabel:'CD & SECRETS', zoneColor:'#0db7ed',
-    techKey:'node', isDetected:true,
-    files: getFilesMatching('.env.example','.env.local.example')
-  });
-
-  if (dbTech) {
-    devopsLLD.push({ id:'lld-db-ops', number:num(),
-      label: has('prisma') ? 'Database (Prisma)' : `Database (${dbName})`,
-      sublabel: has('prisma') ? 'npx prisma db push · Migrations · Seed' : 'Schema management · Migrations',
-      zone:'devops', zoneLabel:'CD & SECRETS', zoneColor:'#0db7ed',
-      techKey: has('prisma') ? 'prisma' : dbTech, isDetected:true,
-      files: schemaFiles.slice(0,3)
-    });
-  }
-
-  if (has('vercel')) {
-    devopsLLD.push({ id:'lld-deploy', number:num(),
-      label:'Vercel Deployment Pipeline',
-      sublabel:'Preview Deploy · Conditional merge to main · Production Deploy',
-      zone:'devops', zoneLabel:'DEPLOYMENT', zoneColor:'#22C55E',
-      techKey:'vercel', isDetected:true,
-      files: getFilesMatching('vercel','next.config')
-    });
-  }
-
-  devopsLLD.push({ id:'lld-monitoring', number:num(),
-    label: has('vercel') ? 'Vercel Analytics & Speed Insights' : 'Runtime Observability & Logs',
-    sublabel: 'Build metrics · Health checks · Performance traces',
-    zone:'devops', zoneLabel:'OBSERVABILITY', zoneColor:'#6B7280',
-    techKey: has('vercel') ? 'vercel' : '', isDetected:true,
-    files: []
-  });
-
-  const devopsLLDLayout = computeLayout(devopsLLD);
-  const devopsLLDZones = buildZones(devopsLLDLayout);
-  const devopsLLDConns = buildConnections(devopsLLDLayout);
-
-  // ═══════════════════════════════════════════════════════════════
-  // FINAL RETURN OBJECT
-  // Returns all 3 perspectives (System, Cloud, DevOps), with HLD and LLD
-  // ═══════════════════════════════════════════════════════════════
+  // =================================================================
+  // RETURN
+  // =================================================================
   return {
     perspectives: {
-      system: {
-        hld: sysHLDWithLayout,
-        lld: sysLLDWithLayout
-      },
-      cloud: {
-        hld: cloudHLDLayout,
-        lld: cloudLLDLayout
-      },
-      devops: {
-        hld: devopsHLDLayout,
-        lld: devopsLLDLayout
-      }
+      system: { hld: sysHLD,    lld: sysLLD    },
+      cloud:  { hld: cloudHLD,  lld: cloudLLD  },
+      devops: { hld: devopsHLD, lld: devopsLLD }
     },
-    zones: {
-      sysHLD: sysHLDZones,
-      sysLLD: sysLLDZones,
-      cloudHLD: cloudHLDZones,
-      cloudLLD: cloudLLDZones,
-      devopsHLD: devopsHLDZones,
-      devopsLLD: devopsLLDZones
-    },
-    externalSaaS: [
-      has('octokit')||has('github') ? { label:'GitHub', sublabel:'Users & Webhooks', techKey:'github' } : null,
-      has('stripe') ? { label:'Stripe', sublabel:'Subscription Billing', techKey:'stripe' } : null,
-      has('slack') ? { label:'Slack', sublabel:'Block Kit · Webhooks', techKey:'slack' } : null,
-      has('discord') ? { label:'Discord', sublabel:'Bot · Webhooks', techKey:'discord' } : null,
-      has('openai') ? { label:'OpenAI', sublabel:'GPT · Embeddings', techKey:'openai' } : null,
-      has('anthropic') ? { label:'Anthropic', sublabel:'Claude AI API', techKey:'anthropic' } : null,
-      has('resend') ? { label:'Resend', sublabel:'Transactional Email', techKey:'resend' } : null,
-      has('pinecone') ? { label:'Pinecone', sublabel:'Vector Database', techKey:'pinecone' } : null,
-      has('neon') ? { label:'Neon Postgres', sublabel:'Serverless DB', techKey:'neon' } : null,
-    ].filter(Boolean),
-    dbTables: schemaFiles.map(f => f.split('/').pop().replace(/\.(ts|js|prisma)$/,'')),
+    zones: {},
+    connections: [],   // SystemDesignView.jsx builds all connections itself via buildConnections()
+    externalSaaS,
+    dbTables,
     metadata: {
-      totalFiles: files.length,
+      totalFiles: allFiles.length,
       detectedStack: detected.map(d => d.name),
       primaryDb: dbName,
       primaryFramework: frontendName

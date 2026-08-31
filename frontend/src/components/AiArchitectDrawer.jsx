@@ -17,24 +17,7 @@ export default function AiArchitectDrawer({ isOpen, onClose, activeAnalysisData 
     if (!inputQuery.trim() || loading) return;
 
     try {
-      const uStr = localStorage.getItem('xray_user');
-      const user = uStr ? JSON.parse(uStr) : null;
-      const tier = user?.tier || 'free';
       const aiCount = parseInt(localStorage.getItem('xray_ai_query_count') || '0', 10);
-
-      if (tier === 'free' && aiCount >= 3) {
-        setMessages(prev => [
-          ...prev,
-          { sender: 'user', text: inputQuery.trim() },
-          {
-            sender: 'ai',
-            text: 'You have reached your 3 free AI Architect queries limit. Upgrade to Pro for Unlimited AI Architect Assistant Access!'
-          }
-        ]);
-        setInputQuery('');
-        return;
-      }
-
       localStorage.setItem('xray_ai_query_count', String(aiCount + 1));
     } catch (e) {}
 

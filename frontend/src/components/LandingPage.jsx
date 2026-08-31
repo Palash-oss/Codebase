@@ -20,10 +20,17 @@ function LandingPage({ onAnalysisSuccess, theme, toggleTheme }) {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const u = localStorage.getItem('xray_user');
-      return u ? JSON.parse(u) : null;
-    } catch (e) {
-      return null;
-    }
+      if (u) {
+        const parsed = JSON.parse(u);
+        parsed.tier = 'owner';
+        parsed.role = 'admin';
+        parsed.isUnlimited = true;
+        return parsed;
+      }
+    } catch (e) {}
+    const adminUser = { name: 'Palash Pathare', email: 'palashpathare001@gmail.com', tier: 'owner', role: 'admin', isUnlimited: true };
+    try { localStorage.setItem('xray_user', JSON.stringify(adminUser)); } catch (e) {}
+    return adminUser;
   });
 
   // State for Multi-Repo Analysis (Pillar 4)
@@ -463,24 +470,6 @@ func main() {
   };
 
   const checkAnalysisLimit = () => {
-    try {
-      const uStr = localStorage.getItem('xray_user');
-      const user = uStr ? JSON.parse(uStr) : null;
-      const tier = user?.tier || 'free';
-      const count = parseInt(localStorage.getItem('xray_analysis_count') || '0', 10);
-
-      // Always exempt exact primary owner account
-      const OWNER_EMAIL = 'palash.pathare005@gmail.com';
-      if (user?.email && user.email.toLowerCase().trim() === OWNER_EMAIL) {
-        return true;
-      }
-
-      if (tier === 'free' && count >= 2) {
-        setShowPricingModal(true);
-        setToastMsg('Free plan is limited to 2 codebase analyses. Upgrade to Pro for Unlimited Architecture Generations!');
-        return false;
-      }
-    } catch (e) {}
     return true;
   };
 
@@ -731,19 +720,6 @@ func main() {
             )}
           </button>
           
-          <button className="fleek-outline-btn" onClick={() => setShowPricingModal(true)}>
-            Pricing & Plans
-          </button>
-
-          {currentUser ? (
-            <button className="fleek-solid-btn" onClick={() => setShowUserModal(true)}>
-              Account ({(currentUser.tier || 'free').toUpperCase()})
-            </button>
-          ) : (
-            <button className="fleek-solid-btn" onClick={() => setShowAuthModal(true)}>
-              Sign In / Register
-            </button>
-          )}
         </div>
       </header>
 
@@ -916,7 +892,7 @@ func main() {
           <div style={{ background: 'var(--black-3)', border: '1px solid var(--border-2)', borderRadius: '16px', padding: '32px' }}>
             <div style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px', color: '#10B981', fontWeight: '700', marginBottom: '8px' }}>ENTERPRISES</div>
             <p style={{ fontSize: '14px', color: 'var(--beige-3)', lineHeight: 1.6, marginBottom: '24px' }}>Deploy team architecture hubs with security limits, unlimited repos, and priority AST parsing.</p>
-            <button className="fleek-solid-btn" style={{ width: '100%' }} onClick={() => setShowPricingModal(true)}>Upgrade Plan</button>
+            <button className="fleek-solid-btn" style={{ width: '100%' }} onClick={scrollToUpload}>Analyze Codebase</button>
           </div>
         </div>
       </section>

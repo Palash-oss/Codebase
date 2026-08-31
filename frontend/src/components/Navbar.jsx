@@ -55,23 +55,21 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
   const [currentUser, setCurrentUser] = React.useState(() => {
     try {
       const uStr = localStorage.getItem('xray_user');
-      if (!uStr) return null;
-      const u = JSON.parse(uStr);
-      if (u && u.tier && u.tier !== 'free' && u.subscriptionExpiresAt) {
-        if (new Date(u.subscriptionExpiresAt) < new Date()) {
-          u.tier = 'free';
-          u.subscriptionExpiresAt = null;
-          localStorage.setItem('xray_user', JSON.stringify(u));
-        }
+      if (uStr) {
+        const u = JSON.parse(uStr);
+        u.tier = 'owner';
+        u.role = 'admin';
+        u.isUnlimited = true;
+        return u;
       }
-      return u;
-    } catch (e) {
-      return null;
-    }
+    } catch (e) {}
+    const adminUser = { name: 'Palash Pathare', email: 'palashpathare001@gmail.com', tier: 'owner', role: 'admin', isUnlimited: true };
+    try { localStorage.setItem('xray_user', JSON.stringify(adminUser)); } catch(e){}
+    return adminUser;
   });
 
-  const userTier = currentUser?.tier || 'free';
-  const isPro = userTier === 'pro' || userTier === 'team';
+  const userTier = 'enterprise';
+  const isPro = true;
 
   const activeBranch = project.activeBranch || 'main';
   const [realBranches, setRealBranches] = React.useState([activeBranch]);
@@ -276,26 +274,13 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
           <span>Feedback</span>
         </button>
 
-        {/* User Account / Auth Button */}
-        {currentUser ? (
-          <button
-            className="btn-liquid"
-            style={{ background: '#10B98122', border: '1px solid #10B98188', color: '#10B981', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', maxWidth: '160px', overflow: 'hidden', flexShrink: 0 }}
-            onClick={() => setShowUserModal(true)}
-          >
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
-              {currentUser.name || currentUser.email.split('@')[0]} ({(currentUser.tier || 'free').toUpperCase()})
-            </span>
-          </button>
-        ) : (
-          <button
-            className="btn-liquid"
-            style={{ background: '#10B981', border: '1px solid #10B981', color: '#FFFFFF', padding: '6px 14px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(16,185,129,0.3)' }}
-            onClick={() => setShowAuthModal(true)}
-          >
-            <span>Sign In</span>
-          </button>
-        )}
+        {/* Unlimited Free Badge */}
+        <div
+          className="btn-liquid"
+          style={{ background: '#10B98122', border: '1px solid #10B98188', color: '#10B981', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}
+        >
+          <span>UNLIMITED FREE</span>
+        </div>
 
 
         <button 
@@ -674,31 +659,12 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
               <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
                 {currentUser.email}
               </p>
-              <div style={{ marginTop: '8px', display: 'inline-block', padding: '3px 10px', borderRadius: '12px', background: '#F1F5F9', border: '1px solid #E2E8F0', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>
-                {(currentUser.tier || 'free')} Plan
+              <div style={{ marginTop: '8px', display: 'inline-block', padding: '3px 10px', borderRadius: '12px', background: '#10B98122', border: '1px solid #10B98188', fontSize: '11px', fontWeight: '700', color: '#10B981', textTransform: 'uppercase' }}>
+                Full Access (100% Free)
               </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '20px' }}>
-              <button
-                onClick={() => {
-                  setShowUserModal(false);
-                  setShowBillingModal(true);
-                }}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  borderRadius: '8px',
-                  background: 'linear-gradient(135deg, #10B981 0%, #FF2A00 100%)',
-                  color: '#FFFFFF',
-                  fontWeight: '700',
-                  fontSize: '13px',
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                Manage Subscription / Upgrade
-              </button>
 
               <button
                 onClick={() => {
