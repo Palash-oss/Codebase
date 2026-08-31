@@ -270,32 +270,42 @@ function SystemDesignView({ DATA, isActive }) {
     sysDataRef.current = {
       components: activeComponents,
       zones: zonesArray,
-      connections: buildConnections(activeComponents),
+      connections: [
+        ...buildConnections(activeComponents),
+        ...(rawData.connections || []).filter(conn => 
+          activeComponents.some(c => c.id === conn.from) && 
+          activeComponents.some(c => c.id === conn.to)
+        )
+      ],
       externalSaaS: rawData.externalSaaS || [],
       dbTables: rawData.dbTables || [],
       metadata: rawData.metadata || {}
     };
 
-    // Auto-fit the diagram to the canvas with non-negative scale bounds
+    // Auto-fit the diagram — center X, add top margin for title + toolbar (100px)
     if (activeComponents.length > 0) {
       const allX = activeComponents.map(c => c.x);
       const allY = activeComponents.map(c => c.y);
       const allX2 = activeComponents.map(c => c.x + c.w);
       const allY2 = activeComponents.map(c => c.y + c.h);
-      const diagramW = Math.max(...allX2) - Math.min(...allX) + 80;
-      const diagramH = Math.max(...allY2) - Math.min(...allY) + 80;
+      const diagramW = Math.max(...allX2) - Math.min(...allX);
+      const diagramH = Math.max(...allY2) - Math.min(...allY);
 
-      const availW = Math.max(W - 60, 400);
-      const availH = Math.max(H - 60, 400);
+      const PADDING = 80;
+      const availW = Math.max(W - PADDING * 2, 300);
+      const availH = Math.max(H - PADDING * 2 - 100, 300); // 100px for toolbar at top
 
-      const fitScale = Math.max(0.45, Math.min(
+      const fitScale = Math.max(0.35, Math.min(
         availW / (diagramW || 800),
         availH / (diagramH || 600),
-        1.1
+        1.0
       ));
 
-      const offsetX = Math.max(20, (W - diagramW * fitScale) / 2);
-      const offsetY = 30;
+      // Center horizontally and leave 100px at top for toolbar/title
+      const scaledW = diagramW * fitScale;
+      const scaledH = diagramH * fitScale;
+      const offsetX = Math.round((W - scaledW) / 2);
+      const offsetY = Math.round(Math.max(100, (H - scaledH) / 2));
       transformRef.current = { x: offsetX, y: offsetY, scale: fitScale };
       setZoomText(Math.round(fitScale * 100) + '%');
     }
@@ -340,46 +350,62 @@ function SystemDesignView({ DATA, isActive }) {
   const computeLayout = (zonesArray, components) => {
     const canvas = canvasRef.current;
     const CANVAS_W = (canvas ? canvas.offsetWidth : 1400) || 1400;
-    const COMP_W = 280;
-    const COMP_H = 120;
-    const COMP_GAP = 36;
-    const TIER_GAP = 60;
+    const COMP_W = 260;
+    const COMP_H = 118;
+    const COMP_GAP = 32;
+    const TIER_GAP = 64;
     const ZONE_EXTRA = 44;
+    const ROW_GAP = 20;       // vertical gap between rows inside the same zone
+    const MAX_PER_ROW = 4;    // wrap to next row after this many cards
 
-    // Every zone ID used by ANY component in ANY perspective must appear here
     const zoneOrder = [
-      'client',       // HLD System: Next.js App Router
-      'frontend',     // LLD System: UI Components & Hooks
-      'network',      // DNS
-      'edge',         // Vercel Edge / CloudFront
-      'gateway',      // API routes + Auth
-      'backend',      // Business logic, workers, queues
+      'client',
+      'frontend',
+      'network',
+      'edge',
+      'gateway',
+      'backend',
       'service',
-      'data',         // DB, Pinecone
-      'cache',        // Redis
-      'queue',        // BullMQ / Kafka
-      'cloud',        // Cloud boundary / AWS / Vercel
-      'external',     // Stripe, Slack, Discord, OpenAI
+      'data',
+      'cache',
+      'queue',
+      'cloud',
+      'external',
       'observability',
-      'devops',       // All DevOps tier components
-      'ops',          // Runtime secrets/config
+      'devops',
+      'ops',
     ];
 
     const activeZones = zoneOrder.filter(zKey => components.some(c => c.zone === zKey));
 
-    let currentY = 120;
+    let currentY = 160;
     activeZones.forEach(zKey => {
       const zoneComps = components.filter(c => c.zone === zKey);
       const count = zoneComps.length;
-      const totalW = count * COMP_W + (count - 1) * COMP_GAP;
-      const startX = Math.max(40, CANVAS_W / 2 - totalW / 2);
-      zoneComps.forEach((comp, i) => {
-        comp.x = startX + i * (COMP_W + COMP_GAP);
-        comp.y = currentY;
-        comp.w = COMP_W;
-        comp.h = COMP_H;
-      });
-      currentY += COMP_H + TIER_GAP + ZONE_EXTRA;
+
+      // Split into rows of MAX_PER_ROW — cards stay a readable 260px
+      const numRows = Math.ceil(count / MAX_PER_ROW);
+      let zoneHeight = 0;
+
+      for (let row = 0; row < numRows; row++) {
+        const rowStart = row * MAX_PER_ROW;
+        const rowEnd = Math.min(rowStart + MAX_PER_ROW, count);
+        const rowComps = zoneComps.slice(rowStart, rowEnd);
+        const rowCount = rowComps.length;
+
+        const totalW = rowCount * COMP_W + (rowCount - 1) * COMP_GAP;
+        const startX = Math.max(40, CANVAS_W / 2 - totalW / 2);
+
+        rowComps.forEach((comp, i) => {
+          comp.x = startX + i * (COMP_W + COMP_GAP);
+          comp.y = currentY + row * (COMP_H + ROW_GAP);
+          comp.w = COMP_W;
+          comp.h = COMP_H;
+        });
+        zoneHeight = (row + 1) * COMP_H + row * ROW_GAP;
+      }
+
+      currentY += zoneHeight + TIER_GAP + ZONE_EXTRA;
     });
 
     // Safety: any component NOT in zoneOrder still gets a position
@@ -481,7 +507,7 @@ function SystemDesignView({ DATA, isActive }) {
 
       // Background
       const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-      ctx.fillStyle = isLight ? '#FFFFFF' : '#000000';
+      ctx.fillStyle = isLight ? '#F8FAFC' : '#000000';
       const worldW = W / transform.scale;
       const worldH = H / transform.scale;
       const worldX = -transform.x / transform.scale;
@@ -501,7 +527,7 @@ function SystemDesignView({ DATA, isActive }) {
         }
       }
 
-      // Title
+      // Title (placed at y: 40 with clean margin above zones starting at y: 160)
       const perspectiveTitles = {
         cloud: 'Cloud Infrastructure Topology (Cloud Architect Perspective)',
         devops: 'DevOps & CI/CD Pipeline (DevOps Engineer Perspective)',
@@ -510,10 +536,10 @@ function SystemDesignView({ DATA, isActive }) {
       };
       const projName = DATA?.project?.name || DATA?.name || 'System Architecture';
       ctx.fillStyle = '#10B981';
-      ctx.fillRect(32, 60, 4, 28);
-      ctx.font = '700 18px "Space Grotesk", sans-serif';
+      ctx.fillRect(32, 40, 4, 24);
+      ctx.font = '700 16px "Space Grotesk", sans-serif';
       ctx.fillStyle = isLight ? '#0F172A' : '#FFFFFF';
-      ctx.fillText(`${projName} — ${perspectiveTitles[perspective] || 'System Architecture'}`, 44, 80);
+      ctx.fillText(`${projName} — ${perspectiveTitles[perspective] || 'System Architecture'}`, 44, 57);
 
       // Draw zones (dashed rectangles with labels)
       const LIGHT_ZONE_COLORS = {
@@ -530,66 +556,96 @@ function SystemDesignView({ DATA, isActive }) {
           ? (LIGHT_ZONE_COLORS[zone.color] || '#047857') 
           : (zone.color && zone.color !== '#000000' && !zone.color.includes('255,255,255') ? zone.color : '#10B981');
 
+        // Zone background fill first (behind border)
+        ctx.fillStyle = isLight ? 'rgba(241, 245, 249, 0.72)' : 'rgba(10, 10, 10, 0.85)';
+        roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 14);
+        ctx.fill();
+
         ctx.strokeStyle = zoneAccentColor;
-        ctx.lineWidth = 1.8;
-        ctx.setLineDash([8, 5]);
-        roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 12);
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([9, 6]);
+        roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 14);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Zone background fill
-        ctx.fillStyle = isLight ? 'rgba(241, 245, 249, 0.75)' : 'rgba(10, 10, 10, 0.88)';
-        roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 12);
+        // Zone label pill background
+        const rawLabel = zone.label || '';
+        const displayLabel = rawLabel.length > 55 ? rawLabel.slice(0, 53) + '…' : rawLabel;
+        ctx.font = '700 11px "Space Grotesk", sans-serif';
+        const labelW = ctx.measureText(displayLabel.toUpperCase()).width;
+        ctx.fillStyle = zoneAccentColor + (isLight ? '22' : '28');
+        roundRect(ctx, zone.x + 8, zone.y + 4, labelW + 20, 20, 6);
         ctx.fill();
-
-        // Zone label
-        ctx.font = '800 11px "Space Grotesk", sans-serif';
         ctx.fillStyle = zoneAccentColor;
-        ctx.fillText(zone.label.toUpperCase(), zone.x + 12, zone.y + 16);
+        ctx.fillText(displayLabel.toUpperCase(), zone.x + 18, zone.y + 17);
         ctx.restore();
       });
+
 
       // Draw connections (before components)
       sysDataRef.current.connections.forEach((conn, connIndex) => {
         const src = sysDataRef.current.components.find(c => c.id === conn.from);
         const tgt = sysDataRef.current.components.find(c => c.id === conn.to);
         if (!src || !tgt) return;
+        // Spread anchor points across card width for nodes with multiple connections
+        const srcConns = sysDataRef.current.connections.filter(c => c.from === src.id);
+        const srcIdx = srcConns.indexOf(conn);
+        const srcFrac = srcConns.length > 1 ? 0.2 + (srcIdx / (srcConns.length - 1)) * 0.6 : 0.5;
+
+        const tgtConns = sysDataRef.current.connections.filter(c => c.to === tgt.id);
+        const tgtIdx = tgtConns.indexOf(conn);
+        const tgtFrac = tgtConns.length > 1 ? 0.2 + (tgtIdx / (tgtConns.length - 1)) * 0.6 : 0.5;
+
+        const isLongDistance = Math.abs(tgt.y - src.y) > 170;
+        const sameRow = Math.abs(src.y - tgt.y) < 20;
+        const isUpward = tgt.y + tgt.h < src.y;
+
         let x1, y1, x2, y2, cx1, cy1, cx2, cy2;
-        const sameRow = Math.abs(src.y - tgt.y) < 30;
-        const isUpward = tgt.y < src.y - 30;
 
         if (sameRow) {
           if (src.x < tgt.x) {
             x1 = src.x + src.w;
-            y1 = src.y + src.h / 2;
+            y1 = src.y + src.h * srcFrac;
             x2 = tgt.x;
-            y2 = tgt.y + tgt.h / 2;
+            y2 = tgt.y + tgt.h * tgtFrac;
           } else {
             x1 = src.x;
-            y1 = src.y + src.h / 2;
+            y1 = src.y + src.h * srcFrac;
             x2 = tgt.x + tgt.w;
-            y2 = tgt.y + tgt.h / 2;
+            y2 = tgt.y + tgt.h * tgtFrac;
           }
           cx1 = (x1 + x2) / 2;
           cy1 = y1;
           cx2 = (x1 + x2) / 2;
           cy2 = y2;
         } else if (isUpward) {
-          // Upward feedback connection (e.g. Tier 5 up to Tier 2/3): Route around left outer margin
+          // Upward feedback connection: Route around left outer margin
           x1 = src.x;
-          y1 = src.y + src.h / 2;
+          y1 = src.y + src.h * srcFrac;
           x2 = tgt.x;
-          y2 = tgt.y + tgt.h / 2;
+          y2 = tgt.y + tgt.h * tgtFrac;
           const outerX = Math.min(x1, x2) - 80;
           cx1 = outerX;
           cy1 = y1;
           cx2 = outerX;
           cy2 = y2;
+        } else if (isLongDistance) {
+          // Long distance downward connection skipping layers: Route around outer side
+          const goLeft = (src.x + tgt.x) / 2 < W / 2;
+          x1 = goLeft ? src.x : src.x + src.w;
+          y1 = src.y + src.h * srcFrac;
+          x2 = goLeft ? tgt.x : tgt.x + tgt.w;
+          y2 = tgt.y + tgt.h * tgtFrac;
+          const outerX = goLeft ? Math.min(src.x, tgt.x) - 75 : Math.max(src.x + src.w, tgt.x + tgt.w) + 75;
+          cx1 = outerX;
+          cy1 = y1;
+          cx2 = outerX;
+          cy2 = y2;
         } else {
-          // Standard downward tier-to-tier flow
-          x1 = src.x + src.w / 2;
+          // Standard downward layer-to-layer flow
+          x1 = src.x + src.w * srcFrac;
           y1 = src.y + src.h;
-          x2 = tgt.x + tgt.w / 2;
+          x2 = tgt.x + tgt.w * tgtFrac;
           y2 = tgt.y;
           cx1 = x1;
           cy1 = y1 + (y2 - y1) * 0.45;
@@ -696,9 +752,9 @@ function SystemDesignView({ DATA, isActive }) {
 
         ctx.shadowBlur = 0;
 
-        // Card Border
-        ctx.strokeStyle = isSelected ? bannerColor : isHovered ? bannerColor : (isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.18)');
-        ctx.lineWidth = isSelected || isHovered ? 2 : 1;
+        // Card Border — high contrast in light mode (#64748B, 1.6px) so cards are distinct
+        ctx.strokeStyle = isSelected ? bannerColor : isHovered ? bannerColor : (isLight ? '#64748B' : 'rgba(255, 255, 255, 0.25)');
+        ctx.lineWidth = isSelected || isHovered ? 2.5 : 1.6;
         roundRect(ctx, comp.x, comp.y, comp.w, comp.h, 10);
         ctx.stroke();
 
@@ -1953,8 +2009,8 @@ function SystemDesignView({ DATA, isActive }) {
             key={p.id}
             onClick={() => {
               setPerspective(p.id);
-              transformRef.current = { x: 20, y: 20, scale: 0.95 };
-              setZoomText('95%');
+              // Clear stale data — initializeCanvas will re-run and auto-fit
+              sysDataRef.current = null;
             }}
             style={{
               padding: '7px 14px',
@@ -2003,8 +2059,9 @@ function SystemDesignView({ DATA, isActive }) {
               title={lvl.desc}
               onClick={() => {
                 setDesignLevelFilter(lvl.id);
-                transformRef.current = { x: 20, y: 30, scale: 0.95 };
-                setZoomText('95%');
+                // Don't hardcode zoom — let initializeCanvas re-run via the useEffect
+                // that depends on designLevelFilter. Just clear stale data.
+                sysDataRef.current = null;
               }}
               style={{
                 padding: '6px 16px',
@@ -2233,10 +2290,38 @@ function SystemDesignView({ DATA, isActive }) {
         <button onClick={resetZoom} style={{ background: 'transparent', border: 'none', color: 'var(--beige-3)', fontSize: '11px', cursor: 'pointer', fontFamily: '"Space Grotesk", sans-serif', fontWeight: '600' }}>Reset View</button>
         <button 
           onClick={() => {
-            if (sysDataRef.current) {
-              computeLayout(sysDataRef.current.zones, sysDataRef.current.components);
-              drawDiagram();
-            }
+            if (!sysDataRef.current) return;
+            // Re-run full layout with current canvas dimensions
+            const canvas = canvasRef.current;
+            const container = containerRef.current;
+            const W = (canvas && canvas.offsetWidth) || (container && container.offsetWidth) || 1200;
+            const H = (canvas && canvas.offsetHeight) || (container && container.offsetHeight) || 800;
+            const components = sysDataRef.current.components;
+
+            // Re-position all components
+            computeLayout([], components);
+
+            // Rebuild zone boxes around newly positioned components
+            sysDataRef.current.zones = buildDynamicZones(components);
+
+            // Re-fit camera
+            const allX = components.map(c => c.x);
+            const allY = components.map(c => c.y);
+            const allX2 = components.map(c => c.x + c.w);
+            const allY2 = components.map(c => c.y + c.h);
+            const diagramW = Math.max(...allX2) - Math.min(...allX);
+            const diagramH = Math.max(...allY2) - Math.min(...allY);
+            const PADDING = 80;
+            const fitScale = Math.max(0.35, Math.min(
+              (W - PADDING * 2) / (diagramW || 800),
+              (H - PADDING * 2 - 100) / (diagramH || 600),
+              1.0
+            ));
+            const offsetX = Math.round((W - diagramW * fitScale) / 2);
+            const offsetY = Math.round(Math.max(100, (H - diagramH * fitScale) / 2));
+            transformRef.current = { x: offsetX, y: offsetY, scale: fitScale };
+            setZoomText(Math.round(fitScale * 100) + '%');
+            drawDiagram();
           }}
           style={{ background: 'var(--orange-dim)', border: '1px solid var(--orange-glow)', color: 'var(--orange)', fontSize: '11px', cursor: 'pointer', fontFamily: '"Space Grotesk", sans-serif', fontWeight: '700', borderRadius: '4px', padding: '3px 8px' }}
         >

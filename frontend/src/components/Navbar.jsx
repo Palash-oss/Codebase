@@ -57,13 +57,15 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
       const uStr = localStorage.getItem('xray_user');
       if (uStr) {
         const u = JSON.parse(uStr);
-        u.tier = 'enterprise';
+        u.tier = 'owner';
+        u.role = 'admin';
+        u.isUnlimited = true;
         return u;
       }
     } catch (e) {}
-    const defaultUser = { name: 'Developer', email: 'developer@codebasexray.com', tier: 'enterprise' };
-    try { localStorage.setItem('xray_user', JSON.stringify(defaultUser)); } catch(e){}
-    return defaultUser;
+    const adminUser = { name: 'Palash Pathare', email: 'palashpathare001@gmail.com', tier: 'owner', role: 'admin', isUnlimited: true };
+    try { localStorage.setItem('xray_user', JSON.stringify(adminUser)); } catch(e){}
+    return adminUser;
   });
 
   const userTier = 'enterprise';
@@ -657,31 +659,12 @@ function Navbar({ project = { name: 'Codebase', totalFiles: 0 }, detectedStack =
               <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
                 {currentUser.email}
               </p>
-              <div style={{ marginTop: '8px', display: 'inline-block', padding: '3px 10px', borderRadius: '12px', background: '#F1F5F9', border: '1px solid #E2E8F0', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>
-                {(currentUser.tier || 'free')} Plan
+              <div style={{ marginTop: '8px', display: 'inline-block', padding: '3px 10px', borderRadius: '12px', background: '#10B98122', border: '1px solid #10B98188', fontSize: '11px', fontWeight: '700', color: '#10B981', textTransform: 'uppercase' }}>
+                Full Access (100% Free)
               </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '20px' }}>
-              <button
-                onClick={() => {
-                  setShowUserModal(false);
-                  setShowBillingModal(true);
-                }}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  borderRadius: '8px',
-                  background: 'linear-gradient(135deg, #10B981 0%, #FF2A00 100%)',
-                  color: '#FFFFFF',
-                  fontWeight: '700',
-                  fontSize: '13px',
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                Manage Subscription / Upgrade
-              </button>
 
               <button
                 onClick={() => {

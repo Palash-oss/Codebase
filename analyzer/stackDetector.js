@@ -246,6 +246,7 @@ export function detectStack(packageJson, files) {
     { key: 'openai', name: 'OpenAI', logoKey: 'openai', brandColor: '#412991', category: 'cloud', test: () => hasDep(deps, 'openai') || allImports.has('openai') },
     { key: 'groq', name: 'Groq', logoKey: 'groq', brandColor: '#F55036', category: 'cloud', test: () => hasDep(deps, 'groq-sdk') || hasDep(deps, 'groq') || allImports.has('groq-sdk') || allImports.has('groq') },
     { key: 'stripe', name: 'Stripe', logoKey: 'stripe', brandColor: '#635BFF', category: 'cloud', test: () => hasDep(deps, 'stripe') || hasDep(deps, '@stripe/stripe-js') || allImports.has('stripe') || allImports.has('@stripe/stripe-js') },
+    { key: 'razorpay', name: 'Razorpay', logoKey: 'razorpay', brandColor: '#3395FF', category: 'cloud', test: () => hasDep(deps, 'razorpay') || allImports.has('razorpay') },
     { key: 'slack', name: 'Slack', logoKey: 'slack', brandColor: '#4A154B', category: 'cloud', test: () => hasDep(deps, '@slack/bolt') || hasDep(deps, '@slack/web-api') || hasDep(deps, 'slack') || allImports.has('@slack/bolt') || allImports.has('@slack/web-api') || allImports.has('slack') },
     { key: 'discord', name: 'Discord', logoKey: 'discord', brandColor: '#5865F2', category: 'cloud', test: () => hasDep(deps, 'discord.js') || hasDep(deps, 'discord-bot-client') || allImports.has('discord.js') },
     { key: 'twilio', name: 'Twilio', logoKey: 'twilio', brandColor: '#F22F46', category: 'cloud', test: () => hasDep(deps, 'twilio') || allImports.has('twilio') },

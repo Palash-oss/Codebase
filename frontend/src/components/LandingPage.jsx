@@ -20,10 +20,17 @@ function LandingPage({ onAnalysisSuccess, theme, toggleTheme }) {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const u = localStorage.getItem('xray_user');
-      return u ? JSON.parse(u) : null;
-    } catch (e) {
-      return null;
-    }
+      if (u) {
+        const parsed = JSON.parse(u);
+        parsed.tier = 'owner';
+        parsed.role = 'admin';
+        parsed.isUnlimited = true;
+        return parsed;
+      }
+    } catch (e) {}
+    const adminUser = { name: 'Palash Pathare', email: 'palashpathare001@gmail.com', tier: 'owner', role: 'admin', isUnlimited: true };
+    try { localStorage.setItem('xray_user', JSON.stringify(adminUser)); } catch (e) {}
+    return adminUser;
   });
 
   // State for Multi-Repo Analysis (Pillar 4)

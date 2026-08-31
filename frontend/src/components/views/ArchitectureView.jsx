@@ -160,7 +160,7 @@ function ArchitectureView({ data, onSelectFile, selectedFile, impactHighlight, b
         // Use first N commits proportional to diff depth
         const sampleCount = Math.max(1, Math.min(commitIndex + 1, commits.length));
         const sampleCommits = commits.slice(0, sampleCount);
-        const changedPaths = sampleCommits.flatMap(c => c.files || [c.message?.split(' ').slice(-1) || []]);
+        const changedPaths = sampleCommits.flatMap(c => c.files || c.message?.split(' ').slice(-1) || []);
         applyDiff(changedPaths.filter(Boolean));
       } else {
         // No real data — mark all unchanged
