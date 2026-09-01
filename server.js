@@ -128,7 +128,6 @@ const analysisController = createAnalysisController({
 
 // Router Mounting
 app.use('/api/sse', sseRouter);
-app.use('/api', sseRouter);
 
 app.use('/api/auth', authRouter);
 app.use('/api/payment', paymentRouter);
@@ -138,7 +137,9 @@ app.use('/api/support', supportRouter);
 app.use('/github', createGithubRouter(getLastScanResult));
 app.use('/api/github', createGithubRouter(getLastScanResult));
 
-app.use('/', createAnalysisRouter(analysisController, upload, getLastScanResult));
+const analysisRouter = createAnalysisRouter(analysisController, upload, getLastScanResult);
+app.use('/api', analysisRouter);
+app.use('/', analysisRouter);
 
 // SPA Fallback Route
 app.get(['/', '/report'], (req, res) => {
