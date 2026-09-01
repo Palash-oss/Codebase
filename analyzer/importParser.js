@@ -340,12 +340,103 @@ export function parseImports(files, projectRoot, tsconfigPaths = null) {
           }
         }
 
-        // Python Functions / Classes Exports: def foo(), class Bar:
-        const pyExportRegex = /^\s*(?:def|class)\s+([a-zA-Z0-9_]+)/gm;
-        let m2;
-        while ((m2 = pyExportRegex.exec(content)) !== null) {
-          exports.push({ name: m2[1], kind: content.includes(`class ${m2[1]}`) ? 'class' : 'function' });
+        // Python Functions / Classes — with parameters (for LLD function signatures)
+        const pyFunctions = [];
+        const pyClasses = [];
+        const pyRoutes = []; // [{method, path, functionName}]
+
+        // Parse class definitions
+        const pyClassRegex = /^class\s+([a-zA-Z0-9_]+)(?:\s*\([^)]*\))?\s*:/gm;
+        let mc;
+        while ((mc = pyClassRegex.exec(content)) !== null) {
+          pyClasses.push(mc[1]);
+          exports.push({ name: mc[1], kind: 'class' });
         }
+
+        // Parse function definitions with their parameters
+        // Matches: def func_name(param1, param2, ...) or def func_name(self, param1):
+        const pyFuncRegex = /^(    )?def\s+([a-zA-Z0-9_]+)\s*\(([^)]*)\)/gm;
+        let mf;
+        while ((mf = pyFuncRegex.exec(content)) !== null) {
+          const isMethod = !!mf[1]; // indented = method inside class
+          const funcName = mf[2];
+          const rawParams = mf[3];
+          // Clean params: remove self, type hints, defaults, *args, **kwargs
+          const params = rawParams
+            .split(',')
+            .map(p => p.trim().split(':')[0].split('=')[0].trim())
+            .filter(p => p && p !== 'self' && p !== 'cls' && !p.startsWith('*') && !p.startsWith('**') && p !== '');
+          pyFunctions.push({ name: funcName, params, isMethod });
+          if (!isMethod) {
+            exports.push({ name: funcName, kind: 'function' });
+          }
+        }
+
+        // Parse Flask/FastAPI route decorators and pair with the NEXT function name
+        // @app.route('/path', methods=['GET','POST'])
+        // @app.get('/path'), @router.post('/path'), @bp.route('/path')
+        const pyRouteDecoratorRegex = /@(?:[a-zA-Z_][a-zA-Z0-9_]*)(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?\.(?:(get|post|put|delete|patch|route)\s*\(|route\s*\()\s*['"]([^'"]+)['"]/gi;
+        const lines = content.split('\n');
+        for (let li = 0; li < lines.length; li++) {
+          const line = lines[li];
+          // Match decorator
+          const decMatch = line.match(/@(?:[a-zA-Z_][a-zA-Z0-9_]*)(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?\.(?:get|post|put|delete|patch|route)\s*\(['"]([^'"]+)['"]/i);
+          if (decMatch) {
+            const routePath = decMatch[1];
+            // Detect HTTP method from decorator name
+            const methodMatch = line.match(/\.(get|post|put|delete|patch|route)/i);
+            let method = methodMatch ? methodMatch[1].toUpperCase() : 'GET';
+            // For @app.route look for methods=[...]
+            if (method === 'ROUTE') {
+              const methodsInDec = line.match(/methods=\[([^\]]+)\]/);
+              method = methodsInDec ? methodsInDec[1].split(',')[0].replace(/['"/]/g, '').trim().toUpperCase() : 'GET';
+            }
+            // Look ahead for the def line
+            for (let j = li + 1; j < Math.min(li + 5, lines.length); j++) {
+              const defMatch = lines[j].match(/^(?:async\s+)?def\s+([a-zA-Z0-9_]+)/);
+              if (defMatch) {
+                pyRoutes.push({ method, path: routePath, functionName: defMatch[1] });
+                httpMethods.add(method);
+                break;
+              }
+            }
+          }
+        }
+
+        // SQLAlchemy / Pydantic / Peewee / Django ORM field extraction
+        // For schema/model files: extract class name + field names
+        const pySchema = [];
+        const modelClassRegex = /^class\s+([a-zA-Z0-9_]+)\s*\(([^)]+)\)\s*:/gm;
+        let ms;
+        while ((ms = modelClassRegex.exec(content)) !== null) {
+          const className = ms[1];
+          const baseClass = ms[2];
+          const isModel = /Base|Model|Schema|BaseModel|db\.Model|Document|Resource|Serializer/.test(baseClass);
+          if (isModel) {
+            // Extract field lines that follow: field_name = Column(...) or field_name: Type
+            const classStart = ms.index;
+            const classContent = content.slice(classStart, classStart + 2000);
+            const fieldRegex = /^    ([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=\s*(?:Column|db\.Column|models\.|CharField|IntField|FloatField|BooleanField|DateField|ForeignKeyField|relationship|Field)|:\s*(?:str|int|float|bool|Optional|List|UUID))/gm;
+            const fields = [];
+            let mfield;
+            while ((mfield = fieldRegex.exec(classContent)) !== null) {
+              if (!['__tablename__', 'id', 'Meta', 'Config'].includes(mfield[1])) {
+                fields.push(mfield[1]);
+              }
+            }
+            // Always include 'id' if class is a model
+            pySchema.push({ model: className, base: baseClass, fields: ['id', ...fields] });
+          }
+        }
+
+        // Attach extracted data to file-level properties
+        if (pyRoutes.length > 0) {
+          file.routes = pyRoutes;
+          file.apiRoute = true;
+        }
+        if (pyFunctions.length > 0) file.functions = pyFunctions;
+        if (pyClasses.length > 0) file.classes = pyClasses;
+        if (pySchema.length > 0) file.schema = pySchema;
 
         // Python Env Vars: os.getenv('FOO') or os.environ.get('FOO')
         const pyEnvRegex = /os\.(?:getenv|environ\.get|environ\[['"])\s*\(?\s*['"]([A-Z0-9_]+)['"]/g;
@@ -353,13 +444,11 @@ export function parseImports(files, projectRoot, tsconfigPaths = null) {
         while ((m3 = pyEnvRegex.exec(content)) !== null) {
           if (!envVars.includes(m3[1])) envVars.push(m3[1]);
         }
-
-        // Python FastAPI / Flask Route Decorators: @app.get('/path'), @router.post(...)
-        const pyRouteRegex = /@(?:app|router|api)\.(get|post|put|delete|patch)\s*\(\s*['"]([^'"]+)['"]/gi;
-        let m4;
-        while ((m4 = pyRouteRegex.exec(content)) !== null) {
-          httpMethods.add(m4[1].toUpperCase());
-          fetchUrls.push(m4[2]);
+        // Also dotenv style: KEY = os.getenv("KEY") or just any UPPER_CASE string after getenv
+        const dotenvRegex = /(?:getenv|environ)\(["']([A-Z0-9_]{3,})["']/g;
+        let md;
+        while ((md = dotenvRegex.exec(content)) !== null) {
+          if (!envVars.includes(md[1])) envVars.push(md[1]);
         }
       }
 
@@ -520,8 +609,14 @@ export function parseImports(files, projectRoot, tsconfigPaths = null) {
       apiRoute,
       httpMethods: Array.from(httpMethods),
       fetchUrls,
-      envVars
+      envVars,
+      // New deep-extraction fields (populated for Python files)
+      routes:    file.routes    || [],  // [{method, path, functionName}]
+      functions: file.functions || [],  // [{name, params, isMethod}]
+      classes:   file.classes   || [],  // [string]
+      schema:    file.schema    || [],  // [{model, base, fields}]
     };
+
   });
 }
 
