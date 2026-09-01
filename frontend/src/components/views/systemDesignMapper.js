@@ -76,6 +76,53 @@ export function buildSystemDesign(DATA, fileList = []) {
     if (f.envVars) f.envVars.forEach(v => { if (!envVarList.includes(v)) envVarList.push(v); });
   });
 
+  // ── Real code data (from deep Python/JS parsing) ─────────────────
+  // Collect all API routes detected from file decorators/annotations
+  const allRoutes = [];
+  allFiles.forEach(f => {
+    if (f.routes && f.routes.length > 0) {
+      f.routes.forEach(r => allRoutes.push({ ...r, file: f.relativePath }));
+    }
+  });
+
+  // Collect all functions with their signatures from all files
+  const allFunctions = [];
+  allFiles.forEach(f => {
+    if (f.functions && f.functions.length > 0) {
+      f.functions.forEach(fn => allFunctions.push({ ...fn, file: f.relativePath }));
+    }
+  });
+
+  // Collect all ORM model schemas (table name + fields)
+  const allSchemas = [];
+  allFiles.forEach(f => {
+    if (f.schema && f.schema.length > 0) {
+      f.schema.forEach(s => allSchemas.push({ ...s, file: f.relativePath }));
+    }
+  });
+
+  // Helper: build readable endpoint list (e.g. "POST /chat · GET /status")
+  const formatRoutes = (routes, max = 3) =>
+    routes.slice(0, max).map(r => `${r.method} ${r.path}`).join(' · ')
+      + (routes.length > max ? ` +${routes.length - max} more` : '');
+
+  // Helper: build readable function signature list (e.g. "chat(query) · quiz(topic)")
+  const formatFunctions = (fns, max = 3) =>
+    fns.filter(f => !f.name.startsWith('_')).slice(0, max)
+      .map(f => f.params.length > 0 ? `${f.name}(${f.params.slice(0,2).join(', ')})` : `${f.name}()`)
+      .join(' · ')
+      + (fns.length > max ? ` +${fns.length - max} more` : '');
+
+  // Helper: build schema string (e.g. "User(id,email,role) · Document(id,content)")
+  const formatSchema = (schemas, max = 2) =>
+    schemas.slice(0, max)
+      .map(s => `${s.model}(${s.fields.slice(0, 4).join(', ')})`)
+      .join(' · ')
+      + (schemas.length > max ? ` +${schemas.length - max} models` : '');
+
+  let n = 0;
+  const num = () => ++n;
+
   // ── Tech detection ───────────────────────────────────────────────
   const frontendTech = has('nextjs') ? 'nextjs' : has('react') ? 'react' : has('vuejs') ? 'vuejs' : has('angular') ? 'angular' : has('svelte') ? 'svelte' : 'web';
   const frontendName = has('nextjs') ? 'Next.js' : has('react') ? 'React' : has('vuejs') ? 'Vue.js' : has('angular') ? 'Angular' : has('svelte') ? 'Svelte' : 'Web App';
@@ -104,9 +151,6 @@ export function buildSystemDesign(DATA, fileList = []) {
   const hasDocker    = has('docker');
   const hasVercel    = has('vercel');
   const hasStripe    = has('stripe');
-
-  let n = 0;
-  const num = () => ++n;
 
   // =================================================================
   // SYSTEM HLD — IDs must match SystemDesignView.jsx buildConnections()
@@ -330,15 +374,18 @@ export function buildSystemDesign(DATA, fileList = []) {
       });
 
   if (hasBackend || routeFiles.length > 0) {
-    // Build endpoint list from function names or filenames
-    const endpointHints = routeFiles.slice(0, 3).map(f => {
-      const name = (f.name || '').replace(/\.(py|ts|js)$/, '');
-      return name === 'app' ? 'Flask app' : name === 'main' ? 'FastAPI app' : name;
-    }).join(' · ');
+    // Use REAL extracted routes (POST /chat, GET /status etc.) if available
+    const realRoutes = allRoutes.length > 0
+      ? allRoutes
+      : allFiles.filter(f => f.httpMethods && f.httpMethods.length > 0)
+          .flatMap(f => f.httpMethods.map(m => ({ method: m, path: '/', functionName: '?' })));
+    const routeLabel = realRoutes.length > 0
+      ? formatRoutes(realRoutes)
+      : routeFiles.slice(0, 3).map(f => (f.name || '').replace(/\.(py|ts|js)$/, '')).join(' · ');
     sysLLD.push({
       id: 'lld-routes', number: num(),
-      label: apiName + ' Route Handlers',
-      sublabel: routeFiles.length + ' handlers · ' + (endpointHints || 'GET/POST/PUT/DELETE'),
+      label: apiName + ' Endpoints',
+      sublabel: routeLabel || 'GET/POST/PUT/DELETE handlers',
       zone: 'gateway', zoneLabel: 'API Gateway & Auth', zoneColor: '#8B5CF6',
       techKey: apiTech, isDetected: true,
       files: routeFiles.slice(0, 4).map(f => f.relativePath)
@@ -373,14 +420,18 @@ export function buildSystemDesign(DATA, fileList = []) {
 
   if (domainOrAgentFiles.length > 0 || hasLangChain || hasLangGraph || hasLlamaIndex || hasAI) {
     const agentFiles = domainOrAgentFiles.filter(f => f.relativePath.toLowerCase().includes('agent'));
-    const svcFiles   = domainOrAgentFiles.filter(f => !f.relativePath.toLowerCase().includes('agent'));
-    const fileNames  = domainOrAgentFiles.slice(0, 3).map(f => f.relativePath.split('/').pop().replace(/\.(py|ts|js)$/, ''));
+    // Use REAL function signatures if available
+    const domainFns = allFunctions.filter(fn =>
+      !fn.isMethod && !fn.name.startsWith('_') &&
+      !['main', 'create_app', 'setup', 'init'].includes(fn.name)
+    );
+    const sublabelText = domainFns.length > 0
+      ? formatFunctions(domainFns)
+      : domainOrAgentFiles.slice(0, 3).map(f => f.relativePath.split('/').pop().replace(/\.(py|ts|js)$/, '')).join(' · ');
     sysLLD.push({
       id: 'lld-domain', number: num(),
-      label: agentFiles.length > 0 ? 'AI Agents & Service Layer' : 'Domain Service Functions',
-      sublabel: fileNames.length > 0
-        ? fileNames.join(' · ') + (domainOrAgentFiles.length > 3 ? ' +' + (domainOrAgentFiles.length - 3) : '')
-        : (hasLangChain ? 'Orchestrates LangChain calls' : 'Business logic layer'),
+      label: agentFiles.length > 0 ? 'AI Agents & Service Layer' : 'Domain Service Layer',
+      sublabel: sublabelText || 'Business logic orchestration',
       zone: 'backend', zoneLabel: 'Business Logic & Domain', zoneColor: '#10B981',
       techKey: hasLangChain ? 'langchain' : apiTech, isDetected: true,
       files: domainOrAgentFiles.slice(0, 4).map(f => f.relativePath)
@@ -391,12 +442,18 @@ export function buildSystemDesign(DATA, fileList = []) {
   if (hasLangChain || hasLangGraph || hasLlamaIndex) {
     const ragFiles = filesFor(4, 'chain', 'rag', 'retriev', 'embed', 'graph', 'agent', 'llm', 'prompt');
     const orchLabel = hasLangGraph ? 'LangGraph Agent Nodes' : hasLlamaIndex ? 'LlamaIndex Query Engine' : 'LangChain Retrieval Chain';
+    // Show actual AI-specific functions (get_retriever, embed_query, create_chain etc.)
+    const ragFns = allFunctions.filter(fn =>
+      !fn.isMethod && ['retriev', 'embed', 'chain', 'llm', 'query', 'rag', 'prompt', 'answer', 'search'].some(k => fn.name.toLowerCase().includes(k))
+    );
     sysLLD.push({
       id: 'lld-langchain', number: num(),
       label: orchLabel,
-      sublabel: ragFiles.length > 0
-        ? ragFiles.slice(0, 3).map(f => f.split('/').pop().replace(/\.(py|ts|js)$/, '')).join(' · ')
-        : 'RetrievalQA · Prompt templates · Memory',
+      sublabel: ragFns.length > 0
+        ? formatFunctions(ragFns)
+        : ragFiles.length > 0
+          ? ragFiles.slice(0, 3).map(f => f.split('/').pop().replace(/\.(py|ts|js)$/, '')).join(' · ')
+          : 'RetrievalQA.from_chain_type() · Chroma.from_documents()',
       zone: 'backend', zoneLabel: 'Business Logic & Domain', zoneColor: '#10B981',
       techKey: hasLangGraph ? 'langgraph' : hasLlamaIndex ? 'llamaindex' : 'langchain',
       isDetected: true, files: ragFiles
@@ -432,17 +489,20 @@ export function buildSystemDesign(DATA, fileList = []) {
   }
 
   // ── DATA: show actual model/table names
-  if (hasDB || persistenceFiles.length > 0) {
-    // Extract real table/model names from filenames
-    const modelNames = persistenceFiles.slice(0, 5).map(f =>
-      (f.name || f.relativePath.split('/').pop()).replace(/\.(ts|js|prisma|py)$/, '')
-    ).filter(n => n !== 'index' && n !== '__init__' && n !== 'base');
+  if (hasDB || persistenceFiles.length > 0 || allSchemas.length > 0) {
+    // Prefer REAL schema fields parsed from Python ORM classes
+    const schemaText = allSchemas.length > 0
+      ? formatSchema(allSchemas)
+      : (() => {
+          const modelNames = persistenceFiles.slice(0, 5).map(f =>
+            (f.name || f.relativePath.split('/').pop()).replace(/\.(ts|js|prisma|py)$/, '')
+          ).filter(n => n !== 'index' && n !== '__init__' && n !== 'base');
+          return modelNames.length > 0 ? 'Tables: ' + modelNames.join(', ') : 'Data models & schemas';
+        })();
     sysLLD.push({
       id: 'lld-db', number: num(),
       label: (dbName || 'Database') + ' Schema',
-      sublabel: modelNames.length > 0
-        ? 'Tables: ' + modelNames.join(', ') + (persistenceFiles.length > 5 ? ' +' + (persistenceFiles.length - 5) + ' more' : '')
-        : 'Data models & schemas',
+      sublabel: schemaText,
       zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E',
       techKey: dbTech || 'postgresql', isDetected: true,
       files: persistenceFiles.slice(0, 4).map(f => f.relativePath)
