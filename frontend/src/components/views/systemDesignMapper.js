@@ -161,36 +161,41 @@ export function buildSystemDesign(DATA, fileList = []) {
     });
   }
 
-  if (hasLangChain) {
+  if (hasLangChain || hasLangGraph || hasLlamaIndex) {
+    const orchName = hasLangGraph ? 'LangGraph Agent Pipeline' : hasLlamaIndex ? 'LlamaIndex RAG Pipeline' : 'LangChain RAG Pipeline';
+    const orchKey  = hasLangGraph ? 'langgraph' : hasLlamaIndex ? 'llamaindex' : 'langchain';
     sysHLD.push({
       id: 'langchain', number: num(),
-      label: 'LangChain RAG Pipeline',
-      sublabel: 'Chains · Agents · Vector retrieval',
+      label: orchName,
+      sublabel: hasLangGraph ? 'State graphs · Multi-agent · Tool calling' : hasLlamaIndex ? 'Document index · Query engine · Retrieval' : 'Chains · Agents · Vector retrieval',
       zone: 'backend', zoneLabel: 'Business Logic', zoneColor: '#10B981',
-      techKey: 'langchain', isDetected: true,
-      files: filesFor(3, 'chain', 'rag', 'retriev', 'embed')
+      techKey: orchKey, isDetected: true,
+      files: filesFor(3, 'chain', 'rag', 'retriev', 'embed', 'graph', 'agent')
+    });
+  }
+
+  if (hasHF) {
+    // HuggingFace is a LOCAL model library — place it in `backend` zone alongside LangChain,
+    // NOT in `cloud` — this avoids arrows having to skip over the data zone
+    sysHLD.push({
+      id: 'huggingface', number: num(),
+      label: has('sentence-transformers') ? 'Sentence Transformers' : 'HuggingFace Transformers',
+      sublabel: 'Local embeddings · Inference · sentence-transformers',
+      zone: 'backend', zoneLabel: 'Business Logic', zoneColor: '#10B981',
+      techKey: 'huggingface', isDetected: true,
+      files: filesFor(3, 'embed', 'transform', 'infer', 'sentence')
     });
   }
 
   if (hasAI) {
-    const aiKey  = has('openai') ? 'openai' : has('anthropic') ? 'anthropic' : 'groq';
-    const aiLabel = has('openai') ? 'OpenAI' : has('anthropic') ? 'Anthropic Claude' : 'Groq';
+    const aiKey  = has('openai') ? 'openai' : has('anthropic') ? 'anthropic' : has('groq') ? 'groq' : has('google-genai') ? 'google-genai' : 'ollama';
+    const aiLabel = has('openai') ? 'OpenAI' : has('anthropic') ? 'Anthropic Claude' : has('groq') ? 'Groq LLM' : has('google-genai') ? 'Google Gemini' : 'Ollama';
     sysHLD.push({
       id: 'ai', number: num(),
       label: aiLabel,
       sublabel: 'LLM API · Completions · Embeddings',
       zone: 'cloud', zoneLabel: 'External AI & Cloud', zoneColor: '#FF9900',
       techKey: aiKey, isDetected: true, files: []
-    });
-  }
-
-  if (hasHF) {
-    sysHLD.push({
-      id: 'huggingface', number: num(),
-      label: 'HuggingFace',
-      sublabel: 'Transformers · Embeddings · Inference',
-      zone: 'cloud', zoneLabel: 'External AI & Cloud', zoneColor: '#FF9900',
-      techKey: 'huggingface', isDetected: true, files: []
     });
   }
 
@@ -277,113 +282,166 @@ export function buildSystemDesign(DATA, fileList = []) {
   }
 
   // =================================================================
-  // SYSTEM LLD — IDs must match SystemDesignView.jsx buildConnections()
+  // SYSTEM LLD — Implementation-level detail view
+  // Key differences from HLD:
+  //   • Shows ACTUAL filenames, endpoint paths, class/table names
+  //   • lld-routes always emits for any backend (Python or JS)
+  //   • lld-domain always emits when AI/LangChain is present (orchestration bridge)
+  //   • lld-hf in backend zone (not cloud) so no arrow crossing
   // =================================================================
   n = 0;
   const sysLLD = [];
 
+  // ── CLIENT: show actual page names
   if (presentationFiles.length > 0) {
+    const pageNames = presentationFiles.slice(0, 3).map(f => f.relativePath.split('/').pop().replace(/\.(tsx?|jsx?)$/, ''));
     sysLLD.push({
       id: 'lld-ui', number: num(),
-      label: frontendName + ' UI Components',
-      sublabel: presentationFiles.length + ' pages & components',
+      label: frontendName + ' Components',
+      sublabel: pageNames.join(' · ') + (presentationFiles.length > 3 ? ' +' + (presentationFiles.length - 3) + ' more' : ''),
       zone: 'client', zoneLabel: 'Client & Frontend', zoneColor: '#3B82F6',
       techKey: frontendTech, isDetected: true,
       files: presentationFiles.slice(0, 4).map(f => f.relativePath)
     });
   }
 
+  // Client-side state hooks (only JS/TS apps)
   const hooksFiles = filesFor(4, '/hooks/', '/context/', '/store/');
-  if (hooksFiles.length > 0 || hasAny('zustand', 'redux', 'jotai', 'recoil')) {
+  if (hooksFiles.length > 0) {
     sysLLD.push({
       id: 'lld-hooks', number: num(),
-      label: has('zustand') ? 'Zustand State Stores' : has('redux') ? 'Redux Store' : 'React Hooks & Context',
-      sublabel: (hooksFiles.length > 0 ? hooksFiles.length + ' modules · ' : '') + 'Client-side state management',
+      label: has('zustand') ? 'Zustand State Stores' : has('redux') ? 'Redux Slices' : 'React Hooks & Context',
+      sublabel: hooksFiles.map(f => f.split('/').pop().replace(/\.(ts|js|tsx|jsx)$/, '')).join(' · '),
       zone: 'client', zoneLabel: 'Client & Frontend', zoneColor: '#3B82F6',
       techKey: has('zustand') ? 'zustand' : has('redux') ? 'redux' : 'react',
       isDetected: true, files: hooksFiles
     });
   }
 
-  if (gatewayFiles.length > 0) {
+  // ── GATEWAY: always emit for any backend — fallback to any Python/JS files
+  const routeFiles = gatewayFiles.length > 0 ? gatewayFiles
+    : allFiles.filter(f => {
+        const p = f.relativePath.toLowerCase().replace(/\\/g, '/');
+        const n = f.name || '';
+        // Flat Python/Flask/FastAPI app files
+        return (n === 'app.py' || n === 'main.py' || n === 'server.py' || n === 'wsgi.py' ||
+          p.includes('route') || p.includes('endpoint') || p.includes('view') ||
+          (f.extension === '.py' && (f.functions || []).some(fn => ['get', 'post', 'put', 'delete', 'patch', 'route', 'app'].some(k => fn.toLowerCase().includes(k)))));
+      });
+
+  if (hasBackend || routeFiles.length > 0) {
+    // Build endpoint list from function names or filenames
+    const endpointHints = routeFiles.slice(0, 3).map(f => {
+      const name = (f.name || '').replace(/\.(py|ts|js)$/, '');
+      return name === 'app' ? 'Flask app' : name === 'main' ? 'FastAPI app' : name;
+    }).join(' · ');
     sysLLD.push({
       id: 'lld-routes', number: num(),
-      label: apiName + ' Route Controllers',
-      sublabel: gatewayFiles.length + ' endpoint handlers · GET/POST/PUT/DELETE',
+      label: apiName + ' Route Handlers',
+      sublabel: routeFiles.length + ' handlers · ' + (endpointHints || 'GET/POST/PUT/DELETE'),
       zone: 'gateway', zoneLabel: 'API Gateway & Auth', zoneColor: '#8B5CF6',
       techKey: apiTech, isDetected: true,
-      files: gatewayFiles.slice(0, 4).map(f => f.relativePath)
+      files: routeFiles.slice(0, 4).map(f => f.relativePath)
     });
   }
 
-  const authMidFiles = filesFor(3, '/auth/', 'middleware', 'guard', 'security', 'session');
+  // Auth middleware (only if detected)
+  const authMidFiles = filesFor(3, '/auth/', 'middleware', 'guard', 'security', 'session', 'deps');
   if (hasAuth || authMidFiles.length > 0) {
     sysLLD.push({
       id: 'lld-auth', number: num(),
       label: authName || 'Auth Middleware',
-      sublabel: (authName ? authName + ' · ' : '') + 'JWT · CORS · Rate limiting',
+      sublabel: authMidFiles.length > 0
+        ? authMidFiles.map(f => f.split('/').pop().replace(/\.(py|ts|js)$/, '')).join(' · ')
+        : 'JWT validation · CORS · Rate limiting',
       zone: 'gateway', zoneLabel: 'API Gateway & Auth', zoneColor: '#8B5CF6',
       techKey: authTech || 'jwt', isDetected: true, files: authMidFiles
     });
   }
 
-  if (domainFiles.length > 0) {
-    const agents   = domainFiles.filter(f => f.relativePath.toLowerCase().includes('/agents/'));
-    const services = domainFiles.filter(f => !f.relativePath.toLowerCase().includes('/agents/'));
+  // ── BACKEND DOMAIN: always emit when AI/LangChain is present (bridges routes → AI)
+  const domainOrAgentFiles = domainFiles.length > 0 ? domainFiles
+    : allFiles.filter(f => {
+        const p = f.relativePath.toLowerCase().replace(/\\/g, '/');
+        return (p.includes('service') || p.includes('agent') || p.includes('handler') ||
+          p.includes('business') || p.includes('logic') || p.includes('manager') ||
+          // Python files that aren't routes/models/config
+          (f.extension === '.py' && !p.includes('/api/') && !p.includes('/models/') &&
+           !p.includes('/db/') && !p.includes('/schemas/') && !p.includes('config') &&
+           !p.includes('requirements') && !p.includes('/scripts/')));
+      }).slice(0, 8);
+
+  if (domainOrAgentFiles.length > 0 || hasLangChain || hasLangGraph || hasLlamaIndex || hasAI) {
+    const agentFiles = domainOrAgentFiles.filter(f => f.relativePath.toLowerCase().includes('agent'));
+    const svcFiles   = domainOrAgentFiles.filter(f => !f.relativePath.toLowerCase().includes('agent'));
+    const fileNames  = domainOrAgentFiles.slice(0, 3).map(f => f.relativePath.split('/').pop().replace(/\.(py|ts|js)$/, ''));
     sysLLD.push({
       id: 'lld-domain', number: num(),
-      label: agents.length > 0 ? 'AI Agents & Business Services' : 'Domain Service Functions',
-      sublabel: agents.length > 0
-        ? agents.length + ' agents · ' + services.length + ' services'
-        : domainFiles.length + ' service modules',
+      label: agentFiles.length > 0 ? 'AI Agents & Service Layer' : 'Domain Service Functions',
+      sublabel: fileNames.length > 0
+        ? fileNames.join(' · ') + (domainOrAgentFiles.length > 3 ? ' +' + (domainOrAgentFiles.length - 3) : '')
+        : (hasLangChain ? 'Orchestrates LangChain calls' : 'Business logic layer'),
       zone: 'backend', zoneLabel: 'Business Logic & Domain', zoneColor: '#10B981',
       techKey: hasLangChain ? 'langchain' : apiTech, isDetected: true,
-      files: domainFiles.slice(0, 4).map(f => f.relativePath)
+      files: domainOrAgentFiles.slice(0, 4).map(f => f.relativePath)
     });
   }
 
-  if (hasLangChain) {
+  // LangChain / RAG implementation detail
+  if (hasLangChain || hasLangGraph || hasLlamaIndex) {
+    const ragFiles = filesFor(4, 'chain', 'rag', 'retriev', 'embed', 'graph', 'agent', 'llm', 'prompt');
+    const orchLabel = hasLangGraph ? 'LangGraph Agent Nodes' : hasLlamaIndex ? 'LlamaIndex Query Engine' : 'LangChain Retrieval Chain';
     sysLLD.push({
       id: 'lld-langchain', number: num(),
-      label: 'LangChain RAG Pipeline',
-      sublabel: 'Retrieval chains · Prompt templates · Memory',
+      label: orchLabel,
+      sublabel: ragFiles.length > 0
+        ? ragFiles.slice(0, 3).map(f => f.split('/').pop().replace(/\.(py|ts|js)$/, '')).join(' · ')
+        : 'RetrievalQA · Prompt templates · Memory',
       zone: 'backend', zoneLabel: 'Business Logic & Domain', zoneColor: '#10B981',
-      techKey: 'langchain', isDetected: true,
-      files: filesFor(4, 'chain', 'rag', 'retriev', 'embed', 'agent')
+      techKey: hasLangGraph ? 'langgraph' : hasLlamaIndex ? 'llamaindex' : 'langchain',
+      isDetected: true, files: ragFiles
     });
   }
 
+  // HuggingFace / Sentence Transformers — backend zone (LOCAL library)
   if (hasHF) {
+    const hfFiles = filesFor(3, 'embed', 'transform', 'infer', 'sentence', 'model');
     sysLLD.push({
       id: 'lld-hf', number: num(),
-      label: 'HuggingFace Transformers',
-      sublabel: 'Embeddings · Inference · sentence-transformers',
+      label: has('sentence-transformers') ? 'Sentence Transformers Embedder' : 'HuggingFace Inference',
+      sublabel: hfFiles.length > 0
+        ? hfFiles.map(f => f.split('/').pop().replace(/\.(py|ts|js)$/, '')).join(' · ')
+        : 'SentenceTransformer() · encode() · similarity_search()',
       zone: 'backend', zoneLabel: 'Business Logic & Domain', zoneColor: '#10B981',
-      techKey: 'huggingface', isDetected: true,
-      files: filesFor(3, 'embed', 'transform', 'infer')
+      techKey: 'huggingface', isDetected: true, files: hfFiles
     });
   }
 
-  if (hasBullMQ) {
+  // Celery / BullMQ workers
+  if (hasBullMQ || has('celery')) {
+    const workerFiles = filesFor(3, 'worker', 'job', 'queue', 'cron', 'task', 'celery');
     sysLLD.push({
       id: 'lld-worker', number: num(),
-      label: 'BullMQ Worker Pool',
-      sublabel: 'Async background job queue',
+      label: has('celery') ? 'Celery Task Queue' : 'BullMQ Worker Pool',
+      sublabel: workerFiles.length > 0
+        ? workerFiles.map(f => f.split('/').pop().replace(/\.(py|ts|js)$/, '')).join(' · ')
+        : 'Async background job processing',
       zone: 'backend', zoneLabel: 'Business Logic & Domain', zoneColor: '#10B981',
-      techKey: 'bullmq', isDetected: true,
-      files: filesFor(3, 'worker', 'job', 'queue', 'cron')
+      techKey: has('celery') ? 'celery' : 'bullmq', isDetected: true, files: workerFiles
     });
   }
 
+  // ── DATA: show actual model/table names
   if (hasDB || persistenceFiles.length > 0) {
-    const schemaNames = persistenceFiles.slice(0, 3).map(f =>
-      f.relativePath.split('/').pop().replace(/\.(ts|js|prisma|py)$/, '')
-    );
+    // Extract real table/model names from filenames
+    const modelNames = persistenceFiles.slice(0, 5).map(f =>
+      (f.name || f.relativePath.split('/').pop()).replace(/\.(ts|js|prisma|py)$/, '')
+    ).filter(n => n !== 'index' && n !== '__init__' && n !== 'base');
     sysLLD.push({
       id: 'lld-db', number: num(),
-      label: (dbName || 'Database') + ' Schema & Models',
-      sublabel: schemaNames.length > 0
-        ? 'Tables: ' + schemaNames.join(', ') + (persistenceFiles.length > 3 ? '...' : '')
+      label: (dbName || 'Database') + ' Schema',
+      sublabel: modelNames.length > 0
+        ? 'Tables: ' + modelNames.join(', ') + (persistenceFiles.length > 5 ? ' +' + (persistenceFiles.length - 5) + ' more' : '')
         : 'Data models & schemas',
       zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E',
       techKey: dbTech || 'postgresql', isDetected: true,
@@ -391,36 +449,41 @@ export function buildSystemDesign(DATA, fileList = []) {
     });
   }
 
+  // Vector store implementation
   if (hasVectorDB) {
+    const vecFiles = filesFor(3, 'vector', 'embed', 'index', 'pinecone', 'chroma', 'faiss', 'qdrant');
     sysLLD.push({
       id: 'lld-vector', number: num(),
-      label: vectorName + ' Vector Store',
-      sublabel: 'Embedding index · k-NN semantic search',
+      label: vectorName + ' Vector Index',
+      sublabel: vecFiles.length > 0
+        ? vecFiles.map(f => f.split('/').pop().replace(/\.(py|ts|js)$/, '')).join(' · ')
+        : 'Embedding store · similarity_search() · k-NN',
       zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E',
-      techKey: vectorTech, isDetected: true,
-      files: filesFor(3, 'vector', 'embed', 'index', 'pinecone', 'chroma')
+      techKey: vectorTech, isDetected: true, files: vecFiles
     });
   }
 
+  // Redis / cache implementation
   if (hasRedis) {
     sysLLD.push({
       id: 'lld-cache', number: num(),
-      label: has('upstash') ? 'Upstash Redis Cache' : 'Redis Cache',
-      sublabel: 'Session store · In-memory cache · Pub/Sub',
+      label: has('upstash') ? 'Upstash Redis' : 'Redis Cache',
+      sublabel: 'session_cache · rate_limiter · pub/sub channels',
       zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E',
       techKey: has('upstash') ? 'upstash' : 'redis', isDetected: true, files: []
     });
   }
 
+  // Runtime env — always last, always connected to routes/domain
   sysLLD.push({
     id: 'lld-runtime', number: num(),
     label: 'Runtime Environment',
     sublabel: envVarList.length > 0
-      ? envVarList.length + ' env vars: ' + envVarList.slice(0, 3).join(', ') + (envVarList.length > 3 ? '...' : '')
-      : 'Config & secrets',
+      ? envVarList.slice(0, 4).join(' · ') + (envVarList.length > 4 ? ' +' + (envVarList.length - 4) + ' more' : '')
+      : 'Config & secrets management',
     zone: 'ops', zoneLabel: 'Runtime & Operations', zoneColor: '#6B7280',
     techKey: has('python') ? 'python' : 'node', isDetected: true,
-    files: filesFor(4, '.env', 'config', 'constants', 'settings', '/core/config')
+    files: filesFor(4, '.env', 'config', 'constants', 'settings', '/core/config', 'settings.py')
   });
 
   // =================================================================
