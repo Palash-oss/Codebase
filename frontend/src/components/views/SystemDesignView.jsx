@@ -2235,7 +2235,13 @@ function SystemDesignView({ DATA, isActive }) {
         top: '16px',
         right: '16px',
         display: 'flex',
-        gap: '12px',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '6px 8px',
+        background: '#FFFFFF',
+        borderRadius: '12px',
+        border: '1px solid var(--border)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
         zIndex: 20
       }}>
 

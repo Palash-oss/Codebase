@@ -148,67 +148,69 @@ function buildMetadataSummary(scanResult) {
   };
 }
 
-// ─── System Prompt ─────────────────────────────────────────────────────────
+// ─── Universal Technology-Agnostic System Prompt ───────────────────────────
 function buildPrompt(summary) {
-  return `You are an expert software architect. Given the extracted metadata of a real codebase, generate an accurate system design.
+  return `You are a Principal Software Architect. Given the extracted static analysis metadata of a real codebase, generate an extremely accurate, repo-specific High-Level Design (HLD) and Low-Level Design (LLD).
 
 CODEBASE METADATA:
 ${JSON.stringify(summary, null, 2)}
 
 INSTRUCTIONS:
-- Analyze the tech stack, API routes, function signatures, and class names carefully.
-- Infer the true purpose and architecture of this specific project.
-- Do NOT generate generic or templated diagrams. Make it specific to THIS codebase.
-- If API routes show POST /chat and POST /quiz → these are actual endpoints, not guesses.
-- If two LLM providers exist (e.g. Grok + Gemini), infer if they are alternatives or both used.
-- If no relational DB is detected but vector DB is, say so clearly.
+1. Support ANY tech stack, framework, language, or architecture pattern present (Java/Spring, C#/.NET, Python/Django/FastAPI/Flask, Node/Express/NestJS, Go, Rust, Ruby/Rails, PHP/Laravel, React, Next.js, Vue, Angular, Svelte, Microservices, Monolith, Serverless, Event-Driven/Kafka/RabbitMQ, AI/ML/RAG/Agents, Relational/NoSQL/Vector DBs).
+2. Do NOT hardcode or assume any specific framework (e.g. do not assume LangChain unless actually detected). Analyze whatever files, routes, classes, and imports exist in THIS project.
+3. Map component zones strictly to one of:
+   - "client" (UI pages, web apps, mobile apps, desktop apps, hooks, state stores)
+   - "gateway" (API routes, controllers, HTTP endpoints, RPC handlers, GraphQL, auth middleware)
+   - "backend" (business domain logic, services, workers, AI agents, message consumers, pipeline nodes)
+   - "data" (databases, ORM schemas, vector indexes, caches, key-value stores)
+   - "cloud" (external SaaS APIs, cloud storage, third-party identity providers, external LLMs)
+   - "ops" (runtime environment, config, secrets, logging, metrics)
+4. HLD components represent architecture building blocks with concise labels and specific sublabels (e.g. real endpoint methods/paths, database engine name, actual external service names).
+5. LLD components represent deep implementation details with actual function signatures, class methods, or ORM table schema fields from the metadata.
+6. Connect components logically: client → gateway → backend → data / cloud. Do not leave floating unlinked boxes.
 
-Generate a JSON response with EXACTLY this structure:
+Generate a valid JSON object with EXACTLY this structure:
 {
-  "projectSummary": "2-3 sentence accurate description of what this project actually does",
+  "projectSummary": "2-3 sentence description of what this repository actually does based on its code",
   "hld": {
-    "description": "What HLD shows for this specific project",
+    "description": "High-level service architecture overview",
     "components": [
       {
-        "id": "unique-id",
+        "id": "hld-comp-id",
         "label": "Component Name",
-        "sublabel": "Specific detail (real endpoint paths, actual library calls, real class names)",
+        "sublabel": "Concise specific detail (e.g. real endpoints, technologies used)",
         "zone": "client|gateway|backend|data|cloud|ops",
-        "zoneLabel": "Zone display name",
-        "techKey": "react|flask|fastapi|express|langchain|openai|postgresql|pinecone|redis|etc",
-        "connections": ["ids of components this connects TO"]
+        "zoneLabel": "Display Zone Name",
+        "techKey": "tech-identifier (e.g. react, spring, fastapi, postgresql, redis, etc)",
+        "connections": ["target-hld-comp-ids"]
       }
     ]
   },
   "lld": {
-    "description": "What LLD shows for this specific project",
+    "description": "Low-level implementation detail breakdown",
     "components": [
       {
-        "id": "lld-unique-id",
-        "label": "Implementation Component",
-        "sublabel": "Actual function sigs: chat(query), quiz(topic) OR actual table: User(id,email,role)",
+        "id": "lld-comp-id",
+        "label": "Module / Class Name",
+        "sublabel": "Real function signatures (e.g. handleRequest(req), processOrder(id)) or schema fields",
         "zone": "client|gateway|backend|data|cloud|ops",
-        "zoneLabel": "Zone display name",
-        "techKey": "same as above",
-        "connections": ["lld-ids this connects TO"]
+        "zoneLabel": "Display Zone Name",
+        "techKey": "tech-identifier",
+        "connections": ["target-lld-comp-ids"]
       }
     ]
   },
   "dbSchema": {
     "hasDatabase": true|false,
-    "dbType": "postgresql|mongodb|sqlite|none|vector-only",
+    "dbType": "postgresql|mysql|mongodb|sqlite|redis|vector|none",
     "tables": [
-      { "name": "TableName", "fields": ["id", "field1", "field2"], "description": "What this table stores" }
+      { "name": "TableName", "fields": ["id", "field1", "field2"], "description": "Table description" }
     ],
-    "vectorIndex": { "provider": "pinecone|chromadb|faiss|none", "namespace": "how it is namespaced", "embeddingDimensions": "384|1536|etc" }
+    "vectorIndex": { "provider": "pinecone|chromadb|faiss|qdrant|weaviate|none", "namespace": "namespace format", "embeddingDimensions": "dimensions" }
   }
 }
 
-IMPORTANT: 
-- Use ONLY real data from the metadata. Do not invent tables, routes, or components not evident in the code.
-- Keep sublabels concise (under 80 chars) but specific.
-- Zone must be one of: client, gateway, backend, data, cloud, ops
-- Return ONLY the JSON object, no markdown code blocks, no explanation text.`;
+CRITICAL: Return ONLY valid, raw JSON. No markdown backticks, no markdown code blocks, no trailing comments.`;
 }
 
 // ─── Gemini API Call ───────────────────────────────────────────────────────
@@ -216,11 +218,11 @@ async function callGemini(prompt) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   const body = {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
-      temperature: 0.3,
+      temperature: 0.2,
       maxOutputTokens: 2048,
       responseMimeType: 'application/json'
     }
@@ -244,49 +246,58 @@ async function callGemini(prompt) {
   return text;
 }
 
-// ─── Groq Fallback API Call ────────────────────────────────────────────────
+// ─── Groq API Call (Primary) ───────────────────────────────────────────────
 async function callGroq(prompt) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error('GROQ_API_KEY not configured');
 
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-      max_tokens: 2048,
-      response_format: { type: 'json_object' }
-    }),
-    signal: AbortSignal.timeout(25000)
-  });
+  // Try working primary Groq models in order
+  const models = ['openai/gpt-oss-120b', 'qwen/qwen3.6-27b', 'groq/compound'];
+  let lastErr = null;
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Groq API error ${res.status}: ${err.slice(0, 200)}`);
+  for (const model of models) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.2,
+          max_tokens: 2048,
+          response_format: { type: 'json_object' }
+        }),
+        signal: AbortSignal.timeout(25000)
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const text = data?.choices?.[0]?.message?.content;
+        if (text) return text;
+      } else {
+        const errTxt = await res.text();
+        lastErr = new Error(`Groq (${model}) error ${res.status}: ${errTxt.slice(0, 150)}`);
+      }
+    } catch (e) {
+      lastErr = e;
+    }
   }
 
-  const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content;
-  if (!text) throw new Error('Groq returned empty response');
-  return text;
+  throw lastErr || new Error('Groq models failed');
 }
 
 // ─── JSON Parser (robust) ──────────────────────────────────────────────────
 function parseAIResponse(text) {
-  // Strip markdown code blocks if present
   let cleaned = text.trim();
   if (cleaned.startsWith('```')) {
     cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
   }
 
-  const parsed = JSON.parse(cleaned); // will throw if invalid JSON
+  const parsed = JSON.parse(cleaned);
 
-  // Validate required structure
   if (!parsed.hld || !parsed.lld) {
     throw new Error('AI response missing hld or lld fields');
   }
@@ -333,22 +344,23 @@ export async function generateAIDesign(req, res, getLastScanResult) {
   console.log(`[AI-DESIGN] Generating design for "${summary.projectName}" (${summary.totalFiles} files, ${summary.techStack.join(', ')})`);
 
   let aiText = null;
-  let provider = 'gemini';
+  let provider = 'groq';
 
-  // Try Gemini first, fall back to Groq
+  // Try Groq first (known working key), fall back to Gemini
   try {
-    aiText = await callGemini(prompt);
-    console.log('[AI-DESIGN] Gemini succeeded');
-  } catch (geminiErr) {
-    console.warn(`[AI-DESIGN] Gemini failed: ${geminiErr.message} — trying Groq fallback`);
+    aiText = await callGroq(prompt);
+    provider = 'groq';
+    console.log('[AI-DESIGN] Groq primary succeeded');
+  } catch (groqErr) {
+    console.warn(`[AI-DESIGN] Groq failed: ${groqErr.message} — trying Gemini fallback`);
     try {
-      aiText = await callGroq(prompt);
-      provider = 'groq';
-      console.log('[AI-DESIGN] Groq fallback succeeded');
-    } catch (groqErr) {
-      console.error(`[AI-DESIGN] Both providers failed. Gemini: ${geminiErr.message} | Groq: ${groqErr.message}`);
+      aiText = await callGemini(prompt);
+      provider = 'gemini';
+      console.log('[AI-DESIGN] Gemini fallback succeeded');
+    } catch (geminiErr) {
+      console.error(`[AI-DESIGN] Both providers failed. Groq: ${groqErr.message} | Gemini: ${geminiErr.message}`);
       return res.status(503).json({
-        error: 'AI service temporarily unavailable. Both Gemini and Groq returned errors. Please try again in a moment.'
+        error: 'AI service temporarily unavailable. Please try again in a moment.'
       });
     }
   }
@@ -371,3 +383,4 @@ export async function generateAIDesign(req, res, getLastScanResult) {
 
   return res.json({ success: true, cached: false, remaining: rateCheck.remaining, ...result });
 }
+
