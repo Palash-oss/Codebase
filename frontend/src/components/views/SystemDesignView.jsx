@@ -114,127 +114,173 @@ function SystemDesignView({ DATA, isActive }) {
     const connections = [];
     const ids = components.map(c => c.id);
     const has = (id) => ids.includes(id);
+    const push = (from, to, label, style = 'solid') => connections.push({ from, to, label, style });
 
-    // ── HLD System/Cloud connections ────────────────────────────────────────
-    if (has('client') && has('dns')) connections.push({ from: 'client', to: 'dns', label: 'DNS lookup', style: 'solid' });
-    if (has('client') && has('cdn')) connections.push({ from: 'client', to: 'cdn', label: 'HTTPS', style: 'solid' });
-    if (has('client') && has('api') && !has('dns') && !has('cdn')) connections.push({ from: 'client', to: 'api', label: 'HTTP / HTTPS', style: 'solid' });
-    if (has('dns') && has('cdn')) connections.push({ from: 'dns', to: 'cdn', label: 'Resolves to', style: 'solid' });
-    if (has('dns') && has('api') && !has('cdn')) connections.push({ from: 'dns', to: 'api', label: 'HTTP / HTTPS', style: 'solid' });
-    if (has('cdn') && has('api')) connections.push({ from: 'cdn', to: 'api', label: 'Cache miss / origin', style: 'solid' });
-    if (has('client') && has('cloud-gw')) connections.push({ from: 'client', to: 'cloud-gw', label: 'HTTPS', style: 'solid' });
+    // ── HLD System/Cloud connections ─────────────────────────────────────────
+    if (has('client') && has('dns'))  push('client', 'dns', 'DNS lookup');
+    if (has('client') && has('cdn'))  push('client', 'cdn', 'HTTPS');
+    if (has('client') && has('api') && !has('dns') && !has('cdn')) push('client', 'api', 'HTTP / HTTPS');
+    if (has('dns')    && has('cdn'))  push('dns',    'cdn', 'Resolves to');
+    if (has('dns')    && has('api') && !has('cdn')) push('dns', 'api', 'HTTP / HTTPS');
+    if (has('cdn')    && has('api'))  push('cdn',    'api', 'Cache miss / origin');
+    if (has('client') && has('cloud-gw')) push('client', 'cloud-gw', 'HTTPS');
 
     // API → Auth
-    if (has('api') && has('auth')) connections.push({ from: 'api', to: 'auth', label: 'Validates token', style: 'solid' });
-    if (has('cloud-gw') && has('auth')) connections.push({ from: 'cloud-gw', to: 'auth', label: 'Auth check', style: 'solid' });
+    if (has('api') && has('auth')) push('api', 'auth', 'Validates token');
+    if (has('cloud-gw') && has('auth')) push('cloud-gw', 'auth', 'Auth check');
 
     // API → Domain
-    if (has('api') && has('domain')) connections.push({ from: 'api', to: 'domain', label: 'Dispatches logic', style: 'solid' });
+    if (has('api') && has('domain')) push('api', 'domain', 'Dispatches logic');
+    // When auth exists but domain doesn't, auth still connects to api
+    if (has('auth') && has('api') && !has('domain')) push('auth', 'api', 'Token verified', 'dashed');
 
-    // API / Domain → AI
-    if (has('api') && has('langchain')) connections.push({ from: 'api', to: 'langchain', label: 'RAG request', style: 'solid' });
-    if (has('langchain') && has('vector-db')) connections.push({ from: 'langchain', to: 'vector-db', label: 'Vector search', style: 'dashed' });
-    if (has('langchain') && has('ai')) connections.push({ from: 'langchain', to: 'ai', label: 'LLM call', style: 'dashed' });
-    if (has('langchain') && has('huggingface')) connections.push({ from: 'langchain', to: 'huggingface', label: 'Embeddings', style: 'dashed' });
-    if (has('api') && has('ai') && !has('langchain')) connections.push({ from: 'api', to: 'ai', label: 'AI API call', style: 'dashed' });
-    if (has('api') && has('huggingface') && !has('langchain')) connections.push({ from: 'api', to: 'huggingface', label: 'Embed / infer', style: 'dashed' });
-    if (has('api') && has('vector-db') && !has('langchain')) connections.push({ from: 'api', to: 'vector-db', label: 'Vector search', style: 'dashed' });
+    // Domain → AI pipeline (the key missing connections)
+    if (has('domain') && has('langchain')) push('domain', 'langchain', 'RAG request');
+    if (has('domain') && has('langgraph')) push('domain', 'langgraph', 'Graph execution');
+    if (has('domain') && has('llamaindex')) push('domain', 'llamaindex', 'Index query');
+    if (has('domain') && has('ai') && !has('langchain') && !has('langgraph')) push('domain', 'ai', 'LLM call', 'dashed');
+    if (has('domain') && has('huggingface') && !has('langchain')) push('domain', 'huggingface', 'Embed / infer', 'dashed');
+    if (has('domain') && has('vector-db') && !has('langchain') && !has('langgraph')) push('domain', 'vector-db', 'Vector search', 'dashed');
+
+    // API → AI (when no domain layer)
+    if (has('api') && has('langchain') && !has('domain')) push('api', 'langchain', 'RAG request');
+    if (has('api') && has('langgraph') && !has('domain')) push('api', 'langgraph', 'Graph execution');
+    if (has('api') && has('llamaindex') && !has('domain')) push('api', 'llamaindex', 'Index query');
+    if (has('api') && has('ai') && !has('langchain') && !has('domain')) push('api', 'ai', 'AI API call', 'dashed');
+    if (has('api') && has('huggingface') && !has('langchain') && !has('domain')) push('api', 'huggingface', 'Embed / infer', 'dashed');
+    if (has('api') && has('vector-db') && !has('langchain') && !has('domain')) push('api', 'vector-db', 'Vector search', 'dashed');
+
+    // LangChain / LangGraph → downstream
+    if (has('langchain') && has('vector-db')) push('langchain', 'vector-db', 'Vector search', 'dashed');
+    if (has('langchain') && has('ai'))        push('langchain', 'ai', 'LLM call', 'dashed');
+    if (has('langchain') && has('huggingface')) push('langchain', 'huggingface', 'Embeddings', 'dashed');
+    if (has('langchain') && has('database'))  push('langchain', 'database', 'Doc store query', 'dashed');
+    if (has('langgraph') && has('ai'))        push('langgraph', 'ai', 'LLM call', 'dashed');
+    if (has('langgraph') && has('vector-db')) push('langgraph', 'vector-db', 'Vector search', 'dashed');
+    if (has('langgraph') && has('langchain')) push('langgraph', 'langchain', 'Chain invocation', 'dashed');
+    if (has('llamaindex') && has('vector-db')) push('llamaindex', 'vector-db', 'Index retrieval', 'dashed');
+    if (has('llamaindex') && has('ai'))       push('llamaindex', 'ai', 'LLM synthesis', 'dashed');
+    if (has('llamaindex') && has('database')) push('llamaindex', 'database', 'Document store', 'dashed');
 
     // API/Domain → Database
-    if (has('api') && has('database')) connections.push({ from: 'api', to: 'database', label: 'ORM Query', style: 'solid' });
-    if (has('domain') && has('database')) connections.push({ from: 'domain', to: 'database', label: 'ORM Query', style: 'solid' });
-    if (has('cloud-gw') && has('cloud-db')) connections.push({ from: 'cloud-gw', to: 'cloud-db', label: 'ORM Query', style: 'solid' });
+    if (has('api')    && has('database')) push('api',    'database', 'ORM Query');
+    if (has('domain') && has('database')) push('domain', 'database', 'ORM Query');
+    if (has('cloud-gw') && has('cloud-db')) push('cloud-gw', 'cloud-db', 'ORM Query');
 
     // API → Cache
-    if (has('api') && has('cache')) connections.push({ from: 'api', to: 'cache', label: 'Cache lookup', style: 'dashed' });
-    if (has('domain') && has('cache')) connections.push({ from: 'domain', to: 'cache', label: 'Cache lookup', style: 'dashed' });
+    if (has('api')    && has('cache')) push('api',    'cache', 'Cache lookup', 'dashed');
+    if (has('domain') && has('cache')) push('domain', 'cache', 'Cache lookup', 'dashed');
 
     // Queue & Worker
-    if (has('api') && has('queue')) connections.push({ from: 'api', to: 'queue', label: 'Publish message', style: 'dashed' });
-    if (has('queue') && has('worker')) connections.push({ from: 'queue', to: 'worker', label: 'Consume', style: 'solid' });
-    if (has('worker') && has('database')) connections.push({ from: 'worker', to: 'database', label: 'Write', style: 'dashed' });
+    if (has('api')    && has('queue'))    push('api',    'queue',    'Publish message', 'dashed');
+    if (has('domain') && has('queue'))    push('domain', 'queue',    'Enqueue task', 'dashed');
+    if (has('queue')  && has('worker'))   push('queue',  'worker',   'Consume');
+    if (has('worker') && has('database')) push('worker', 'database', 'Write', 'dashed');
+    if (has('worker') && has('ai'))       push('worker', 'ai',       'Batch AI call', 'dashed');
 
     // External
-    if (has('api') && has('stripe')) connections.push({ from: 'api', to: 'stripe', label: 'Billing API', style: 'dashed' });
-    if (has('api') && has('email')) connections.push({ from: 'api', to: 'email', label: 'Send email', style: 'dashed' });
-    if (has('api') && has('storage')) connections.push({ from: 'api', to: 'storage', label: 'Upload / fetch', style: 'dashed' });
-    if (has('api') && has('monitoring')) connections.push({ from: 'api', to: 'monitoring', label: 'Logs/traces', style: 'dashed' });
-    if (has('github-ext') && has('api')) connections.push({ from: 'github-ext', to: 'api', label: 'Webhook', style: 'solid' });
-    if (has('slack-ext') && has('api')) connections.push({ from: 'api', to: 'slack-ext', label: 'Notify', style: 'dashed' });
-    if (has('auth') && has('database')) connections.push({ from: 'auth', to: 'database', label: 'User lookup', style: 'solid' });
+    if (has('api') && has('stripe'))     push('api', 'stripe',     'Billing API', 'dashed');
+    if (has('api') && has('email'))      push('api', 'email',      'Send email', 'dashed');
+    if (has('api') && has('storage'))    push('api', 'storage',    'Upload / fetch', 'dashed');
+    if (has('api') && has('monitoring')) push('api', 'monitoring', 'Logs/traces', 'dashed');
+    if (has('github-ext') && has('api')) push('github-ext', 'api', 'Webhook');
+    if (has('api') && has('slack-ext'))  push('api', 'slack-ext',  'Notify', 'dashed');
+    if (has('auth') && has('database'))  push('auth', 'database',  'User lookup');
 
     // AWS services
-    if (has('api') && has('s3')) connections.push({ from: 'api', to: 's3', label: 'Upload / fetch', style: 'dashed' });
-    if (has('api') && has('sqs')) connections.push({ from: 'api', to: 'sqs', label: 'Publish message', style: 'dashed' });
-    if (has('api') && has('ses')) connections.push({ from: 'api', to: 'ses', label: 'Send email', style: 'dashed' });
-    if (has('api') && has('bedrock')) connections.push({ from: 'api', to: 'bedrock', label: 'Invoke model', style: 'dashed' });
-    if (has('lambda') && has('sqs')) connections.push({ from: 'sqs', to: 'lambda', label: 'Triggers', style: 'solid' });
-    if (has('cdn') && has('cloud-gw')) connections.push({ from: 'cdn', to: 'cloud-gw', label: 'Cache miss / origin', style: 'solid' });
+    if (has('api') && has('s3'))      push('api', 's3',      'Upload / fetch', 'dashed');
+    if (has('api') && has('sqs'))     push('api', 'sqs',     'Publish message', 'dashed');
+    if (has('api') && has('ses'))     push('api', 'ses',     'Send email', 'dashed');
+    if (has('api') && has('bedrock')) push('api', 'bedrock', 'Invoke model', 'dashed');
+    if (has('lambda') && has('sqs'))  push('sqs', 'lambda',  'Triggers');
+    if (has('cdn') && has('cloud-gw')) push('cdn', 'cloud-gw', 'Cache miss / origin');
 
     // ── LLD System connections ───────────────────────────────────────────────
-    if (has('lld-ui') && has('lld-hooks')) connections.push({ from: 'lld-ui', to: 'lld-hooks', label: 'Uses hooks', style: 'solid' });
-    if (has('lld-ui') && has('lld-routes') && !has('lld-hooks')) connections.push({ from: 'lld-ui', to: 'lld-routes', label: 'HTTP Request', style: 'solid' });
-    if (has('lld-hooks') && has('lld-routes')) connections.push({ from: 'lld-hooks', to: 'lld-routes', label: 'HTTP Request (fetch/axios)', style: 'solid' });
-    if (has('lld-routes') && has('lld-auth')) connections.push({ from: 'lld-routes', to: 'lld-auth', label: 'Auth middleware', style: 'solid' });
-    if (has('lld-routes') && has('lld-domain')) connections.push({ from: 'lld-routes', to: 'lld-domain', label: 'Invoke method', style: 'solid' });
-    if (has('lld-auth') && has('lld-domain')) connections.push({ from: 'lld-auth', to: 'lld-domain', label: 'Authorized request', style: 'solid' });
-    if (has('lld-domain') && has('lld-langchain')) connections.push({ from: 'lld-domain', to: 'lld-langchain', label: 'RAG pipeline', style: 'solid' });
-    if (has('lld-langchain') && has('lld-hf')) connections.push({ from: 'lld-langchain', to: 'lld-hf', label: 'Embed query', style: 'dashed' });
-    if (has('lld-langchain') && has('lld-vector')) connections.push({ from: 'lld-langchain', to: 'lld-vector', label: 'Vector search', style: 'dashed' });
-    if (has('lld-hf') && has('lld-vector') && !has('lld-langchain')) connections.push({ from: 'lld-hf', to: 'lld-vector', label: 'Store embeddings', style: 'dashed' });
-    if (has('lld-domain') && has('lld-db')) connections.push({ from: 'lld-domain', to: 'lld-db', label: 'ORM query', style: 'solid' });
-    if (has('lld-routes') && has('lld-db') && !has('lld-domain')) connections.push({ from: 'lld-routes', to: 'lld-db', label: 'DB query', style: 'solid' });
-    if (has('lld-domain') && has('lld-cache')) connections.push({ from: 'lld-domain', to: 'lld-cache', label: 'Cache read/write', style: 'dashed' });
-    if (has('lld-routes') && has('lld-worker')) connections.push({ from: 'lld-routes', to: 'lld-worker', label: 'Enqueue job', style: 'dashed' });
-    if (has('lld-worker') && has('lld-db')) connections.push({ from: 'lld-worker', to: 'lld-db', label: 'Write result', style: 'dashed' });
-    if (has('lld-runtime') && has('lld-routes')) connections.push({ from: 'lld-runtime', to: 'lld-routes', label: 'Inject secrets & env', style: 'dashed' });
-    if (has('lld-runtime') && has('lld-domain')) connections.push({ from: 'lld-runtime', to: 'lld-domain', label: 'Config injection', style: 'dashed' });
+    if (has('lld-ui') && has('lld-hooks')) push('lld-ui', 'lld-hooks', 'Uses hooks');
+    if (has('lld-ui') && has('lld-routes') && !has('lld-hooks')) push('lld-ui', 'lld-routes', 'HTTP Request');
+    if (has('lld-hooks') && has('lld-routes')) push('lld-hooks', 'lld-routes', 'HTTP Request (fetch/axios)');
+    if (has('lld-routes') && has('lld-auth'))   push('lld-routes', 'lld-auth',   'Auth middleware');
+    if (has('lld-routes') && has('lld-domain'))  push('lld-routes', 'lld-domain', 'Invoke method');
+    if (has('lld-auth')   && has('lld-domain'))  push('lld-auth',   'lld-domain', 'Authorized request');
+    if (has('lld-auth')   && has('lld-db'))      push('lld-auth',   'lld-db',     'User lookup', 'dashed');
 
-    // ── DevOps HLD & LLD connections ──────────────────────────────────────────
-    if (has('git') && has('cicd')) connections.push({ from: 'git', to: 'cicd', label: 'Push trigger', style: 'solid' });
-    if (has('git') && has('tests') && !has('cicd')) connections.push({ from: 'git', to: 'tests', label: 'Push trigger', style: 'solid' });
-    if (has('cicd') && has('tests')) connections.push({ from: 'cicd', to: 'tests', label: 'Run tests', style: 'solid' });
-    if (has('secrets') && has('cicd')) connections.push({ from: 'secrets', to: 'cicd', label: 'Build secrets', style: 'dashed' });
-    if (has('cicd') && has('db-deploy')) connections.push({ from: 'cicd', to: 'db-deploy', label: 'Schema migration', style: 'solid' });
-    if (has('tests') && has('db-deploy') && !has('cicd')) connections.push({ from: 'tests', to: 'db-deploy', label: 'Schema migration', style: 'solid' });
-    if (has('git') && has('db-deploy') && !has('cicd') && !has('tests')) connections.push({ from: 'git', to: 'db-deploy', label: 'Migrate DB', style: 'solid' });
-    if (has('db-deploy') && has('deploy')) connections.push({ from: 'db-deploy', to: 'deploy', label: 'Deploy release', style: 'solid' });
-    if (has('docker') && has('deploy')) connections.push({ from: 'docker', to: 'deploy', label: 'Container image', style: 'solid' });
-    if (has('secrets') && has('deploy')) connections.push({ from: 'secrets', to: 'deploy', label: 'Runtime env', style: 'dashed' });
-    if (has('deploy') && has('monitoring')) connections.push({ from: 'deploy', to: 'monitoring', label: 'Telemetry & logs', style: 'dashed' });
-    if (has('git') && has('secrets') && !has('cicd')) connections.push({ from: 'git', to: 'secrets', label: 'Source secrets', style: 'dashed' });
-    if (has('secrets') && has('db-deploy')) connections.push({ from: 'secrets', to: 'db-deploy', label: 'DB credentials', style: 'dashed' });
+    // LLD Domain → AI pipeline
+    if (has('lld-domain') && has('lld-langchain')) push('lld-domain', 'lld-langchain', 'RAG pipeline');
+    if (has('lld-domain') && has('lld-worker'))    push('lld-domain', 'lld-worker',    'Enqueue background job', 'dashed');
+    if (has('lld-langchain') && has('lld-hf'))     push('lld-langchain', 'lld-hf',     'Embed query', 'dashed');
+    if (has('lld-langchain') && has('lld-vector'))  push('lld-langchain', 'lld-vector', 'Vector search', 'dashed');
+    if (has('lld-langchain') && has('lld-db'))      push('lld-langchain', 'lld-db',     'Doc store', 'dashed');
+    if (has('lld-hf') && has('lld-vector') && !has('lld-langchain')) push('lld-hf', 'lld-vector', 'Store embeddings', 'dashed');
+
+    // LLD Domain → direct AI/vector (when no LangChain)
+    if (has('lld-domain') && has('lld-vector') && !has('lld-langchain')) push('lld-domain', 'lld-vector', 'Vector search', 'dashed');
+    if (has('lld-domain') && has('lld-hf') && !has('lld-langchain'))     push('lld-domain', 'lld-hf', 'Embed query', 'dashed');
+
+    // LLD Domain/Routes → DB/Cache
+    if (has('lld-domain') && has('lld-db'))    push('lld-domain', 'lld-db',    'ORM query');
+    if (has('lld-routes') && has('lld-db') && !has('lld-domain')) push('lld-routes', 'lld-db', 'DB query');
+    if (has('lld-domain') && has('lld-cache')) push('lld-domain', 'lld-cache', 'Cache read/write', 'dashed');
+    if (has('lld-routes') && has('lld-cache') && !has('lld-domain')) push('lld-routes', 'lld-cache', 'Cache lookup', 'dashed');
+    if (has('lld-routes') && has('lld-worker')) push('lld-routes', 'lld-worker', 'Enqueue job', 'dashed');
+    if (has('lld-worker') && has('lld-db'))     push('lld-worker', 'lld-db',     'Write result', 'dashed');
+
+    // LLD Runtime injects env into all layers
+    if (has('lld-runtime') && has('lld-routes'))  push('lld-runtime', 'lld-routes',  'Inject secrets & env', 'dashed');
+    if (has('lld-runtime') && has('lld-domain'))  push('lld-runtime', 'lld-domain',  'Config injection', 'dashed');
+    if (has('lld-runtime') && has('lld-db') && !has('lld-domain') && !has('lld-routes')) push('lld-runtime', 'lld-db', 'DB URL', 'dashed');
+
+    // ── DevOps HLD & LLD connections ─────────────────────────────────────────
+    if (has('git')     && has('cicd'))             push('git',     'cicd',      'Push trigger');
+    if (has('git')     && has('tests') && !has('cicd')) push('git', 'tests',    'Push trigger');
+    if (has('cicd')    && has('tests'))             push('cicd',    'tests',     'Run tests');
+    if (has('secrets') && has('cicd'))              push('secrets', 'cicd',      'Build secrets', 'dashed');
+    if (has('cicd')    && has('db-deploy'))         push('cicd',    'db-deploy', 'Schema migration');
+    if (has('tests')   && has('db-deploy') && !has('cicd')) push('tests', 'db-deploy', 'Schema migration');
+    if (has('git')     && has('db-deploy') && !has('cicd') && !has('tests')) push('git', 'db-deploy', 'Migrate DB');
+    if (has('db-deploy') && has('deploy'))          push('db-deploy', 'deploy',  'Deploy release');
+    if (has('docker')  && has('deploy'))            push('docker',  'deploy',    'Container image');
+    if (has('secrets') && has('deploy'))            push('secrets', 'deploy',    'Runtime env', 'dashed');
+    if (has('deploy')  && has('monitoring'))        push('deploy',  'monitoring','Telemetry & logs', 'dashed');
+    if (has('git')     && has('secrets') && !has('cicd')) push('git', 'secrets', 'Source secrets', 'dashed');
+    if (has('secrets') && has('db-deploy'))         push('secrets', 'db-deploy', 'DB credentials', 'dashed');
+    // dev-env → other devops nodes
+    if (has('dev-env') && has('git'))               push('dev-env', 'git',       'Push code');
+    if (has('dev-env') && has('deploy') && !has('git')) push('dev-env', 'deploy','Direct deploy');
+    if (has('dev-env') && has('secrets'))           push('dev-env', 'secrets',   'Load .env', 'dashed');
 
     // DevOps LLD connections
-    if (has('lld-git') && has('lld-ci')) connections.push({ from: 'lld-git', to: 'lld-ci', label: 'Webhook trigger', style: 'solid' });
-    if (has('lld-git') && has('lld-tests') && !has('lld-ci')) connections.push({ from: 'lld-git', to: 'lld-tests', label: 'Test trigger', style: 'solid' });
-    if (has('lld-ci') && has('lld-tests')) connections.push({ from: 'lld-ci', to: 'lld-tests', label: 'Run test suite', style: 'solid' });
-    if (has('lld-ci') && has('lld-iac')) connections.push({ from: 'lld-ci', to: 'lld-iac', label: 'Validate config', style: 'solid' });
-    if (has('lld-tests') && has('lld-secrets')) connections.push({ from: 'lld-secrets', to: 'lld-tests', label: 'Test env vars', style: 'dashed' });
-    if (has('lld-secrets') && has('lld-db-ops')) connections.push({ from: 'lld-secrets', to: 'lld-db-ops', label: 'DB connection string', style: 'dashed' });
-    if (has('lld-db-ops') && has('lld-deploy')) connections.push({ from: 'lld-db-ops', to: 'lld-deploy', label: 'Post-deploy migrate', style: 'solid' });
-    if (has('lld-iac') && has('lld-deploy')) connections.push({ from: 'lld-iac', to: 'lld-deploy', label: 'Provision host', style: 'solid' });
-    if (has('lld-secrets') && has('lld-deploy')) connections.push({ from: 'lld-secrets', to: 'lld-deploy', label: 'Inject production secrets', style: 'dashed' });
-    if (has('lld-deploy') && has('lld-monitoring')) connections.push({ from: 'lld-deploy', to: 'lld-monitoring', label: 'Health checks & traces', style: 'dashed' });
+    if (has('lld-git') && has('lld-ci'))    push('lld-git', 'lld-ci',  'Webhook trigger');
+    if (has('lld-git') && has('lld-tests') && !has('lld-ci')) push('lld-git', 'lld-tests', 'Test trigger');
+    if (has('lld-ci')  && has('lld-tests')) push('lld-ci',  'lld-tests','Run test suite');
+    if (has('lld-ci')  && has('lld-iac'))   push('lld-ci',  'lld-iac',  'Validate config');
+    if (has('lld-secrets') && has('lld-tests')) push('lld-secrets', 'lld-tests', 'Test env vars', 'dashed');
+    if (has('lld-secrets') && has('lld-db-ops')) push('lld-secrets', 'lld-db-ops', 'DB connection string', 'dashed');
+    if (has('lld-db-ops')  && has('lld-deploy')) push('lld-db-ops', 'lld-deploy', 'Post-deploy migrate');
+    if (has('lld-iac')     && has('lld-deploy')) push('lld-iac', 'lld-deploy', 'Provision host');
+    if (has('lld-secrets') && has('lld-deploy')) push('lld-secrets', 'lld-deploy', 'Inject production secrets', 'dashed');
+    if (has('lld-deploy')  && has('lld-monitoring')) push('lld-deploy', 'lld-monitoring', 'Health checks & traces', 'dashed');
 
     // ── Cloud LLD connections ────────────────────────────────────────────────
-    if (has('lld-client') && has('lld-api-gw')) connections.push({ from: 'lld-client', to: 'lld-api-gw', label: 'HTTPS API Request', style: 'solid' });
-    if (has('lld-api-gw') && has('lld-auth-cloud')) connections.push({ from: 'lld-api-gw', to: 'lld-auth-cloud', label: 'Token auth', style: 'solid' });
-    if (has('lld-api-gw') && has('lld-db')) connections.push({ from: 'lld-api-gw', to: 'lld-db', label: 'SQL Query', style: 'solid' });
-    if (has('lld-api-gw') && has('lld-neon')) connections.push({ from: 'lld-api-gw', to: 'lld-neon', label: 'Serverless SQL Query', style: 'solid' });
-    if (has('lld-api-gw') && has('lld-stripe')) connections.push({ from: 'lld-api-gw', to: 'lld-stripe', label: 'Checkout & Webhooks', style: 'dashed' });
-    if (has('lld-api-gw') && has('lld-ai')) connections.push({ from: 'lld-api-gw', to: 'lld-ai', label: 'LLM API Call', style: 'dashed' });
-    if (has('lld-api-gw') && has('lld-pinecone')) connections.push({ from: 'lld-api-gw', to: 'lld-pinecone', label: 'Vector Query', style: 'dashed' });
-    if (has('lld-api-gw') && has('lld-s3')) connections.push({ from: 'lld-api-gw', to: 'lld-s3', label: 'S3 Presigned URL', style: 'dashed' });
-    if (has('lld-api-gw') && has('lld-bullmq')) connections.push({ from: 'lld-api-gw', to: 'lld-bullmq', label: 'Dispatch Job', style: 'dashed' });
-    if (has('lld-secrets') && has('lld-api-gw')) connections.push({ from: 'lld-secrets', to: 'lld-api-gw', label: 'Config & API Keys', style: 'dashed' });
-    if (has('lld-secrets') && has('lld-db')) connections.push({ from: 'lld-secrets', to: 'lld-db', label: 'DB Secrets', style: 'dashed' });
-    if (has('lld-secrets') && has('lld-neon')) connections.push({ from: 'lld-secrets', to: 'lld-neon', label: 'Neon Database URL', style: 'dashed' });
+    if (has('lld-client')    && has('lld-api-gw'))    push('lld-client',    'lld-api-gw',    'HTTPS API Request');
+    if (has('lld-api-gw')    && has('lld-auth-cloud')) push('lld-api-gw',   'lld-auth-cloud','Token auth');
+    if (has('lld-api-gw')    && has('lld-db'))         push('lld-api-gw',   'lld-db',        'SQL Query');
+    if (has('lld-api-gw')    && has('lld-neon'))       push('lld-api-gw',   'lld-neon',      'Serverless SQL Query');
+    if (has('lld-api-gw')    && has('lld-stripe'))     push('lld-api-gw',   'lld-stripe',    'Checkout & Webhooks', 'dashed');
+    if (has('lld-api-gw')    && has('lld-ai'))         push('lld-api-gw',   'lld-ai',        'LLM API Call', 'dashed');
+    if (has('lld-api-gw')    && has('lld-pinecone'))   push('lld-api-gw',   'lld-pinecone',  'Vector Query', 'dashed');
+    if (has('lld-api-gw')    && has('lld-s3'))         push('lld-api-gw',   'lld-s3',        'S3 Presigned URL', 'dashed');
+    if (has('lld-api-gw')    && has('lld-bullmq'))     push('lld-api-gw',   'lld-bullmq',    'Dispatch Job', 'dashed');
+    if (has('lld-secrets')   && has('lld-api-gw'))     push('lld-secrets',  'lld-api-gw',    'Config & API Keys', 'dashed');
+    if (has('lld-secrets')   && has('lld-db'))         push('lld-secrets',  'lld-db',        'DB Secrets', 'dashed');
+    if (has('lld-secrets')   && has('lld-neon'))       push('lld-secrets',  'lld-neon',      'Neon Database URL', 'dashed');
+    if (has('lld-auth-cloud') && has('lld-db'))        push('lld-auth-cloud','lld-db',       'User validation', 'dashed');
 
     return connections;
   };
 
+
   const initializeCanvas = () => {
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 

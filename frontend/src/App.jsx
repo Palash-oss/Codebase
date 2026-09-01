@@ -47,7 +47,7 @@ function App() {
     // Live SSE Real-Time Sync Listener for GitHub Webhooks
     let eventSource;
     try {
-      eventSource = new EventSource('/api/live-sync');
+      eventSource = new EventSource('/api/scan-progress');
       eventSource.onmessage = async (event) => {
         const payload = JSON.parse(event.data);
         console.log('[X-RAY SSE] Live architecture update event received:', payload);
