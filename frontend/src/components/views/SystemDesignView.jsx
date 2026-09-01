@@ -27,6 +27,16 @@ function SystemDesignView({ DATA, isActive }) {
   const [exportTarget, setExportTarget] = useState('current'); // 'current' | 'all'
   const [exportFormat, setExportFormat] = useState('png'); // 'png' | 'jpeg' | 'pdf'
 
+  // AI Generate Design state
+  const [aiDesignLoading, setAiDesignLoading] = useState(false);
+  const [aiDesignData, setAiDesignData] = useState(null);   // null = use static mapper
+  const [aiDesignError, setAiDesignError] = useState(null);
+  const [aiCreditsLeft, setAiCreditsLeft] = useState(null); // remaining calls this hour
+  const [aiProvider, setAiProvider] = useState(null);       // 'gemini' | 'groq'
+  // Ref so initializeCanvas closure always reads latest value
+  const aiDesignDataRef = useRef(null);
+  useEffect(() => { aiDesignDataRef.current = aiDesignData; }, [aiDesignData]);
+
   // Refs for tracking canvas transforms and diagram state
   const transformRef = useRef({ x: 0, y: 0, scale: 1 });
   const sysDataRef = useRef(null);
@@ -63,7 +73,7 @@ function SystemDesignView({ DATA, isActive }) {
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [isActive, DATA, perspective, designLevelFilter]);
+  }, [isActive, DATA, perspective, designLevelFilter, aiDesignData]);
 
   // ResizeObserver: reinit canvas whenever the container is resized
   // This fixes the black half-screen when DevTools opens, window resizes, or panels change size
@@ -303,9 +313,49 @@ function SystemDesignView({ DATA, isActive }) {
       return;
     }
 
-    // Build system design data for selected perspective
-    const rawData = buildSystemDesign(DATA, DATA?.files || []);
-    const activeComponents = getActiveComponents(rawData, perspective, designLevelFilter);
+    // Build system design data — use AI-generated design if available, otherwise static mapper
+    let rawData, activeComponents;
+    const currentAiData = aiDesignDataRef.current;
+    if (currentAiData && (currentAiData.hld || currentAiData.lld)) {
+      // Map AI-generated components to internal format
+      const aiComponents = designLevelFilter === 'LLD'
+        ? (currentAiData.lld?.components || currentAiData.hld?.components || [])
+        : (currentAiData.hld?.components || []);
+
+      // Convert AI connections (array of target IDs) to our {from, to, label} format
+      const aiConns = [];
+      aiComponents.forEach(comp => {
+        if (Array.isArray(comp.connections)) {
+          comp.connections.forEach(toId => {
+            aiConns.push({ from: comp.id, to: toId, label: '' });
+          });
+        }
+      });
+
+      // Convert to internal component format
+      const mappedComps = aiComponents.map((c, idx) => ({
+        id: c.id,
+        number: idx + 1,
+        label: c.label,
+        sublabel: c.sublabel || '',
+        zone: c.zone || 'backend',
+        zoneLabel: c.zoneLabel || c.zone || 'Component',
+        zoneColor: {
+          client: '#3B82F6', gateway: '#8B5CF6', backend: '#10B981',
+          data: '#22C55E', cloud: '#FF9900', ops: '#6B7280', external: '#F59E0B'
+        }[c.zone] || '#64748B',
+        techKey: c.techKey || 'node',
+        isDetected: true,
+        files: [],
+        x: undefined, y: undefined, w: undefined, h: undefined
+      }));
+
+      rawData = { components: mappedComps, connections: aiConns, externalSaaS: [], dbTables: [], metadata: {} };
+      activeComponents = mappedComps;
+    } else {
+      rawData = buildSystemDesign(DATA, DATA?.files || []);
+      activeComponents = getActiveComponents(rawData, perspective, designLevelFilter);
+    }
 
     // Position components in vertical tiers
     computeLayout([], activeComponents);
@@ -2143,6 +2193,42 @@ function SystemDesignView({ DATA, isActive }) {
         style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none' }} 
       />
 
+      {/* AI Error Toast */}
+      {aiDesignError && (
+        <div style={{
+          position: 'absolute', bottom: '80px', left: '50%', transform: 'translateX(-50%)',
+          background: '#1E293B', border: '1px solid #EF4444', borderRadius: '10px',
+          padding: '12px 20px', color: '#FCA5A5', fontSize: '13px', fontWeight: '600',
+          display: 'flex', alignItems: 'center', gap: '10px', zIndex: 25,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.3)', maxWidth: '500px', textAlign: 'center'
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.5">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          {aiDesignError}
+          <button onClick={() => setAiDesignError(null)} style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}>✕</button>
+        </div>
+      )}
+
+      {/* AI Design Active Badge */}
+      {aiDesignData && !aiDesignLoading && (
+        <div style={{
+          position: 'absolute', bottom: '80px', left: '50%', transform: 'translateX(-50%)',
+          background: 'linear-gradient(135deg, #4F46E5, #7C3AED)',
+          borderRadius: '20px', padding: '6px 16px',
+          color: '#fff', fontSize: '11px', fontWeight: '700',
+          display: 'flex', alignItems: 'center', gap: '6px', zIndex: 15,
+          boxShadow: '0 4px 14px rgba(79,70,229,0.4)',
+          letterSpacing: '0.02em'
+        }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          AI-Generated Design via {aiProvider === 'groq' ? 'Groq Llama' : 'Gemini'}
+        </div>
+      )}
+
+      {/* @keyframes for spinner */}
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+
       {/* Top Action Bar */}
       <div className="top-action-bar-wrapper" style={{
         position: 'absolute',
@@ -2152,6 +2238,99 @@ function SystemDesignView({ DATA, isActive }) {
         gap: '12px',
         zIndex: 20
       }}>
+
+        {/* ✨ AI Generate Design button */}
+        <button
+          className="btn-liquid"
+          disabled={aiDesignLoading}
+          onClick={async () => {
+            setAiDesignLoading(true);
+            setAiDesignError(null);
+            try {
+              const res = await fetch('/api/ai-design', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+              const data = await res.json();
+              if (!res.ok) {
+                setAiDesignError(data.error || 'AI generation failed');
+              } else {
+                setAiDesignData(data.design);
+                setAiProvider(data.provider);
+                setAiCreditsLeft(data.remaining);
+                // Force canvas re-render with AI data
+                sysDataRef.current = null;
+              }
+            } catch (err) {
+              setAiDesignError('Network error. Please try again.');
+            } finally {
+              setAiDesignLoading(false);
+            }
+          }}
+          style={{
+            background: aiDesignData
+              ? 'linear-gradient(135deg, #7C3AED, #4F46E5)'
+              : 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+            color: '#FFFFFF',
+            border: 'none',
+            padding: '8px 14px',
+            borderRadius: '8px',
+            fontSize: '12px',
+            fontWeight: '700',
+            cursor: aiDesignLoading ? 'wait' : 'pointer',
+            boxShadow: '0 4px 14px rgba(99,102,241,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            opacity: aiDesignLoading ? 0.75 : 1,
+            transition: 'all 0.2s ease'
+          }}
+          title={aiCreditsLeft !== null ? `${aiCreditsLeft} AI generations remaining this hour` : 'Generate accurate system design using AI'}
+        >
+          {aiDesignLoading ? (
+            <>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+                style={{ animation: 'spin 1s linear infinite' }}>
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              </svg>
+              <span>AI Analyzing...</span>
+            </>
+          ) : aiDesignData ? (
+            <>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 2L2 7l10 5 10-5-10-5M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              <span>AI Design Active {aiCreditsLeft !== null ? `(${aiCreditsLeft} left)` : ''}</span>
+            </>
+          ) : (
+            <>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              <span>AI Generate</span>
+            </>
+          )}
+        </button>
+
+        {/* Reset AI Design back to static */}
+        {aiDesignData && (
+          <button
+            className="btn-liquid"
+            onClick={() => { setAiDesignData(null); setAiDesignError(null); setAiProvider(null); sysDataRef.current = null; }}
+            style={{
+              background: '#FFFFFF',
+              color: '#6366F1',
+              border: '1.5px solid #6366F1',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              fontSize: '11px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+            title="Switch back to static analysis design"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.51"/></svg>
+            Static
+          </button>
+        )}
+
         <button
           className="btn-liquid"
           onClick={() => {

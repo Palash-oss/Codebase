@@ -1,6 +1,7 @@
 import express from 'express';
+import { generateAIDesign } from '../controllers/aiDesign.controller.js';
 
-export function createAnalysisRouter(analysisController, upload) {
+export function createAnalysisRouter(analysisController, upload, getLastScanResult) {
   const router = express.Router();
 
   router.post(['/upload', '/api/upload'], upload.single('project'), analysisController.uploadZip);
@@ -18,6 +19,11 @@ export function createAnalysisRouter(analysisController, upload) {
   router.delete('/projects/:id', analysisController.deleteProject);
   router.get('/share/:id', analysisController.getShareableLink);
   router.get(['/badge', '/badge.svg', '/badge/:owner/:repo.svg'], analysisController.getBadge);
+
+  // AI-Powered System Design Generation
+  router.post(['/api/ai-design', '/ai-design'], (req, res) =>
+    generateAIDesign(req, res, getLastScanResult)
+  );
 
   return router;
 }

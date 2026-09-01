@@ -138,7 +138,7 @@ app.use('/api/support', supportRouter);
 app.use('/github', createGithubRouter(getLastScanResult));
 app.use('/api/github', createGithubRouter(getLastScanResult));
 
-app.use('/', createAnalysisRouter(analysisController, upload));
+app.use('/', createAnalysisRouter(analysisController, upload, getLastScanResult));
 
 // SPA Fallback Route
 app.get(['/', '/report'], (req, res) => {
