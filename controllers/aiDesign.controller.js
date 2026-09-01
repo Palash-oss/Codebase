@@ -15,6 +15,23 @@ import path from 'path';
 import fetch from 'node-fetch';
 import os from 'os';
 
+// Guarantee .env keys are present
+try {
+  const rootEnvPath = path.join(process.cwd(), '.env');
+  if (fs.existsSync(rootEnvPath)) {
+    const raw = fs.readFileSync(rootEnvPath, 'utf8');
+    raw.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+        const [k, ...v] = trimmed.split('=');
+        const key = k.trim();
+        const val = v.join('=').trim().replace(/^['"]|['"]$/g, '');
+        if (key && !process.env[key]) process.env[key] = val;
+      }
+    });
+  }
+} catch (e) {}
+
 // ─── In-Memory Rate Limiter ────────────────────────────────────────────────
 // Structure: { ip: { count: number, windowStart: timestamp } }
 const rateLimitMap = new Map();

@@ -18,6 +18,28 @@ import { createAnalysisController } from './controllers/analysis.controller.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Automatic .env file loader
+try {
+  const envPath = path.join(__dirname, '.env');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    envContent.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+        const [key, ...valParts] = trimmed.split('=');
+        const k = key.trim();
+        const v = valParts.join('=').trim().replace(/^['"]|['"]$/g, '');
+        if (k && (!process.env[k] || process.env[k] === '')) {
+          process.env[k] = v;
+        }
+      }
+    });
+    console.log('[X-RAY] Loaded .env environment variables successfully.');
+  }
+} catch (envErr) {
+  console.warn('[X-RAY] Warning loading .env file:', envErr.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
