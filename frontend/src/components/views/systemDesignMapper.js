@@ -336,12 +336,13 @@ export function buildSystemDesign(DATA, fileList = []) {
   n = 0;
   const sysLLD = [];
 
-  // ── CLIENT: show actual page names
+  // ── CLIENT: show actual page/file names as main label
   if (presentationFiles.length > 0) {
+    const fileLabels = presentationFiles.slice(0, 2).map(f => f.relativePath.split('/').slice(-2).join('/'));
     const pageNames = presentationFiles.slice(0, 3).map(f => f.relativePath.split('/').pop().replace(/\.(tsx?|jsx?)$/, ''));
     sysLLD.push({
       id: 'lld-ui', number: num(),
-      label: frontendName + ' Components',
+      label: fileLabels.length > 0 ? fileLabels.join(' · ') : frontendName + ' Components',
       sublabel: pageNames.join(' · ') + (presentationFiles.length > 3 ? ' +' + (presentationFiles.length - 3) + ' more' : ''),
       zone: 'client', zoneLabel: 'Client & Frontend', zoneColor: '#3B82F6',
       techKey: frontendTech, isDetected: true,
@@ -382,9 +383,10 @@ export function buildSystemDesign(DATA, fileList = []) {
     const routeLabel = realRoutes.length > 0
       ? formatRoutes(realRoutes)
       : routeFiles.slice(0, 3).map(f => (f.name || '').replace(/\.(py|ts|js)$/, '')).join(' · ');
+    const fileLabels = routeFiles.slice(0, 2).map(f => f.relativePath.split('/').slice(-2).join('/'));
     sysLLD.push({
       id: 'lld-routes', number: num(),
-      label: apiName + ' Endpoints',
+      label: fileLabels.length > 0 ? fileLabels.join(' · ') : apiName + ' Endpoints',
       sublabel: routeLabel || 'GET/POST/PUT/DELETE handlers',
       zone: 'gateway', zoneLabel: 'API Gateway & Auth', zoneColor: '#8B5CF6',
       techKey: apiTech, isDetected: true,
@@ -428,9 +430,10 @@ export function buildSystemDesign(DATA, fileList = []) {
     const sublabelText = domainFns.length > 0
       ? formatFunctions(domainFns)
       : domainOrAgentFiles.slice(0, 3).map(f => f.relativePath.split('/').pop().replace(/\.(py|ts|js)$/, '')).join(' · ');
+    const fileLabels = domainOrAgentFiles.slice(0, 2).map(f => f.relativePath.split('/').slice(-2).join('/'));
     sysLLD.push({
       id: 'lld-domain', number: num(),
-      label: agentFiles.length > 0 ? 'AI Agents & Service Layer' : 'Domain Service Layer',
+      label: fileLabels.length > 0 ? fileLabels.join(' · ') : (agentFiles.length > 0 ? 'AI Agents & Service Layer' : 'Domain Service Layer'),
       sublabel: sublabelText || 'Business logic orchestration',
       zone: 'backend', zoneLabel: 'Business Logic & Domain', zoneColor: '#10B981',
       techKey: hasLangChain ? 'langchain' : apiTech, isDetected: true,
@@ -499,9 +502,13 @@ export function buildSystemDesign(DATA, fileList = []) {
           ).filter(n => n !== 'index' && n !== '__init__' && n !== 'base');
           return modelNames.length > 0 ? 'Tables: ' + modelNames.join(', ') : 'Data models & schemas';
         })();
+    const fileLabels = persistenceFiles.slice(0, 2).map(f => f.relativePath.split('/').slice(-2).join('/'));
+    const schemaTitle = allSchemas.length > 0
+      ? allSchemas.slice(0, 3).map(s => s.model).join(' · ') + ' Models'
+      : (fileLabels.length > 0 ? fileLabels.join(' · ') : (dbName || 'Database') + ' Schema');
     sysLLD.push({
       id: 'lld-db', number: num(),
-      label: (dbName || 'Database') + ' Schema',
+      label: schemaTitle,
       sublabel: schemaText,
       zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E',
       techKey: dbTech || 'postgresql', isDetected: true,
