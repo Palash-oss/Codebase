@@ -159,10 +159,11 @@ export function buildSystemDesign(DATA, fileList = []) {
   const sysHLD = [];
 
   if (hasFrontend) {
+    const mainPages = presentationFiles.slice(0, 3).map(f => (f.name || '').replace(/\.(tsx?|jsx?)$/, ''));
     sysHLD.push({
       id: 'client', number: num(),
-      label: frontendName,
-      sublabel: (presentationFiles.length > 0 ? presentationFiles.length + ' UI files · ' : '') + (has('tailwind') ? 'Tailwind CSS' : 'Styled Components'),
+      label: frontendName + ' Web Application',
+      sublabel: mainPages.length > 0 ? mainPages.join(' · ') : (has('tailwind') ? 'Tailwind CSS UI' : 'Frontend UI Components'),
       zone: 'client', zoneLabel: 'Client & Frontend', zoneColor: '#3B82F6',
       techKey: frontendTech, isDetected: true,
       files: presentationFiles.slice(0, 3).map(f => f.relativePath)
@@ -170,10 +171,13 @@ export function buildSystemDesign(DATA, fileList = []) {
   }
 
   if (hasBackend || gatewayFiles.length > 0) {
+    const routeSummary = allRoutes.length > 0
+      ? formatRoutes(allRoutes, 3)
+      : (gatewayFiles.slice(0, 3).map(f => (f.name || '').replace(/\.(py|ts|js)$/, '')).join(' · '));
     sysHLD.push({
       id: 'api', number: num(),
-      label: apiName,
-      sublabel: gatewayFiles.length + ' route handlers' + (authName ? ' · ' + authName : ''),
+      label: apiName + ' REST Server',
+      sublabel: routeSummary || (authName ? authName + ' · REST API' : 'HTTP Endpoints'),
       zone: 'gateway', zoneLabel: 'API Gateway & Auth', zoneColor: '#8B5CF6',
       techKey: apiTech, isDetected: true,
       files: gatewayFiles.slice(0, 3).map(f => f.relativePath)
@@ -190,15 +194,16 @@ export function buildSystemDesign(DATA, fileList = []) {
     });
   }
 
-  if (domainFiles.length > 0) {
-    const agentCount   = domainFiles.filter(f => f.relativePath.toLowerCase().includes('/agents/')).length;
-    const serviceCount = domainFiles.filter(f => f.relativePath.toLowerCase().includes('/services/')).length;
+  if (domainFiles.length > 0 || hasLangChain || hasAI) {
+    const agentCount = domainFiles.filter(f => f.relativePath.toLowerCase().includes('agent')).length;
+    const domainFns  = allFunctions.filter(fn => !fn.isMethod && !fn.name.startsWith('_') && !['main', 'create_app'].includes(fn.name));
+    const fnSummary  = domainFns.length > 0
+      ? formatFunctions(domainFns, 3)
+      : domainFiles.slice(0, 3).map(f => (f.name || '').replace(/\.(py|ts|js)$/, '')).join(' · ');
     sysHLD.push({
       id: 'domain', number: num(),
-      label: agentCount > 0 ? 'AI Agents & Services' : 'Business Logic Services',
-      sublabel: agentCount > 0
-        ? agentCount + ' AI agents · ' + serviceCount + ' service modules'
-        : domainFiles.length + ' service modules',
+      label: agentCount > 0 ? 'AI Agents & Domain Logic' : 'Core Business Logic Services',
+      sublabel: fnSummary || 'Service modules & business rules',
       zone: 'backend', zoneLabel: 'Business Logic', zoneColor: '#10B981',
       techKey: hasLangChain ? 'langchain' : apiTech, isDetected: true,
       files: domainFiles.slice(0, 3).map(f => f.relativePath)
@@ -219,8 +224,6 @@ export function buildSystemDesign(DATA, fileList = []) {
   }
 
   if (hasHF) {
-    // HuggingFace is a LOCAL model library — place it in `backend` zone alongside LangChain,
-    // NOT in `cloud` — this avoids arrows having to skip over the data zone
     sysHLD.push({
       id: 'huggingface', number: num(),
       label: has('sentence-transformers') ? 'Sentence Transformers' : 'HuggingFace Transformers',
@@ -232,12 +235,12 @@ export function buildSystemDesign(DATA, fileList = []) {
   }
 
   if (hasAI) {
-    const aiKey  = has('openai') ? 'openai' : has('anthropic') ? 'anthropic' : has('groq') ? 'groq' : has('google-genai') ? 'google-genai' : 'ollama';
-    const aiLabel = has('openai') ? 'OpenAI' : has('anthropic') ? 'Anthropic Claude' : has('groq') ? 'Groq LLM' : has('google-genai') ? 'Google Gemini' : 'Ollama';
+    const aiKey   = has('openai') ? 'openai' : has('anthropic') ? 'anthropic' : has('groq') ? 'groq' : has('google-genai') ? 'google-genai' : 'ollama';
+    const aiLabel = has('openai') ? 'OpenAI API' : has('anthropic') ? 'Anthropic Claude API' : has('groq') ? 'Groq LLM API' : has('google-genai') ? 'Google Gemini API' : 'Ollama Local LLM';
     sysHLD.push({
       id: 'ai', number: num(),
       label: aiLabel,
-      sublabel: 'LLM API · Completions · Embeddings',
+      sublabel: 'LLM API · Completions & Embeddings',
       zone: 'cloud', zoneLabel: 'External AI & Cloud', zoneColor: '#FF9900',
       techKey: aiKey, isDetected: true, files: []
     });
@@ -253,15 +256,16 @@ export function buildSystemDesign(DATA, fileList = []) {
     });
   }
 
-  if (hasDB) {
+  if (hasDB || persistenceFiles.length > 0 || allSchemas.length > 0) {
+    const tableSummary = allSchemas.length > 0
+      ? allSchemas.slice(0, 4).map(s => s.model).join(' · ')
+      : persistenceFiles.slice(0, 4).map(f => (f.name || '').replace(/\.(py|ts|js|prisma)$/, '')).filter(n => n !== '__init__' && n !== 'base').join(' · ');
     sysHLD.push({
       id: 'database', number: num(),
-      label: dbName,
-      sublabel: persistenceFiles.length > 0
-        ? persistenceFiles.length + ' models' + (has('sqlalchemy') ? ' · SQLAlchemy' : has('prisma') ? ' · Prisma ORM' : has('mongoose') ? ' · Mongoose' : '')
-        : 'Primary datastore',
+      label: (dbName || 'PostgreSQL') + ' Database',
+      sublabel: tableSummary ? 'Tables: ' + tableSummary : (has('sqlalchemy') ? 'SQLAlchemy ORM Models' : 'Primary Relational Datastore'),
       zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E',
-      techKey: dbTech, isDetected: true,
+      techKey: dbTech || 'postgresql', isDetected: true,
       files: persistenceFiles.slice(0, 3).map(f => f.relativePath)
     });
   }
