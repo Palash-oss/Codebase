@@ -322,12 +322,26 @@ function SystemDesignView({ DATA, isActive }) {
         ? (currentAiData.lld?.components || currentAiData.hld?.components || [])
         : (currentAiData.hld?.components || []);
 
-      // Convert AI connections (array of target IDs) to our {from, to, label} format
+      // Convert AI connections (array of target IDs) to our {from, to, label} format with smart edge labels
       const aiConns = [];
+      const ZONE_EDGE_LABELS = {
+        'client->gateway': 'HTTP Request',
+        'gateway->backend': 'Invoke method',
+        'gateway->data': 'Auth lookup',
+        'backend->data': 'ORM query',
+        'backend->cloud': 'API request',
+        'backend->backend': 'RAG pipeline',
+        'ops->backend': 'Inject secrets & env',
+        'client->backend': 'Direct request'
+      };
+
       aiComponents.forEach(comp => {
         if (Array.isArray(comp.connections)) {
           comp.connections.forEach(toId => {
-            aiConns.push({ from: comp.id, to: toId, label: '' });
+            const tgtComp = aiComponents.find(c => c.id === toId);
+            const edgeKey = `${comp.zone || 'backend'}->${tgtComp?.zone || 'backend'}`;
+            const autoLabel = ZONE_EDGE_LABELS[edgeKey] || '';
+            aiConns.push({ from: comp.id, to: toId, label: autoLabel });
           });
         }
       });
@@ -715,24 +729,28 @@ function SystemDesignView({ DATA, isActive }) {
           cx2 = (x1 + x2) / 2;
           cy2 = y2;
         } else if (isUpward) {
-          // Upward feedback connection: Route around left outer margin
+          // Upward feedback connection: Route around left outer margin with spread offset
           x1 = src.x;
           y1 = src.y + src.h * srcFrac;
           x2 = tgt.x;
           y2 = tgt.y + tgt.h * tgtFrac;
-          const outerX = Math.min(x1, x2) - 80;
+          const spreadOffset = ((connIndex * 24) % 72);
+          const outerX = Math.min(x1, x2) - 60 - spreadOffset;
           cx1 = outerX;
           cy1 = y1;
           cx2 = outerX;
           cy2 = y2;
         } else if (isLongDistance) {
-          // Long distance downward connection skipping layers: Route around outer side
+          // Long distance downward connection skipping layers: Route around outer side with spread offset
           const goLeft = (src.x + tgt.x) / 2 < W / 2;
           x1 = goLeft ? src.x : src.x + src.w;
           y1 = src.y + src.h * srcFrac;
           x2 = goLeft ? tgt.x : tgt.x + tgt.w;
           y2 = tgt.y + tgt.h * tgtFrac;
-          const outerX = goLeft ? Math.min(src.x, tgt.x) - 75 : Math.max(src.x + src.w, tgt.x + tgt.w) + 75;
+          const spreadOffset = ((connIndex * 24) % 72);
+          const outerX = goLeft
+            ? Math.min(src.x, tgt.x) - 55 - spreadOffset
+            : Math.max(src.x + src.w, tgt.x + tgt.w) + 55 + spreadOffset;
           cx1 = outerX;
           cy1 = y1;
           cx2 = outerX;
@@ -918,23 +936,26 @@ function SystemDesignView({ DATA, isActive }) {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
 
-        // Word-wrap label into 2 lines max
-        const words = labelStr.split(' ');
+        // Word-wrap label into 2 lines max (split on spaces OR slashes for file paths)
+        const parts = labelStr.split(/([\s\/]+)/);
         let line1 = '', line2 = '';
         let measuring = '';
-        for (const w of words) {
-          const test = measuring ? measuring + ' ' + w : w;
+        for (const p of parts) {
+          const test = measuring + p;
           if (ctx.measureText(test).width <= halfW) {
             measuring = test;
           } else {
-            if (!line1) { line1 = measuring || test; measuring = line1 ? w : ''; }
-            else { line2 = measuring + (measuring ? ' ' : '') + words.slice(words.indexOf(w)).join(' '); break; }
+            if (!line1) {
+              line1 = measuring || p;
+              measuring = line1 === p ? '' : p;
+            } else {
+              line2 = measuring + parts.slice(parts.indexOf(p)).join('');
+              break;
+            }
           }
         }
-        if (!line1) line1 = measuring;
-        else if (!line2) line2 = measuring;
-
-        ctx.fillText(line1, textX, comp.y + 10);
+        const truncLine1 = truncate(line1, halfW, ctx);
+        ctx.fillText(truncLine1, textX, comp.y + 10);
         if (line2) {
           const truncLine2 = truncate(line2, halfW, ctx);
           ctx.fillText(truncLine2, textX, comp.y + 24);
@@ -2210,10 +2231,10 @@ function SystemDesignView({ DATA, isActive }) {
         </div>
       )}
 
-      {/* AI Design Active Badge */}
+      {/* AI Design Active Badge (Bottom-Left Corner) */}
       {aiDesignData && !aiDesignLoading && (
         <div style={{
-          position: 'absolute', bottom: '80px', left: '50%', transform: 'translateX(-50%)',
+          position: 'absolute', bottom: '20px', left: '20px',
           background: 'linear-gradient(135deg, #4F46E5, #7C3AED)',
           borderRadius: '20px', padding: '6px 16px',
           color: '#fff', fontSize: '11px', fontWeight: '700',
