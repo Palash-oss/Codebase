@@ -85,17 +85,20 @@ export function buildSystemDesign(DATA, fileList = []) {
   const authName = has('nextauth') ? 'NextAuth.js' : has('auth0') ? 'Auth0' : has('clerk') ? 'Clerk' : has('supabase') ? 'Supabase Auth' : has('firebase') ? 'Firebase Auth' : (has('bcrypt') || has('jwt')) ? 'JWT / bcrypt Auth' : null;
   const dbTech = (has('postgresql') || has('psycopg2') || has('sqlalchemy')) ? 'postgresql' : has('mysql') ? 'mysql' : (has('mongodb') || has('mongoose') || has('pymongo')) ? 'mongodb' : has('sqlite') ? 'sqlite' : has('neon') ? 'postgresql' : has('supabase') ? 'supabase' : has('firebase') ? 'firebase' : has('prisma') ? 'prisma' : null;
   const dbName = has('neon') ? 'Neon Postgres' : (has('postgresql') || has('psycopg2') || has('sqlalchemy')) ? 'PostgreSQL' : has('mysql') ? 'MySQL' : (has('mongodb') || has('mongoose') || has('pymongo')) ? 'MongoDB' : has('sqlite') ? 'SQLite' : has('supabase') ? 'Supabase DB' : has('firebase') ? 'Firestore' : has('prisma') ? 'PostgreSQL' : null;
-  const vectorTech = has('pinecone') ? 'pinecone' : has('chromadb') ? 'chromadb' : has('weaviate') ? 'weaviate' : has('qdrant') ? 'qdrant' : null;
-  const vectorName = has('pinecone') ? 'Pinecone' : has('chromadb') ? 'ChromaDB' : has('weaviate') ? 'Weaviate' : has('qdrant') ? 'Qdrant' : null;
+  // Vector DB — check all options including FAISS
+  const vectorTech = has('pinecone') ? 'pinecone' : has('chromadb') ? 'chromadb' : has('weaviate') ? 'weaviate' : has('qdrant') ? 'qdrant' : has('faiss') ? 'faiss' : null;
+  const vectorName = has('pinecone') ? 'Pinecone' : has('chromadb') ? 'ChromaDB' : has('weaviate') ? 'Weaviate' : has('qdrant') ? 'Qdrant' : has('faiss') ? 'FAISS' : null;
 
   const hasFrontend  = presentationFiles.length > 0 || hasAny('nextjs', 'react', 'vuejs', 'angular', 'svelte');
   const hasBackend   = gatewayFiles.length > 0 || hasAny('express', 'nestjs', 'fastapi', 'flask', 'django', 'fastify', 'hono');
   const hasDB        = !!dbTech;
   const hasAuth      = !!authTech;
   const hasLangChain = has('langchain');
-  const hasAI        = hasAny('openai', 'anthropic', 'groq', 'gemini');
-  const hasHF        = has('huggingface');
-  const hasVectorDB  = !!vectorTech;
+  const hasLangGraph = has('langgraph');
+  const hasLlamaIndex = has('llamaindex');
+  const hasAI        = hasAny('openai', 'anthropic', 'groq', 'gemini', 'google-genai', 'ollama');
+  const hasHF        = has('huggingface') || has('sentence-transformers');
+  const hasVectorDB  = !!vectorTech || has('pgvector');
   const hasRedis     = hasAny('redis', 'upstash', 'ioredis');
   const hasBullMQ    = has('bullmq');
   const hasDocker    = has('docker');

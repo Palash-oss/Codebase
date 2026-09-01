@@ -11,7 +11,7 @@ export function createAnalysisRouter(analysisController, upload) {
   router.get(['/system-spec/markdown', '/api/system-spec/markdown'], analysisController.getSystemSpecMarkdown);
   router.post(['/diff', '/api/diff'], analysisController.computeDiff);
   router.post(['/blast-radius', '/api/blast-radius'], analysisController.computeBlast);
-  router.post('/reset', analysisController.resetCache);
+  router.post(['/reset', '/api/reset'], analysisController.resetCache);
   router.post('/projects/save', analysisController.saveProject);
   router.get('/projects', analysisController.getProjects);
   router.get('/projects/:id', analysisController.getProject);
