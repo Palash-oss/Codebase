@@ -954,6 +954,10 @@ function SystemDesignView({ DATA, isActive }) {
             }
           }
         }
+        // Flush: if label fit entirely on one line, measuring holds it but line1 is still ''.
+        if (!line1 && measuring) { line1 = measuring; }
+        else if (line1 && measuring && !line2) { line2 = measuring; }
+
         const truncLine1 = truncate(line1, halfW, ctx);
         ctx.fillText(truncLine1, textX, comp.y + 10);
         if (line2) {
