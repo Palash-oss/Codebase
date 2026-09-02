@@ -177,7 +177,7 @@ export function buildSystemDesign(DATA, fileList = []) {
     sysHLD.push({
       id: 'api', number: num(),
       label: apiName + ' REST Server',
-      sublabel: routeSummary || (authName ? authName + ' · REST API' : 'HTTP Endpoints'),
+      sublabel: routeSummary || (authName ? authName + ' · REST API' : 'HTTP Endpoints · Request Routing'),
       zone: 'gateway', zoneLabel: 'API Gateway & Auth', zoneColor: '#8B5CF6',
       techKey: apiTech, isDetected: true,
       files: gatewayFiles.slice(0, 3).map(f => f.relativePath)
@@ -204,7 +204,7 @@ export function buildSystemDesign(DATA, fileList = []) {
       id: 'domain', number: num(),
       label: agentCount > 0 ? 'AI Agents & Domain Logic' : 'Core Business Logic Services',
       sublabel: fnSummary || 'Service modules & business rules',
-      zone: 'backend', zoneLabel: 'Business Logic', zoneColor: '#10B981',
+      zone: 'backend', zoneLabel: 'Business Logic & Domain', zoneColor: '#10B981',
       techKey: hasLangChain ? 'langchain' : apiTech, isDetected: true,
       files: domainFiles.slice(0, 3).map(f => f.relativePath)
     });
@@ -340,14 +340,14 @@ export function buildSystemDesign(DATA, fileList = []) {
   n = 0;
   const sysLLD = [];
 
-  // ── CLIENT: show actual page/file names as main label
+  // ── CLIENT: always show semantic name as label, file paths go into sublabel
   if (presentationFiles.length > 0) {
-    const fileLabels = presentationFiles.slice(0, 2).map(f => f.relativePath.split('/').slice(-2).join('/'));
     const pageNames = presentationFiles.slice(0, 3).map(f => f.relativePath.split('/').pop().replace(/\.(tsx?|jsx?)$/, ''));
+    const filePathHint = presentationFiles.slice(0, 2).map(f => f.relativePath.split('/').slice(-2).join('/')).join(' · ');
     sysLLD.push({
       id: 'lld-ui', number: num(),
-      label: fileLabels.length > 0 ? fileLabels.join(' · ') : frontendName + ' Components',
-      sublabel: pageNames.join(' · ') + (presentationFiles.length > 3 ? ' +' + (presentationFiles.length - 3) + ' more' : ''),
+      label: frontendName + ' UI Components',
+      sublabel: (pageNames.join(' · ') + (presentationFiles.length > 3 ? ' +' + (presentationFiles.length - 3) + ' more' : '')) || filePathHint,
       zone: 'client', zoneLabel: 'Client & Frontend', zoneColor: '#3B82F6',
       techKey: frontendTech, isDetected: true,
       files: presentationFiles.slice(0, 4).map(f => f.relativePath)
@@ -387,11 +387,10 @@ export function buildSystemDesign(DATA, fileList = []) {
     const routeLabel = realRoutes.length > 0
       ? formatRoutes(realRoutes)
       : routeFiles.slice(0, 3).map(f => (f.name || '').replace(/\.(py|ts|js)$/, '')).join(' · ');
-    const fileLabels = routeFiles.slice(0, 2).map(f => f.relativePath.split('/').slice(-2).join('/'));
     sysLLD.push({
       id: 'lld-routes', number: num(),
-      label: fileLabels.length > 0 ? fileLabels.join(' · ') : apiName + ' Endpoints',
-      sublabel: routeLabel || 'GET/POST/PUT/DELETE handlers',
+      label: apiName + ' Route Handlers',
+      sublabel: routeLabel || 'GET · POST · PUT · DELETE endpoint handlers',
       zone: 'gateway', zoneLabel: 'API Gateway & Auth', zoneColor: '#8B5CF6',
       techKey: apiTech, isDetected: true,
       files: routeFiles.slice(0, 4).map(f => f.relativePath)
@@ -434,11 +433,10 @@ export function buildSystemDesign(DATA, fileList = []) {
     const sublabelText = domainFns.length > 0
       ? formatFunctions(domainFns)
       : domainOrAgentFiles.slice(0, 3).map(f => f.relativePath.split('/').pop().replace(/\.(py|ts|js)$/, '')).join(' · ');
-    const fileLabels = domainOrAgentFiles.slice(0, 2).map(f => f.relativePath.split('/').slice(-2).join('/'));
     sysLLD.push({
       id: 'lld-domain', number: num(),
-      label: fileLabels.length > 0 ? fileLabels.join(' · ') : (agentFiles.length > 0 ? 'AI Agents & Service Layer' : 'Domain Service Layer'),
-      sublabel: sublabelText || 'Business logic orchestration',
+      label: agentFiles.length > 0 ? 'AI Agents & Service Layer' : 'Domain Service Layer',
+      sublabel: sublabelText || 'Business logic orchestration & service modules',
       zone: 'backend', zoneLabel: 'Business Logic & Domain', zoneColor: '#10B981',
       techKey: hasLangChain ? 'langchain' : apiTech, isDetected: true,
       files: domainOrAgentFiles.slice(0, 4).map(f => f.relativePath)
@@ -495,7 +493,7 @@ export function buildSystemDesign(DATA, fileList = []) {
     });
   }
 
-  // ── DATA: show actual model/table names
+  // ── DATA: always use semantic name as label, model/table info in sublabel
   if (hasDB || persistenceFiles.length > 0 || allSchemas.length > 0) {
     // Prefer REAL schema fields parsed from Python ORM classes
     const schemaText = allSchemas.length > 0
@@ -506,14 +504,13 @@ export function buildSystemDesign(DATA, fileList = []) {
           ).filter(n => n !== 'index' && n !== '__init__' && n !== 'base');
           return modelNames.length > 0 ? 'Tables: ' + modelNames.join(', ') : 'Data models & schemas';
         })();
-    const fileLabels = persistenceFiles.slice(0, 2).map(f => f.relativePath.split('/').slice(-2).join('/'));
-    const schemaTitle = allSchemas.length > 0
-      ? allSchemas.slice(0, 3).map(s => s.model).join(' · ') + ' Models'
-      : (fileLabels.length > 0 ? fileLabels.join(' · ') : (dbName || 'Database') + ' Schema');
+    const modelNames = allSchemas.length > 0
+      ? allSchemas.slice(0, 3).map(s => s.model).join(' · ')
+      : null;
     sysLLD.push({
       id: 'lld-db', number: num(),
-      label: schemaTitle,
-      sublabel: schemaText,
+      label: (dbName || 'Database') + ' Data Layer',
+      sublabel: modelNames ? 'Models: ' + modelNames + ' · ' + schemaText : schemaText,
       zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E',
       techKey: dbTech || 'postgresql', isDetected: true,
       files: persistenceFiles.slice(0, 4).map(f => f.relativePath)
@@ -548,10 +545,10 @@ export function buildSystemDesign(DATA, fileList = []) {
   // Runtime env — always last, always connected to routes/domain
   sysLLD.push({
     id: 'lld-runtime', number: num(),
-    label: 'Runtime Environment',
+    label: 'Runtime & Config Management',
     sublabel: envVarList.length > 0
-      ? envVarList.slice(0, 4).join(' · ') + (envVarList.length > 4 ? ' +' + (envVarList.length - 4) + ' more' : '')
-      : 'Config & secrets management',
+      ? envVarList.slice(0, 4).join(' · ') + (envVarList.length > 4 ? ' +' + (envVarList.length - 4) + ' more env vars' : '')
+      : 'Environment secrets · Config injection · Runtime settings',
     zone: 'ops', zoneLabel: 'Runtime & Operations', zoneColor: '#6B7280',
     techKey: has('python') ? 'python' : 'node', isDetected: true,
     files: filesFor(4, '.env', 'config', 'constants', 'settings', '/core/config', 'settings.py')
@@ -564,36 +561,36 @@ export function buildSystemDesign(DATA, fileList = []) {
   const cloudHLD = [];
 
   if (hasFrontend) {
-    cloudHLD.push({ id: 'client', number: num(), label: frontendName, sublabel: 'Browser client · Real-time UI',
+    cloudHLD.push({ id: 'client', number: num(), label: frontendName + ' Web Application', sublabel: 'Browser client · Static assets · Real-time UI',
       zone: 'client', zoneLabel: 'Client & User Interface', zoneColor: '#3B82F6', techKey: frontendTech, isDetected: true, files: [] });
   }
   if (hasVercel) {
-    cloudHLD.push({ id: 'cdn', number: num(), label: 'Vercel Edge CDN', sublabel: 'Edge network · Serverless hosting',
-      zone: 'edge', zoneLabel: 'Edge & Network', zoneColor: '#06B6D4', techKey: 'vercel', isDetected: true, files: [] });
+    cloudHLD.push({ id: 'cdn', number: num(), label: 'Vercel Edge CDN', sublabel: 'Global edge network · Serverless hosting · CDN cache',
+      zone: 'edge', zoneLabel: 'Edge & CDN Network', zoneColor: '#06B6D4', techKey: 'vercel', isDetected: true, files: [] });
   }
-  cloudHLD.push({ id: 'api', number: num(), label: apiName, sublabel: 'Routes & webhooks' + (authName ? ' · ' + authName : ''),
+  cloudHLD.push({ id: 'api', number: num(), label: apiName + ' API Server', sublabel: 'REST routes & webhooks' + (authName ? ' · ' + authName : ''),
     zone: 'gateway', zoneLabel: 'Cloud Compute & Routing', zoneColor: '#8B5CF6', techKey: apiTech, isDetected: true,
     files: gatewayFiles.slice(0, 2).map(f => f.relativePath) });
   if (hasAuth) {
-    cloudHLD.push({ id: 'auth', number: num(), label: authName, sublabel: 'Identity provider · Session validation',
+    cloudHLD.push({ id: 'auth', number: num(), label: authName + ' Auth Provider', sublabel: 'Identity provider · JWT session validation · SSO',
       zone: 'gateway', zoneLabel: 'Cloud Compute & Routing', zoneColor: '#8B5CF6', techKey: authTech, isDetected: true, files: [] });
   }
   if (domainFiles.length > 0 || hasLangChain) {
-    cloudHLD.push({ id: 'domain', number: num(), label: hasLangChain ? 'AI Agents & Services' : 'Business Logic',
-      sublabel: hasLangChain ? 'LangChain · Agents · Services' : domainFiles.length + ' service modules',
+    cloudHLD.push({ id: 'domain', number: num(), label: hasLangChain ? 'AI Orchestration & Business Logic' : 'Core Business Logic Services',
+      sublabel: hasLangChain ? 'LangChain agents · RAG pipeline · Service modules' : domainFiles.length + ' service modules · Business rules',
       zone: 'backend', zoneLabel: 'Cloud Compute & Routing', zoneColor: '#10B981', techKey: hasLangChain ? 'langchain' : apiTech, isDetected: true, files: [] });
   }
   if (hasDB) {
-    cloudHLD.push({ id: 'database', number: num(), label: dbName, sublabel: 'Primary datastore' + (has('neon') ? ' · Serverless' : ''),
+    cloudHLD.push({ id: 'database', number: num(), label: (dbName || 'Database') + ' Cloud Database', sublabel: 'Managed primary datastore' + (has('neon') ? ' · Serverless Postgres' : ''),
       zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E', techKey: dbTech, isDetected: true, files: [] });
   }
   if (hasRedis) {
-    cloudHLD.push({ id: 'cache', number: num(), label: 'Redis Cache', sublabel: 'In-memory cache · Sessions',
+    cloudHLD.push({ id: 'cache', number: num(), label: 'Redis Cache Layer', sublabel: 'In-memory cache · Session store · Rate limiting',
       zone: 'data', zoneLabel: 'Data & Persistence', zoneColor: '#22C55E', techKey: 'redis', isDetected: true, files: [] });
   }
   if (hasAI || hasLangChain) {
-    cloudHLD.push({ id: 'ai', number: num(), label: has('openai') ? 'OpenAI API' : has('anthropic') ? 'Anthropic Claude' : 'AI LLM Service',
-      sublabel: 'LLM completions · Embeddings', zone: 'cloud', zoneLabel: 'External Services', zoneColor: '#FF9900',
+    cloudHLD.push({ id: 'ai', number: num(), label: has('openai') ? 'OpenAI GPT API' : has('anthropic') ? 'Anthropic Claude API' : 'AI LLM Cloud Service',
+      sublabel: 'LLM completions · Text embeddings · Inference API', zone: 'cloud', zoneLabel: 'External AI & Cloud Services', zoneColor: '#FF9900',
       techKey: has('openai') ? 'openai' : 'anthropic', isDetected: true, files: [] });
   }
   if (cloudHLD.length === 0) cloudHLD.push(...sysHLD.map(c => Object.assign({}, c)));
@@ -603,27 +600,27 @@ export function buildSystemDesign(DATA, fileList = []) {
   // =================================================================
   n = 0;
   const cloudLLD = [];
-  if (hasFrontend) cloudLLD.push({ id: 'lld-client', number: num(), label: frontendName + ' Client', sublabel: presentationFiles.length + ' UI components',
+  if (hasFrontend) cloudLLD.push({ id: 'lld-client', number: num(), label: frontendName + ' Client Application', sublabel: presentationFiles.length + ' UI components · Browser-side rendering',
     zone: 'client', zoneLabel: 'Client Layer', zoneColor: '#3B82F6', techKey: frontendTech, isDetected: true, files: presentationFiles.slice(0, 3).map(f => f.relativePath) });
-  cloudLLD.push({ id: 'lld-api-gw', number: num(), label: apiName + ' API Gateway', sublabel: gatewayFiles.length + ' route handlers · Auth middleware',
+  cloudLLD.push({ id: 'lld-api-gw', number: num(), label: apiName + ' API Gateway', sublabel: gatewayFiles.length + ' route handlers · Auth middleware · Request validation',
     zone: 'gateway', zoneLabel: 'API & Auth Layer', zoneColor: '#8B5CF6', techKey: apiTech, isDetected: true, files: gatewayFiles.slice(0, 3).map(f => f.relativePath) });
-  if (hasAuth) cloudLLD.push({ id: 'lld-auth-cloud', number: num(), label: authName + ' Auth Guard', sublabel: 'Token validation · CORS · Rate limiting',
+  if (hasAuth) cloudLLD.push({ id: 'lld-auth-cloud', number: num(), label: authName + ' Authentication Guard', sublabel: 'JWT token validation · CORS policy · Rate limiting',
     zone: 'gateway', zoneLabel: 'API & Auth Layer', zoneColor: '#8B5CF6', techKey: authTech, isDetected: true, files: [] });
-  if (hasDB) cloudLLD.push({ id: 'lld-db', number: num(), label: dbName + ' Instance', sublabel: persistenceFiles.length > 0 ? persistenceFiles.length + ' models' : 'Primary database',
+  if (hasDB) cloudLLD.push({ id: 'lld-db', number: num(), label: (dbName || 'Database') + ' Database Instance', sublabel: persistenceFiles.length > 0 ? persistenceFiles.length + ' ORM model files · Primary datastore' : 'Primary managed database',
     zone: 'data', zoneLabel: 'Data Layer', zoneColor: '#22C55E', techKey: dbTech, isDetected: true, files: persistenceFiles.slice(0, 3).map(f => f.relativePath) });
-  if (has('neon')) cloudLLD.push({ id: 'lld-neon', number: num(), label: 'Neon Serverless Postgres', sublabel: 'Serverless SQL · DB branching',
+  if (has('neon')) cloudLLD.push({ id: 'lld-neon', number: num(), label: 'Neon Serverless Postgres', sublabel: 'Serverless SQL · Autoscaling · DB branching',
     zone: 'data', zoneLabel: 'Data Layer', zoneColor: '#22C55E', techKey: 'neon', isDetected: true, files: [] });
-  cloudLLD.push({ id: 'lld-secrets', number: num(), label: 'Secrets & Config', sublabel: envVarList.length > 0 ? envVarList.length + ' env vars configured' : 'Runtime secrets',
-    zone: 'ops', zoneLabel: 'Operations', zoneColor: '#6B7280', techKey: 'node', isDetected: true, files: filesFor(3, '.env', 'secrets') });
-  if (hasStripe) cloudLLD.push({ id: 'lld-stripe', number: num(), label: 'Stripe Checkout', sublabel: 'Payment gateway · Webhooks',
+  cloudLLD.push({ id: 'lld-secrets', number: num(), label: 'Secrets & Environment Config', sublabel: envVarList.length > 0 ? envVarList.length + ' env vars configured · Runtime injection' : 'Runtime secrets · Environment variables',
+    zone: 'ops', zoneLabel: 'Operations & Runtime', zoneColor: '#6B7280', techKey: 'node', isDetected: true, files: filesFor(3, '.env', 'secrets') });
+  if (hasStripe) cloudLLD.push({ id: 'lld-stripe', number: num(), label: 'Stripe Payment Gateway', sublabel: 'Checkout sessions · Webhook events · Billing subscriptions',
     zone: 'cloud', zoneLabel: 'External Services', zoneColor: '#FF9900', techKey: 'stripe', isDetected: true, files: [] });
-  if (hasAI) cloudLLD.push({ id: 'lld-ai', number: num(), label: has('openai') ? 'OpenAI API' : 'AI Service', sublabel: 'LLM · Embeddings · Completions',
+  if (hasAI) cloudLLD.push({ id: 'lld-ai', number: num(), label: has('openai') ? 'OpenAI GPT API' : 'AI Inference Service', sublabel: 'LLM completions · Text embeddings · Streaming responses',
     zone: 'cloud', zoneLabel: 'External Services', zoneColor: '#FF9900', techKey: has('openai') ? 'openai' : 'anthropic', isDetected: true, files: [] });
-  if (hasVectorDB) cloudLLD.push({ id: 'lld-pinecone', number: num(), label: vectorName, sublabel: 'Vector DB · Semantic search',
+  if (hasVectorDB) cloudLLD.push({ id: 'lld-pinecone', number: num(), label: (vectorName || 'Vector DB') + ' Vector Store', sublabel: 'Semantic search · Embedding index · k-NN retrieval',
     zone: 'data', zoneLabel: 'Data Layer', zoneColor: '#22C55E', techKey: vectorTech, isDetected: true, files: [] });
-  if (hasBullMQ) cloudLLD.push({ id: 'lld-bullmq', number: num(), label: 'BullMQ Worker Queue', sublabel: 'Async job dispatch · Worker pool',
+  if (hasBullMQ) cloudLLD.push({ id: 'lld-bullmq', number: num(), label: 'BullMQ Async Job Queue', sublabel: 'Background job dispatch · Worker pool · Job retries',
     zone: 'backend', zoneLabel: 'Compute Layer', zoneColor: '#10B981', techKey: 'bullmq', isDetected: true, files: filesFor(3, 'worker', 'job', 'queue') });
-  if (hasAny('aws-s3', 's3')) cloudLLD.push({ id: 'lld-s3', number: num(), label: 'AWS S3 Storage', sublabel: 'Object storage · Presigned URLs',
+  if (hasAny('aws-s3', 's3')) cloudLLD.push({ id: 'lld-s3', number: num(), label: 'AWS S3 Object Storage', sublabel: 'File upload · Presigned URLs · Static asset hosting',
     zone: 'cloud', zoneLabel: 'External Services', zoneColor: '#FF9900', techKey: 'aws-s3', isDetected: true, files: [] });
   if (cloudLLD.length === 0) cloudLLD.push(...sysLLD.map(c => Object.assign({}, c)));
 
@@ -634,31 +631,34 @@ export function buildSystemDesign(DATA, fileList = []) {
   const devopsHLD = [];
   const testFileList = layers.Test || [];
 
-  if (has('github') || has('gha') || has('octokit')) devopsHLD.push({ id: 'git', number: num(), label: 'GitHub Repository', sublabel: 'Source control · PRs · Code review',
+  if (has('github') || has('gha') || has('octokit')) devopsHLD.push({ id: 'git', number: num(), label: 'GitHub Source Repository', sublabel: 'Version control · Pull requests · Code review · Branch strategy',
     zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: 'github', isDetected: true, files: [] });
-  if (has('gha')) devopsHLD.push({ id: 'cicd', number: num(), label: 'GitHub Actions', sublabel: 'CI/CD workflow · Automated testing & deploy',
+  if (has('gha')) devopsHLD.push({ id: 'cicd', number: num(), label: 'GitHub Actions CI/CD', sublabel: 'Automated build · Test pipeline · Deployment workflow',
     zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: 'gha', isDetected: true, files: filesFor(3, '.github/workflows') });
-  if (testFileList.length > 0 || hasAny('jest', 'vitest', 'pytest', 'mocha')) devopsHLD.push({ id: 'tests', number: num(), label: 'Test Suite',
-    sublabel: (testFileList.length > 0 ? testFileList.length + ' test files · ' : '') + (has('pytest') ? 'pytest' : has('jest') ? 'Jest' : has('vitest') ? 'Vitest' : 'Unit & Integration'),
+  else devopsHLD.push({ id: 'cicd', number: num(), label: 'CI/CD Build Pipeline', sublabel: 'Automated build · Test runner · Deployment trigger',
+    zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: 'node', isDetected: false, files: [] });
+  if (testFileList.length > 0 || hasAny('jest', 'vitest', 'pytest', 'mocha')) devopsHLD.push({ id: 'tests', number: num(),
+    label: (has('pytest') ? 'Pytest' : has('jest') ? 'Jest' : has('vitest') ? 'Vitest' : 'Automated') + ' Test Suite',
+    sublabel: (testFileList.length > 0 ? testFileList.length + ' test files · ' : '') + 'Unit · Integration · E2E tests',
     zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: has('pytest') ? 'python' : 'jest', isDetected: true, files: testFileList.slice(0, 3) });
-  if (hasDB) devopsHLD.push({ id: 'db-deploy', number: num(), label: dbName + ' Migration',
-    sublabel: 'Schema migrations · ' + (has('prisma') ? 'prisma migrate' : has('alembic') ? 'alembic upgrade head' : 'DB versioning'),
+  if (hasDB) devopsHLD.push({ id: 'db-deploy', number: num(), label: (dbName || 'Database') + ' Schema Migration',
+    sublabel: 'Schema versioning · ' + (has('prisma') ? 'Prisma migrate deploy' : has('alembic') ? 'Alembic upgrade head' : 'DB migration scripts'),
     zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: dbTech || 'postgresql', isDetected: true, files: filesFor(3, 'migration', 'alembic', 'migrate') });
-  if (hasDocker) devopsHLD.push({ id: 'docker', number: num(), label: 'Docker', sublabel: 'Container build · docker-compose · image registry',
+  if (hasDocker) devopsHLD.push({ id: 'docker', number: num(), label: 'Docker Container Build', sublabel: 'Docker image build · docker-compose · Container registry push',
     zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: 'docker', isDetected: true, files: filesFor(3, 'dockerfile', 'docker-compose') });
   devopsHLD.push({ id: 'deploy', number: num(),
-    label: hasVercel ? 'Vercel Deployment' : hasDocker ? 'Container Deployment' : 'Production Deploy',
-    sublabel: hasVercel ? 'Edge functions · Serverless · Global CDN' : hasDocker ? 'Docker container runtime' : 'Production environment',
+    label: hasVercel ? 'Vercel Production Deploy' : hasDocker ? 'Container Production Deploy' : 'Production Environment Deploy',
+    sublabel: hasVercel ? 'Edge functions · Serverless · Global CDN rollout' : hasDocker ? 'Docker container runtime · Orchestration' : 'Zero-downtime production release',
     zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: hasVercel ? 'vercel' : hasDocker ? 'docker' : 'node', isDetected: true, files: [] });
-  devopsHLD.push({ id: 'secrets', number: num(), label: 'Environment Secrets',
-    sublabel: envVarList.length > 0 ? envVarList.length + ' env vars configured' : 'Runtime config & secrets',
+  devopsHLD.push({ id: 'secrets', number: num(), label: 'Environment Secrets & Config',
+    sublabel: envVarList.length > 0 ? envVarList.length + ' environment variables · Runtime secrets vault' : 'Secrets management · Runtime config injection',
     zone: 'ops', zoneLabel: 'Runtime & Operations', zoneColor: '#6B7280', techKey: 'node', isDetected: true, files: filesFor(3, '.env', 'secrets') });
-  if (devopsHLD.length <= 2) devopsHLD.unshift({ id: 'dev-env', number: num(), label: 'Development Environment',
-    sublabel: 'Local setup · ' + (has('python') ? 'Python venv / pip' : 'Node.js / npm') + ' runtime',
+  if (devopsHLD.length <= 2) devopsHLD.unshift({ id: 'dev-env', number: num(), label: 'Local Development Environment',
+    sublabel: 'Developer workstation · ' + (has('python') ? 'Python venv · pip install' : 'Node.js · npm install') + ' · Hot reload',
     zone: 'devops', zoneLabel: 'Development', zoneColor: '#3B82F6', techKey: has('python') ? 'python' : 'node', isDetected: false, files: [] });
 
   // =================================================================
-  // DEVOPS LLD
+  // DEVOPS LLD — Detailed implementation-level DevOps view
   // =================================================================
   n = 0;
   const devopsLLD = devopsHLD.map((c, i) => Object.assign({}, c, { number: i + 1, designLevel: 'LLD' }));
