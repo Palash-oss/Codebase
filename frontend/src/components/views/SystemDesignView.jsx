@@ -14,6 +14,9 @@ function SystemDesignView({ DATA, isActive }) {
   // 4 Role Perspectives — default 'system' shows BOTH HLD + LLD simultaneously
   const [perspective, setPerspective] = useState('system');
 
+  // ERD Schema state — stores parsed dbSchema tables for the ERD view
+  const erdDataRef = useRef(null);
+
   // Design Level: 'HLD' (High-Level) or 'LLD' (Low-Level) — no "both" mode
   const [designLevelFilter, setDesignLevelFilter] = useState('HLD');
 
@@ -114,6 +117,7 @@ function SystemDesignView({ DATA, isActive }) {
 
   // Build the active component list based on current perspective + level
   const getActiveComponents = (rawData, perspective, level) => {
+    if (perspective === 'schema') return []; // ERD has its own draw path
     const p = rawData.perspectives[perspective];
     if (!p) return rawData.perspectives.system.hld;
     return level === 'HLD' ? p.hld : p.lld;
@@ -316,6 +320,20 @@ function SystemDesignView({ DATA, isActive }) {
     // Build system design data — use AI-generated design if available, otherwise static mapper
     let rawData, activeComponents;
     const currentAiData = aiDesignDataRef.current;
+
+    // ── Schema / ERD perspective — completely separate draw path ──────────────
+    if (perspective === 'schema') {
+      rawData = buildSystemDesign(DATA, DATA?.files || []);
+      const schemaData = rawData.dbSchema || DATA?.dbSchema || [];
+      erdDataRef.current = schemaData;
+      // Minimal sysDataRef so canvas events don't crash
+      sysDataRef.current = { components: [], zones: [], connections: [], externalSaaS: [], dbTables: [], dbSchema: schemaData };
+      setIsInitialized(true);
+      drawDiagram();
+      return;
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
     if (currentAiData && (currentAiData.hld || currentAiData.lld)) {
       // Map AI-generated components to internal format
       const aiComponents = designLevelFilter === 'LLD'
@@ -636,6 +654,16 @@ function SystemDesignView({ DATA, isActive }) {
           ctx.fill();
         }
       }
+
+      // ── ERD Schema perspective: draw ER diagram then return ───────────────
+      if (perspective === 'schema') {
+        const schemaTablesData = erdDataRef.current || [];
+        ctx.restore(); // restore world transform for ERD (uses its own layout)
+        drawERDiagram(ctx, schemaTablesData, W, H, isLight);
+        ctx.restore(); // restore top-level
+        return;
+      }
+      // ─────────────────────────────────────────────────────────────────────
 
       // Title (placed at y: 40 with clean margin above zones starting at y: 160)
       const perspectiveTitles = {
@@ -1086,7 +1114,337 @@ function SystemDesignView({ DATA, isActive }) {
   }
   };
 
-  // Truncate text to fit width
+  // ─── ERD SCHEMA DIAGRAM RENDERER ─────────────────────────────────────────────
+  // Renders an Entity-Relationship Diagram on canvas.
+  // Each table = a card with header + column rows (PK/FK/type badges).
+  // FK relationships = bezier curves between tables with cardinality labels.
+  const drawERDiagram = (ctx, tables, W, H, isLight) => {
+    try {
+      const rdRound = (ctx2, x, y, w, h, r) => {
+        ctx2.beginPath();
+        ctx2.moveTo(x + r, y);
+        ctx2.lineTo(x + w - r, y);
+        ctx2.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx2.lineTo(x + w, y + h - r);
+        ctx2.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx2.lineTo(x + r, y + h);
+        ctx2.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx2.lineTo(x, y + r);
+        ctx2.quadraticCurveTo(x, y, x + r, y);
+        ctx2.closePath();
+      };
+
+      const BG = isLight ? '#F8FAFC' : '#000000';
+      const CARD_BG = isLight ? '#FFFFFF' : '#0B0F17';
+      const CARD_BORDER = '#10B981';
+      const HEADER_BG = isLight ? '#ECFDF5' : '#052e16';
+      const TEXT_PRI = isLight ? '#0F172A' : '#FFFFFF';
+      const TEXT_SEC = isLight ? '#64748B' : '#94A3B8';
+      const PK_COLOR = '#F59E0B';
+      const FK_COLOR = '#3B82F6';
+      const NULL_COLOR = '#6B7280';
+      const COL_BG = isLight ? '#F1F5F9' : '#1E293B';
+      const COL_BORDER = isLight ? '#CBD5E1' : '#334155';
+
+      const TABLE_W = 240;
+      const HEADER_H = 44;
+      const ROW_H = 26;
+      const PADDING = 50;
+      const COLS_PER_ROW = Math.max(1, Math.floor((W - PADDING * 2 + 20) / (TABLE_W + 20)));
+
+      // Full background
+      ctx.fillStyle = BG;
+      ctx.fillRect(0, 0, W, H);
+
+      // Dot grid
+      ctx.fillStyle = isLight ? 'rgba(203, 213, 225, 0.45)' : 'rgba(255, 255, 255, 0.10)';
+      for (let gx = 0; gx < W; gx += 40) {
+        for (let gy = 0; gy < H; gy += 40) {
+          ctx.beginPath(); ctx.arc(gx, gy, 1.1, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+      if (!tables || tables.length === 0) {
+        // Empty state
+        ctx.font = '600 18px "Space Grotesk", sans-serif';
+        ctx.fillStyle = TEXT_SEC;
+        ctx.textAlign = 'center';
+        ctx.fillText('No database schemas detected in this repository', W / 2, H / 2 - 20);
+        ctx.font = '500 13px "Space Grotesk", sans-serif';
+        ctx.fillText('Scan a repo with Prisma, SQLAlchemy, TypeORM, Drizzle, Mongoose, or Django models', W / 2, H / 2 + 10);
+        ctx.textAlign = 'left';
+        return;
+      }
+
+      // Title
+      ctx.fillStyle = '#10B981';
+      ctx.fillRect(PADDING, 20, 4, 22);
+      ctx.font = '700 15px "Space Grotesk", sans-serif';
+      ctx.fillStyle = TEXT_PRI;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      const dbTypes = [...new Set(tables.map(t => t.dbType))].map(d => d.toUpperCase()).join(' · ');
+      ctx.fillText(`Database Entity-Relationship Diagram  ·  ${tables.length} table${tables.length !== 1 ? 's' : ''}  ·  ${dbTypes}`, PADDING + 12, 31);
+
+      // Calculate table positions
+      const tablePositions = new Map(); // tableName → {x, y, w, h}
+      const TOP_OFFSET = 70;
+
+      tables.forEach((table, idx) => {
+        const numRows = table.columns ? table.columns.length : 0;
+        const cardH = HEADER_H + numRows * ROW_H + 8;
+        const col = idx % COLS_PER_ROW;
+        const row = Math.floor(idx / COLS_PER_ROW);
+
+        // Calculate row heights for proper vertical stacking
+        const rowStartY = TOP_OFFSET + row * (HEADER_H + Math.max(...tables.slice(row * COLS_PER_ROW, (row + 1) * COLS_PER_ROW).map(t => (t.columns?.length || 0) * ROW_H + HEADER_H + 8)) + PADDING);
+        const x = PADDING + col * (TABLE_W + 20);
+        const y = rowStartY;
+        tablePositions.set(table.tableName.toLowerCase(), { x, y, w: TABLE_W, h: cardH });
+        table._layout = { x, y, w: TABLE_W, h: cardH };
+      });
+
+      // Draw FK relationship lines FIRST (behind tables)
+      tables.forEach(table => {
+        if (!table.relations || table.relations.length === 0) return;
+        table.relations.forEach(rel => {
+          const fromLayout = table._layout;
+          const toKey = rel.toTable ? rel.toTable.toLowerCase() : '';
+          const toTable = tables.find(t => t.tableName.toLowerCase() === toKey);
+          const toLayout = toTable?._layout;
+          if (!fromLayout || !toLayout) return;
+
+          // Find the Y position of the FK column in the from-table
+          const fkColIdx = (table.columns || []).findIndex(c => c.isFK && c.referencesTable?.toLowerCase() === toKey);
+          const fkRowY = fromLayout.y + HEADER_H + (fkColIdx >= 0 ? fkColIdx * ROW_H + ROW_H / 2 : fromLayout.h / 2);
+
+          // Find the Y position of PK column in the to-table
+          const pkColIdx = (toTable?.columns || []).findIndex(c => c.isPK);
+          const pkRowY = toLayout.y + HEADER_H + (pkColIdx >= 0 ? pkColIdx * ROW_H + ROW_H / 2 : toLayout.h / 2);
+
+          // Determine which sides to connect (left or right edge)
+          const fromRight = fromLayout.x + fromLayout.w;
+          const toRight = toLayout.x + toLayout.w;
+          let x1, x2;
+          if (fromLayout.x > toLayout.x + toLayout.w) {
+            x1 = fromLayout.x; x2 = toRight;
+          } else if (toLayout.x > fromRight) {
+            x1 = fromRight; x2 = toLayout.x;
+          } else {
+            x1 = fromRight; x2 = toLayout.x;
+          }
+
+          const midX = (x1 + x2) / 2;
+          const relColor = rel.type === '1:1' ? '#A78BFA' : rel.type === 'N:M' ? '#F59E0B' : FK_COLOR;
+
+          ctx.save();
+          ctx.strokeStyle = relColor;
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(x1, fkRowY);
+          ctx.bezierCurveTo(midX, fkRowY, midX, pkRowY, x2, pkRowY);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Cardinality label at midpoint
+          const labelMidX = midX;
+          const labelMidY = (fkRowY + pkRowY) / 2;
+          ctx.font = '700 9px "Space Mono", monospace';
+          ctx.fillStyle = relColor;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const relLabel = rel.type || '1:N';
+          const lw = ctx.measureText(relLabel).width + 8;
+          ctx.fillStyle = isLight ? '#FFFFFF' : '#0B0F17';
+          ctx.fillRect(labelMidX - lw / 2, labelMidY - 9, lw, 18);
+          ctx.fillStyle = relColor;
+          ctx.fillText(relLabel, labelMidX, labelMidY);
+
+          // Endpoint dots
+          ctx.fillStyle = relColor;
+          ctx.beginPath(); ctx.arc(x1, fkRowY, 4, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(x2, pkRowY, 4, 0, Math.PI * 2); ctx.fill();
+
+          ctx.restore();
+        });
+      });
+
+      // Draw table cards
+      tables.forEach(table => {
+        const { x, y, w, h } = table._layout;
+        const cols = table.columns || [];
+
+        ctx.save();
+
+        // Card shadow
+        ctx.shadowColor = isLight ? 'rgba(0,0,0,0.10)' : 'rgba(0,0,0,0.60)';
+        ctx.shadowBlur = 16;
+        ctx.shadowOffsetY = 4;
+
+        // Card background
+        ctx.fillStyle = CARD_BG;
+        rdRound(ctx, x, y, w, h, 10);
+        ctx.fill();
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+        // Card border (neon green)
+        ctx.strokeStyle = CARD_BORDER;
+        ctx.lineWidth = 1.5;
+        rdRound(ctx, x, y, w, h, 10);
+        ctx.stroke();
+
+        // Header background
+        ctx.fillStyle = HEADER_BG;
+        ctx.beginPath();
+        ctx.moveTo(x + 10, y);
+        ctx.lineTo(x + w - 10, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + 10);
+        ctx.lineTo(x + w, y + HEADER_H);
+        ctx.lineTo(x, y + HEADER_H);
+        ctx.lineTo(x, y + 10);
+        ctx.quadraticCurveTo(x, y, x + 10, y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Header separator line
+        ctx.strokeStyle = CARD_BORDER + '55';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, y + HEADER_H); ctx.lineTo(x + w, y + HEADER_H); ctx.stroke();
+
+        // DB type badge
+        const dbTypeColors = {
+          prisma: '#5B21B6', sql: '#047857', typeorm: '#1E40AF',
+          drizzle: '#92400E', mongoose: '#065F46', sqlalchemy: '#7C3AED', django: '#15803D'
+        };
+        const badgeColor = dbTypeColors[table.dbType] || '#374151';
+        const badgeText = (table.dbType || 'db').toUpperCase();
+        ctx.font = '700 8px "Space Mono", monospace';
+        const bw = ctx.measureText(badgeText).width + 10;
+        ctx.fillStyle = badgeColor;
+        rdRound(ctx, x + w - bw - 8, y + 8, bw, 14, 4);
+        ctx.fill();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(badgeText, x + w - bw / 2 - 8, y + 15);
+
+        // Table name (with 🗄 icon)
+        ctx.font = '700 13px "Space Grotesk", sans-serif';
+        ctx.fillStyle = CARD_BORDER;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🗄', x + 10, y + HEADER_H / 2);
+        ctx.fillStyle = TEXT_PRI;
+        ctx.fillText(table.tableName, x + 28, y + HEADER_H / 2);
+
+        // File path (tiny)
+        if (table.file) {
+          ctx.font = '400 8px "Space Mono", monospace';
+          ctx.fillStyle = TEXT_SEC;
+          const shortFile = table.file.split('/').slice(-2).join('/');
+          ctx.fillText(shortFile, x + 10, y + HEADER_H - 7);
+        }
+
+        // Column rows
+        cols.forEach((col, colIdx) => {
+          const rowY = y + HEADER_H + colIdx * ROW_H;
+          const isAlternate = colIdx % 2 === 1;
+
+          // Row background
+          ctx.fillStyle = isAlternate ? (isLight ? '#F8FAFC' : '#111827') : CARD_BG;
+          ctx.fillRect(x + 1, rowY, w - 2, ROW_H);
+
+          // Separator
+          ctx.strokeStyle = COL_BORDER;
+          ctx.lineWidth = 0.5;
+          ctx.beginPath(); ctx.moveTo(x + 8, rowY + ROW_H); ctx.lineTo(x + w - 8, rowY + ROW_H); ctx.stroke();
+
+          // PK badge
+          if (col.isPK) {
+            ctx.font = '700 8px "Space Mono", monospace';
+            ctx.fillStyle = PK_COLOR;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🔑', x + 6, rowY + ROW_H / 2);
+          } else if (col.isFK) {
+            ctx.font = '700 8px "Space Mono", monospace';
+            ctx.fillStyle = FK_COLOR;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🔗', x + 6, rowY + ROW_H / 2);
+          } else {
+            ctx.fillStyle = TEXT_SEC;
+            ctx.font = '400 8px "Space Mono", monospace';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('·', x + 8, rowY + ROW_H / 2);
+          }
+
+          // Column name
+          ctx.font = col.isPK ? '700 10px "Space Mono", monospace' : '500 10px "Space Mono", monospace';
+          ctx.fillStyle = col.isPK ? PK_COLOR : col.isFK ? FK_COLOR : TEXT_PRI;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          const nameStr = col.name.length > 18 ? col.name.slice(0, 16) + '…' : col.name;
+          ctx.fillText(nameStr, x + 20, rowY + ROW_H / 2);
+
+          // Type badge
+          const typeStr = col.type ? col.type.slice(0, 10) : '?';
+          ctx.font = '600 8px "Space Mono", monospace';
+          ctx.fillStyle = TEXT_SEC;
+          ctx.textAlign = 'right';
+          ctx.fillText(typeStr, x + w - 36, rowY + ROW_H / 2);
+
+          // Nullable indicator
+          ctx.font = '400 8px "Space Mono", monospace';
+          ctx.fillStyle = col.isNullable ? NULL_COLOR : '#10B981';
+          ctx.textAlign = 'right';
+          ctx.fillText(col.isNullable ? 'NULL' : 'REQ', x + w - 6, rowY + ROW_H / 2);
+        });
+
+        ctx.restore();
+      });
+
+      // Legend (bottom-right corner)
+      const legX = W - 240, legY = H - 90;
+      ctx.save();
+      ctx.fillStyle = isLight ? 'rgba(255,255,255,0.92)' : 'rgba(11,15,23,0.92)';
+      rdRound(ctx, legX, legY, 228, 78, 8);
+      ctx.fill();
+      ctx.strokeStyle = isLight ? '#CBD5E1' : '#334155';
+      ctx.lineWidth = 1;
+      rdRound(ctx, legX, legY, 228, 78, 8);
+      ctx.stroke();
+
+      ctx.font = '700 9px "Space Mono", monospace';
+      ctx.fillStyle = TEXT_SEC;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText('LEGEND', legX + 10, legY + 10);
+
+      const legItems = [
+        { icon: '🔑', label: 'Primary Key (PK)', color: PK_COLOR },
+        { icon: '🔗', label: 'Foreign Key (FK)', color: FK_COLOR },
+        { icon: '─ ─', label: '1:N Relationship', color: FK_COLOR },
+        { icon: '─ ─', label: '1:1 Relationship', color: '#A78BFA' },
+      ];
+      legItems.forEach((item, i) => {
+        const col = i % 2, row = Math.floor(i / 2);
+        const lx = legX + 10 + col * 110, ly = legY + 26 + row * 18;
+        ctx.font = '600 9px "Space Mono", monospace';
+        ctx.fillStyle = item.color;
+        ctx.fillText(item.icon + ' ' + item.label, lx, ly);
+      });
+      ctx.restore();
+
+    } catch (err) {
+      console.error('[X-RAY] ERD draw error:', err);
+    }
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
+
+
   const truncate = (text, maxWidth, ctx) => {
     if (ctx.measureText(text).width <= maxWidth) return text;
     let truncated = text;
@@ -2123,6 +2481,17 @@ function SystemDesignView({ DATA, isActive }) {
                 <polyline points="2 12 12 17 22 12"/>
               </svg>
             )
+          },
+          {
+            id: 'schema',
+            label: 'ERD Schema',
+            icon: (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+              </svg>
+            )
           }
         ].map(p => (
 
@@ -2159,8 +2528,11 @@ function SystemDesignView({ DATA, isActive }) {
           </button>
         ))}
 
-        {/* Separator */}
-        <div style={{ height: '24px', width: '1px', background: isLight ? '#CBD5E1' : 'var(--border)', margin: '0 4px' }}></div>
+        {/* Separator + HLD/LLD toggle (hidden in ERD schema mode) */}
+        {perspective !== 'schema' && (
+          <>
+            {/* Separator */}
+            <div style={{ height: '24px', width: '1px', background: isLight ? '#CBD5E1' : 'var(--border)', margin: '0 4px' }}></div>
 
         {/* HLD / LLD Design Level Selector — high contrast in both light and dark modes */}
         <div style={{
@@ -2205,6 +2577,8 @@ function SystemDesignView({ DATA, isActive }) {
             </button>
           ))}
         </div>
+          </>
+        )}
 
       </div>
 

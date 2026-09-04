@@ -1,3 +1,13 @@
+/* Webhook live banner animations */
+@keyframes spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateX(-50%) translateY(-16px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
 :root {
   /* Dark Glassmorphism Fleek Network Surfaces */
   /* Pure Pitch Black & Neutral Obsidian Glass Surfaces (NO NAVY BLUE) */

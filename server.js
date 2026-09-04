@@ -13,6 +13,7 @@ import paymentRouter from './routes/payment.routes.js';
 import supportRouter from './routes/support.routes.js';
 import { createGithubRouter } from './routes/github.routes.js';
 import { createAnalysisRouter } from './routes/analysis.routes.js';
+import { createWebhookRouter } from './routes/webhook.routes.js';
 import { createAnalysisController } from './controllers/analysis.controller.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -148,6 +149,52 @@ const analysisController = createAnalysisController({
   resetAnalysisCache
 });
 
+// Re-analyze a GitHub repo from URL (called by webhook on push events)
+async function reAnalyzeRepo(repoUrl, branch = 'main', onProgress = null) {
+  const { analyzeProject } = await import('./analyzer/index.js');
+  const fetch = (await import('node-fetch')).default;
+  const AdmZip = (await import('adm-zip')).default;
+
+  if (!repoUrl) throw new Error('No repo URL to re-analyze');
+
+  // Extract owner/repo from URL
+  const repoPath = repoUrl.replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\.git$/, '');
+  const zipUrl = `https://api.github.com/repos/${repoPath}/zipball/${branch}`;
+
+  const headers = { 'User-Agent': 'CodeBaseXRay/1.0', Accept: 'application/vnd.github+json' };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+
+  onProgress?.('download', 10, `Fetching latest code from ${repoPath}...`);
+  const response = await fetch(zipUrl, { headers, redirect: 'follow' });
+  if (!response.ok) throw new Error(`GitHub ZIP download failed: ${response.status} ${response.statusText}`);
+
+  const zipBuffer = Buffer.from(await response.arrayBuffer());
+  const uniqueName = `webhook-${Date.now()}`;
+  const extractPath = path.join(tempDir, uniqueName);
+
+  fs.mkdirSync(extractPath, { recursive: true });
+  const zip = new AdmZip(zipBuffer);
+  zip.extractAllTo(extractPath, true);
+
+  // Find actual project root (GitHub zips add a top-level folder)
+  let projectRoot = extractPath;
+  const topContents = fs.readdirSync(extractPath);
+  const subdirs = topContents.filter(item => fs.statSync(path.join(extractPath, item)).isDirectory());
+  if (subdirs.length === 1) projectRoot = path.join(extractPath, subdirs[0]);
+
+  onProgress?.('analyze', 20, 'Re-analyzing updated codebase...');
+  const result = await analyzeProject(projectRoot, onProgress);
+  result.repoUrl = repoUrl;
+
+  saveAnalysisCache(result);
+  onProgress?.('complete', 100, '✅ Live update complete! Diagrams refreshed.');
+
+  // Cleanup temp files
+  try { fs.rmSync(extractPath, { recursive: true, force: true }); } catch (e) {}
+
+  return result;
+}
+
 // Router Mounting
 app.use('/api/sse', sseRouter);
 
@@ -155,6 +202,9 @@ app.use('/api/auth', authRouter);
 app.use('/api/payment', paymentRouter);
 app.use('/api/billing', paymentRouter);
 app.use('/api/support', supportRouter);
+
+// Webhook router (must come BEFORE express.json to preserve raw body for HMAC validation)
+app.use('/api/webhook', createWebhookRouter(getLastScanResult, reAnalyzeRepo));
 
 app.use('/github', createGithubRouter(getLastScanResult));
 app.use('/api/github', createGithubRouter(getLastScanResult));

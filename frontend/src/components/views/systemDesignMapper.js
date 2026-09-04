@@ -4,7 +4,7 @@
 // Component IDs match buildConnections() in SystemDesignView.jsx exactly.
 
 export function buildSystemDesign(DATA, fileList = []) {
-  if (!DATA) return { perspectives: {}, zones: {}, metadata: {}, connections: [], externalSaaS: [], dbTables: [] };
+  if (!DATA) return { perspectives: {}, zones: {}, metadata: {}, connections: [], externalSaaS: [], dbTables: [], dbSchema: [] };
 
   const detected  = DATA?.stack?.detected || [];
   const layers    = DATA?.layers  || {};
@@ -679,9 +679,13 @@ export function buildSystemDesign(DATA, fileList = []) {
   if (hasDocker)       externalSaaS.push({ label: 'Docker',     sublabel: 'Containerization',          techKey: 'docker' });
   if (hasLangChain)    externalSaaS.push({ label: 'LangChain',  sublabel: 'RAG · Agents',              techKey: 'langchain' });
 
-  const dbTables = persistenceFiles.slice(0, 8).map(f =>
-    f.relativePath.split('/').pop().replace(/\.(ts|js|prisma|py)$/, '')
-  );
+  // Use rich dbSchema from analyzer if available, fallback to filename-based
+  const richSchema = DATA?.dbSchema || [];
+  const dbTables = richSchema.length > 0
+    ? richSchema.map(t => t.tableName)
+    : persistenceFiles.slice(0, 8).map(f =>
+        f.relativePath.split('/').pop().replace(/\.(ts|js|prisma|py)$/, '')
+      );
 
   // =================================================================
   // RETURN
@@ -690,12 +694,14 @@ export function buildSystemDesign(DATA, fileList = []) {
     perspectives: {
       system: { hld: sysHLD,    lld: sysLLD    },
       cloud:  { hld: cloudHLD,  lld: cloudLLD  },
-      devops: { hld: devopsHLD, lld: devopsLLD }
+      devops: { hld: devopsHLD, lld: devopsLLD },
+      schema: { hld: [],        lld: []        }  // ERD is rendered separately by SystemDesignView
     },
     zones: {},
     connections: [],   // SystemDesignView.jsx builds all connections itself via buildConnections()
     externalSaaS,
     dbTables,
+    dbSchema: DATA?.dbSchema || [],
     metadata: {
       totalFiles: allFiles.length,
       detectedStack: detected.map(d => d.name),

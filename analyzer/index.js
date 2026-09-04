@@ -6,6 +6,7 @@ import { detectLayers } from './layerDetector.js';
 import { buildGraph, detectLayerViolations, computeSystemHealth } from './graphBuilder.js';
 import { mapArchitecture } from './archMapper.js';
 import { generateSystemSpec } from './specGenerator.js';
+import { parseSchemas } from './schemaParser.js';
 
 export async function analyzeProject(projectRoot, onProgress = null) {
   console.log(`[X-RAY] Initiating analysis on project root: ${projectRoot}`);
@@ -52,6 +53,12 @@ export async function analyzeProject(projectRoot, onProgress = null) {
   // Phase 8: Compute system health metrics (Pillar 3)
   console.log('[X-RAY] Phase 8: Computing system health metrics...');
   const healthData = computeSystemHealth(graph.nodes, graph.edges, layeredFiles);
+
+  // Phase 9: Parse database schemas (Pillar 4)
+  console.log('[X-RAY] Phase 9: Parsing database schemas (Prisma/SQL/TypeORM/Mongoose/SQLAlchemy/Django)...');
+  onProgress?.('schema', 95, 'Extracting database schema & relationships...');
+  const dbSchema = parseSchemas(parsedFiles);
+  console.log(`[X-RAY] Found ${dbSchema.length} database table schemas.`);
 
   console.log('[X-RAY] Analysis complete. Building response payload...');
   onProgress?.('spec', 98, 'Generating living system specification...');
@@ -171,6 +178,9 @@ export async function analyzeProject(projectRoot, onProgress = null) {
   // Phase 10: Generate living system specification (Pillar 2)
   console.log('[X-RAY] Phase 10: Generating system specification...');
   result.systemSpec = generateSystemSpec(layeredFiles, stack, arch, graph, languageBreakdown);
+
+  // Add database schema to result
+  result.dbSchema = dbSchema;
 
   return result;
 }

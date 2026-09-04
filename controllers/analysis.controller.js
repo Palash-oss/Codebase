@@ -164,6 +164,8 @@ export function createAnalysisController({ tempDir, upload, getLastScanResult, s
           result.project.activeBranch = branch === 'HEAD' ? 'main' : branch;
           result.project.repoUrl = cleanUrl;
         }
+        // Save repoUrl at top-level so webhook router can find it for live monitoring
+        result.repoUrl = cleanUrl;
 
         saveAnalysisCache(result);
         recordIpScan(clientIp, userEmail);
