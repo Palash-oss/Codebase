@@ -13,6 +13,10 @@ function SystemDesignView({ DATA, isActive }) {
 
   // 4 Role Perspectives — default 'system' shows BOTH HLD + LLD simultaneously
   const [perspective, setPerspective] = useState('system');
+  const perspectiveRef = useRef(perspective);
+  useEffect(() => {
+    perspectiveRef.current = perspective;
+  }, [perspective]);
 
   // ERD Schema state — stores parsed dbSchema tables for the ERD view
   const erdDataRef = useRef(null);
@@ -328,6 +332,58 @@ function SystemDesignView({ DATA, isActive }) {
       erdDataRef.current = schemaData;
       // Minimal sysDataRef so canvas events don't crash
       sysDataRef.current = { components: [], zones: [], connections: [], externalSaaS: [], dbTables: [], dbSchema: schemaData };
+
+      const dprS = Math.min(window.devicePixelRatio || 1, 2);
+      const WS = Math.max(canvas.offsetWidth || (containerRef.current ? containerRef.current.offsetWidth : 0) || 1200, 100);
+      const HS = Math.max(canvas.offsetHeight || (containerRef.current ? containerRef.current.offsetHeight : 0) || 800, 100);
+      canvas.width  = Math.min(Math.max(WS * dprS, 300), 4096);
+      canvas.height = Math.min(Math.max(HS * dprS, 300), 4096);
+      canvas.style.width  = WS + 'px';
+      canvas.style.height = HS + 'px';
+      canvas.getContext('2d').setTransform(dprS, 0, 0, dprS, 0, 0);
+
+      // Pre-calculate ERD layout bounding box to auto-fit viewport
+      if (schemaData && schemaData.length > 0) {
+        const TABLE_W = 270;
+        const GAP_X = 140;
+        const GAP_Y = 80;
+        const HEADER_H = 44;
+        const ROW_H = 26;
+        const PADDING = 50;
+        const COLS_PER_ROW = Math.max(1, Math.floor((WS - PADDING * 2 + GAP_X) / (TABLE_W + GAP_X)));
+        let maxRight = 0, maxBottom = 0;
+
+        schemaData.forEach((table, idx) => {
+          const numRows = table.columns ? table.columns.length : 0;
+          const cardH = HEADER_H + numRows * ROW_H + 12;
+          const col = idx % COLS_PER_ROW;
+          const row = Math.floor(idx / COLS_PER_ROW);
+
+          const rowStartY = 80 + row * (HEADER_H + Math.max(...schemaData.slice(row * COLS_PER_ROW, (row + 1) * COLS_PER_ROW).map(t => (t.columns?.length || 0) * ROW_H + HEADER_H + 12)) + GAP_Y);
+          const x = PADDING + col * (TABLE_W + GAP_X);
+          const y = rowStartY;
+
+          table._layout = { x, y, w: TABLE_W, h: cardH };
+          if (x + TABLE_W > maxRight) maxRight = x + TABLE_W;
+          if (y + cardH > maxBottom) maxBottom = y + cardH;
+        });
+
+        const diagramW = maxRight + PADDING;
+        const diagramH = maxBottom + PADDING;
+        const fitScale = Math.max(0.25, Math.min((WS - 80) / (diagramW || 800), (HS - 120) / (diagramH || 600), 1.0));
+        const scaledW = diagramW * fitScale;
+        const scaledH = diagramH * fitScale;
+        const offsetX = Math.round((WS - scaledW) / 2);
+        const offsetY = Math.round(Math.max(60, (HS - scaledH) / 2));
+
+        transformRef.current = { x: offsetX, y: offsetY, scale: fitScale };
+        targetTransformRef.current = { x: offsetX, y: offsetY, scale: fitScale };
+        setZoomText(Math.round(fitScale * 100) + '%');
+      } else {
+        transformRef.current = { x: 0, y: 0, scale: 1 };
+        targetTransformRef.current = { x: 0, y: 0, scale: 1 };
+      }
+
       setIsInitialized(true);
       drawDiagram();
       return;
@@ -656,11 +712,11 @@ function SystemDesignView({ DATA, isActive }) {
       }
 
       // ── ERD Schema perspective: draw ER diagram then return ───────────────
-      if (perspective === 'schema') {
-        const schemaTablesData = erdDataRef.current || [];
-        ctx.restore(); // restore world transform for ERD (uses its own layout)
+      if (perspective === 'schema' || perspectiveRef.current === 'schema') {
+        const schemaTablesData = erdDataRef.current || DATA?.dbSchema || [];
         drawERDiagram(ctx, schemaTablesData, W, H, isLight);
-        ctx.restore(); // restore top-level
+        ctx.restore(); // restore top-level transform state after drawing ERD in world coords
+        drawERDLegend(ctx, W, H, isLight);
         return;
       }
       // ─────────────────────────────────────────────────────────────────────
@@ -1120,19 +1176,6 @@ function SystemDesignView({ DATA, isActive }) {
   // FK relationships = bezier curves between tables with cardinality labels.
   const drawERDiagram = (ctx, tables, W, H, isLight) => {
     try {
-      const rdRound = (ctx2, x, y, w, h, r) => {
-        ctx2.beginPath();
-        ctx2.moveTo(x + r, y);
-        ctx2.lineTo(x + w - r, y);
-        ctx2.quadraticCurveTo(x + w, y, x + w, y + r);
-        ctx2.lineTo(x + w, y + h - r);
-        ctx2.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-        ctx2.lineTo(x + r, y + h);
-        ctx2.quadraticCurveTo(x, y + h, x, y + h - r);
-        ctx2.lineTo(x, y + r);
-        ctx2.quadraticCurveTo(x, y, x + r, y);
-        ctx2.closePath();
-      };
 
       const BG = isLight ? '#F8FAFC' : '#000000';
       const CARD_BG = isLight ? '#FFFFFF' : '#0B0F17';
@@ -1146,25 +1189,17 @@ function SystemDesignView({ DATA, isActive }) {
       const COL_BG = isLight ? '#F1F5F9' : '#1E293B';
       const COL_BORDER = isLight ? '#CBD5E1' : '#334155';
 
-      const TABLE_W = 240;
+      const TABLE_W = 270;
+      const GAP_X = 140;
+      const GAP_Y = 80;
       const HEADER_H = 44;
       const ROW_H = 26;
       const PADDING = 50;
-      const COLS_PER_ROW = Math.max(1, Math.floor((W - PADDING * 2 + 20) / (TABLE_W + 20)));
 
-      // Full background
-      ctx.fillStyle = BG;
-      ctx.fillRect(0, 0, W, H);
+      const activeTables = tables || [];
+      const COLS_PER_ROW = Math.max(1, Math.floor((W - PADDING * 2 + GAP_X) / (TABLE_W + GAP_X)));
 
-      // Dot grid
-      ctx.fillStyle = isLight ? 'rgba(203, 213, 225, 0.45)' : 'rgba(255, 255, 255, 0.10)';
-      for (let gx = 0; gx < W; gx += 40) {
-        for (let gy = 0; gy < H; gy += 40) {
-          ctx.beginPath(); ctx.arc(gx, gy, 1.1, 0, Math.PI * 2); ctx.fill();
-        }
-      }
-
-      if (!tables || tables.length === 0) {
+      if (!activeTables || activeTables.length === 0) {
         // Empty state
         ctx.font = '600 18px "Space Grotesk", sans-serif';
         ctx.fillStyle = TEXT_SEC;
@@ -1183,88 +1218,123 @@ function SystemDesignView({ DATA, isActive }) {
       ctx.fillStyle = TEXT_PRI;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      const dbTypes = [...new Set(tables.map(t => t.dbType))].map(d => d.toUpperCase()).join(' · ');
-      ctx.fillText(`Database Entity-Relationship Diagram  ·  ${tables.length} table${tables.length !== 1 ? 's' : ''}  ·  ${dbTypes}`, PADDING + 12, 31);
+      const dbTypes = [...new Set(activeTables.map(t => t.dbType))].map(d => d.toUpperCase()).join(' · ');
+      ctx.fillText(`Database Entity-Relationship Diagram  ·  ${activeTables.length} table${activeTables.length !== 1 ? 's' : ''}  ·  ${dbTypes}`, PADDING + 12, 31);
 
-      // Calculate table positions
-      const tablePositions = new Map(); // tableName → {x, y, w, h}
+      // Calculate or preserve table positions
       const TOP_OFFSET = 70;
 
-      tables.forEach((table, idx) => {
+      activeTables.forEach((table, idx) => {
         const numRows = table.columns ? table.columns.length : 0;
-        const cardH = HEADER_H + numRows * ROW_H + 8;
-        const col = idx % COLS_PER_ROW;
-        const row = Math.floor(idx / COLS_PER_ROW);
+        const cardH = HEADER_H + numRows * ROW_H + 12;
 
-        // Calculate row heights for proper vertical stacking
-        const rowStartY = TOP_OFFSET + row * (HEADER_H + Math.max(...tables.slice(row * COLS_PER_ROW, (row + 1) * COLS_PER_ROW).map(t => (t.columns?.length || 0) * ROW_H + HEADER_H + 8)) + PADDING);
-        const x = PADDING + col * (TABLE_W + 20);
-        const y = rowStartY;
-        tablePositions.set(table.tableName.toLowerCase(), { x, y, w: TABLE_W, h: cardH });
-        table._layout = { x, y, w: TABLE_W, h: cardH };
+        if (!table._layout) {
+          const col = idx % COLS_PER_ROW;
+          const row = Math.floor(idx / COLS_PER_ROW);
+
+          // Calculate row heights for proper vertical stacking
+          const rowStartY = TOP_OFFSET + row * (HEADER_H + Math.max(...activeTables.slice(row * COLS_PER_ROW, (row + 1) * COLS_PER_ROW).map(t => (t.columns?.length || 0) * ROW_H + HEADER_H + 12)) + GAP_Y);
+          const x = PADDING + col * (TABLE_W + GAP_X);
+          const y = rowStartY;
+          table._layout = { x, y, w: TABLE_W, h: cardH };
+        } else {
+          table._layout.w = TABLE_W;
+          table._layout.h = cardH;
+        }
       });
 
       // Draw FK relationship lines FIRST (behind tables)
-      tables.forEach(table => {
+      activeTables.forEach(table => {
         if (!table.relations || table.relations.length === 0) return;
         table.relations.forEach(rel => {
           const fromLayout = table._layout;
           const toKey = rel.toTable ? rel.toTable.toLowerCase() : '';
-          const toTable = tables.find(t => t.tableName.toLowerCase() === toKey);
+          // Find referenced table in same file/type first, or by name
+          const toTable = activeTables.find(t => t.tableName.toLowerCase() === toKey && (t.file === table.file || t.dbType === table.dbType)) ||
+                          activeTables.find(t => t.tableName.toLowerCase() === toKey);
           const toLayout = toTable?._layout;
           if (!fromLayout || !toLayout) return;
 
           // Find the Y position of the FK column in the from-table
-          const fkColIdx = (table.columns || []).findIndex(c => c.isFK && c.referencesTable?.toLowerCase() === toKey);
+          const fkColIdx = (table.columns || []).findIndex(c => (c.isFK && c.referencesTable?.toLowerCase() === toKey) || c.name === rel.fromColumn);
           const fkRowY = fromLayout.y + HEADER_H + (fkColIdx >= 0 ? fkColIdx * ROW_H + ROW_H / 2 : fromLayout.h / 2);
 
           // Find the Y position of PK column in the to-table
-          const pkColIdx = (toTable?.columns || []).findIndex(c => c.isPK);
+          const pkColIdx = (toTable?.columns || []).findIndex(c => c.isPK || c.name === rel.toColumn);
           const pkRowY = toLayout.y + HEADER_H + (pkColIdx >= 0 ? pkColIdx * ROW_H + ROW_H / 2 : toLayout.h / 2);
 
-          // Determine which sides to connect (left or right edge)
-          const fromRight = fromLayout.x + fromLayout.w;
-          const toRight = toLayout.x + toLayout.w;
+          // Determine connect points (left/right edges)
           let x1, x2;
-          if (fromLayout.x > toLayout.x + toLayout.w) {
-            x1 = fromLayout.x; x2 = toRight;
-          } else if (toLayout.x > fromRight) {
-            x1 = fromRight; x2 = toLayout.x;
+          if (fromLayout.x + fromLayout.w < toLayout.x) {
+            x1 = fromLayout.x + fromLayout.w;
+            x2 = toLayout.x;
+          } else if (toLayout.x + toLayout.w < fromLayout.x) {
+            x1 = fromLayout.x;
+            x2 = toLayout.x + toLayout.w;
           } else {
-            x1 = fromRight; x2 = toLayout.x;
+            x1 = fromLayout.x + fromLayout.w;
+            x2 = toLayout.x + toLayout.w;
           }
 
           const midX = (x1 + x2) / 2;
-          const relColor = rel.type === '1:1' ? '#A78BFA' : rel.type === 'N:M' ? '#F59E0B' : FK_COLOR;
+          const relType = rel.type || '1:N';
+          const relColor = relType === '1:1' ? '#A78BFA' : relType === 'N:M' ? '#F59E0B' : '#3B82F6';
 
           ctx.save();
+          // High-visibility glowing line
           ctx.strokeStyle = relColor;
-          ctx.lineWidth = 1.5;
-          ctx.setLineDash([6, 4]);
+          ctx.lineWidth = 2.8;
+          ctx.setLineDash(relType === 'N:M' ? [5, 5] : [8, 5]);
+          ctx.shadowColor = relColor;
+          ctx.shadowBlur = 6;
+
           ctx.beginPath();
           ctx.moveTo(x1, fkRowY);
           ctx.bezierCurveTo(midX, fkRowY, midX, pkRowY, x2, pkRowY);
           ctx.stroke();
           ctx.setLineDash([]);
+          ctx.shadowBlur = 0;
 
-          // Cardinality label at midpoint
+          // ── Endpoint Cardinality Badges (N / 1 / M) ──
+          // FK side badge (Many / N / 1)
+          const fkBadgeText = relType === '1:1' ? '1' : 'N';
+          const fkBadgeX = x1 + (x1 <= x2 ? 18 : -18);
+          ctx.font = '800 11px "Space Mono", monospace';
+          ctx.fillStyle = relColor;
+          ctx.beginPath(); ctx.arc(fkBadgeX, fkRowY, 9, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = isLight ? '#FFFFFF' : '#0B0F17';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(fkBadgeX, fkRowY, 9, 0, Math.PI * 2); ctx.stroke();
+          ctx.fillStyle = '#FFFFFF';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(fkBadgeText, fkBadgeX, fkRowY);
+
+          // PK side badge (One / 1 / M)
+          const pkBadgeText = relType === 'N:M' ? 'M' : '1';
+          const pkBadgeX = x2 + (x2 <= x1 ? 18 : -18);
+          ctx.fillStyle = '#10B981';
+          ctx.beginPath(); ctx.arc(pkBadgeX, pkRowY, 9, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = isLight ? '#FFFFFF' : '#0B0F17';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(pkBadgeX, pkRowY, 9, 0, Math.PI * 2); ctx.stroke();
+          ctx.fillStyle = '#FFFFFF';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(pkBadgeText, pkBadgeX, pkRowY);
+
+          // ── Midpoint Pill Badge (1:N, 1:1, N:M) ──
           const labelMidX = midX;
           const labelMidY = (fkRowY + pkRowY) / 2;
-          ctx.font = '700 9px "Space Mono", monospace';
-          ctx.fillStyle = relColor;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          const relLabel = rel.type || '1:N';
-          const lw = ctx.measureText(relLabel).width + 8;
+          ctx.font = '800 11px "Space Mono", monospace';
+          const lw = ctx.measureText(relType).width + 16;
           ctx.fillStyle = isLight ? '#FFFFFF' : '#0B0F17';
-          ctx.fillRect(labelMidX - lw / 2, labelMidY - 9, lw, 18);
+          roundRect(ctx, labelMidX - lw / 2, labelMidY - 11, lw, 22, 6);
+          ctx.fill();
+          ctx.strokeStyle = relColor;
+          ctx.lineWidth = 1.6;
+          roundRect(ctx, labelMidX - lw / 2, labelMidY - 11, lw, 22, 6);
+          ctx.stroke();
           ctx.fillStyle = relColor;
-          ctx.fillText(relLabel, labelMidX, labelMidY);
-
-          // Endpoint dots
-          ctx.fillStyle = relColor;
-          ctx.beginPath(); ctx.arc(x1, fkRowY, 4, 0, Math.PI * 2); ctx.fill();
-          ctx.beginPath(); ctx.arc(x2, pkRowY, 4, 0, Math.PI * 2); ctx.fill();
+          ctx.fillText(relType, labelMidX, labelMidY);
 
           ctx.restore();
         });
@@ -1284,14 +1354,14 @@ function SystemDesignView({ DATA, isActive }) {
 
         // Card background
         ctx.fillStyle = CARD_BG;
-        rdRound(ctx, x, y, w, h, 10);
+        roundRect(ctx, x, y, w, h, 10);
         ctx.fill();
         ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 
         // Card border (neon green)
         ctx.strokeStyle = CARD_BORDER;
         ctx.lineWidth = 1.5;
-        rdRound(ctx, x, y, w, h, 10);
+        roundRect(ctx, x, y, w, h, 10);
         ctx.stroke();
 
         // Header background
@@ -1322,7 +1392,7 @@ function SystemDesignView({ DATA, isActive }) {
         ctx.font = '700 8px "Space Mono", monospace';
         const bw = ctx.measureText(badgeText).width + 10;
         ctx.fillStyle = badgeColor;
-        rdRound(ctx, x + w - bw - 8, y + 8, bw, 14, 4);
+        roundRect(ctx, x + w - bw - 8, y + 8, bw, 14, 4);
         ctx.fill();
         ctx.fillStyle = '#FFFFFF';
         ctx.textAlign = 'center';
@@ -1406,41 +1476,62 @@ function SystemDesignView({ DATA, isActive }) {
         ctx.restore();
       });
 
-      // Legend (bottom-right corner)
-      const legX = W - 240, legY = H - 90;
-      ctx.save();
-      ctx.fillStyle = isLight ? 'rgba(255,255,255,0.92)' : 'rgba(11,15,23,0.92)';
-      rdRound(ctx, legX, legY, 228, 78, 8);
-      ctx.fill();
-      ctx.strokeStyle = isLight ? '#CBD5E1' : '#334155';
-      ctx.lineWidth = 1;
-      rdRound(ctx, legX, legY, 228, 78, 8);
-      ctx.stroke();
-
-      ctx.font = '700 9px "Space Mono", monospace';
-      ctx.fillStyle = TEXT_SEC;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillText('LEGEND', legX + 10, legY + 10);
-
-      const legItems = [
-        { icon: '🔑', label: 'Primary Key (PK)', color: PK_COLOR },
-        { icon: '🔗', label: 'Foreign Key (FK)', color: FK_COLOR },
-        { icon: '─ ─', label: '1:N Relationship', color: FK_COLOR },
-        { icon: '─ ─', label: '1:1 Relationship', color: '#A78BFA' },
-      ];
-      legItems.forEach((item, i) => {
-        const col = i % 2, row = Math.floor(i / 2);
-        const lx = legX + 10 + col * 110, ly = legY + 26 + row * 18;
-        ctx.font = '600 9px "Space Mono", monospace';
-        ctx.fillStyle = item.color;
-        ctx.fillText(item.icon + ' ' + item.label, lx, ly);
-      });
-      ctx.restore();
-
     } catch (err) {
       console.error('[X-RAY] ERD draw error:', err);
     }
+  };
+
+  // ─── ERD SCHEMA LEGEND RENDERER ─────────────────────────────────────────────
+  // Renders a fixed glassmorphic legend in screen coordinates at bottom-right
+  const drawERDLegend = (ctx, W, H, isLight) => {
+    const lw = 330;
+    const lh = 96;
+    const lx = W - lw - 20;
+    const ly = H - lh - 20;
+
+    ctx.save();
+    // Glassmorphic legend panel background
+    ctx.fillStyle = isLight ? 'rgba(255, 255, 255, 0.94)' : 'rgba(11, 15, 23, 0.92)';
+    ctx.shadowColor = isLight ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.70)';
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 4;
+    roundRect(ctx, lx, ly, lw, lh, 10);
+    ctx.fill();
+
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    ctx.strokeStyle = isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1.2;
+    roundRect(ctx, lx, ly, lw, lh, 10);
+    ctx.stroke();
+
+    // Title
+    ctx.font = '800 10px "Space Mono", monospace';
+    ctx.fillStyle = isLight ? '#0F172A' : '#94A3B8';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('DATABASE SCHEMA LEGEND', lx + 14, ly + 12);
+
+    const items = [
+      { icon: '🔑', label: 'Primary Key (PK)', color: '#F59E0B' },
+      { icon: '🔗', label: 'Foreign Key (FK)', color: '#3B82F6' },
+      { icon: '╍╍', label: '1:N Relationship', color: '#3B82F6' },
+      { icon: '╍╍', label: '1:1 Relationship', color: '#A78BFA' },
+      { icon: '╍╍', label: 'N:M Relationship', color: '#F59E0B' },
+      { icon: '·', label: 'REQ Required / NULL Optional', color: isLight ? '#475569' : '#CBD5E1' }
+    ];
+
+    ctx.font = '700 9px "Space Mono", monospace';
+    items.forEach((item, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const ix = lx + 14 + col * 155;
+      const iy = ly + 30 + row * 20;
+
+      ctx.fillStyle = item.color;
+      ctx.fillText(`${item.icon} ${item.label}`, ix, iy);
+    });
+
+    ctx.restore();
   };
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1906,9 +1997,20 @@ function SystemDesignView({ DATA, isActive }) {
     targetTransformRef.current = { ...transformRef.current };
 
     const pos = canvasToWorld(e.clientX, e.clientY);
-    const clickedComp = sysDataRef.current?.components?.find(c =>
-      pos.x >= c.x && pos.x <= c.x + c.w && pos.y >= c.y && pos.y <= c.y + c.h
-    );
+
+    let clickedComp = null;
+    if (perspective === 'schema') {
+      const erdTables = erdDataRef.current || [];
+      const found = erdTables.find(t =>
+        t._layout && pos.x >= t._layout.x && pos.x <= t._layout.x + t._layout.w &&
+        pos.y >= t._layout.y && pos.y <= t._layout.y + t._layout.h
+      );
+      if (found) clickedComp = found._layout;
+    } else {
+      clickedComp = sysDataRef.current?.components?.find(c =>
+        pos.x >= c.x && pos.x <= c.x + c.w && pos.y >= c.y && pos.y <= c.y + c.h
+      );
+    }
 
     if (clickedComp) {
       dragState.current = {

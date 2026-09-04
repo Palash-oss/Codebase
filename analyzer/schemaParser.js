@@ -60,7 +60,7 @@ export function parseSchemas(files) {
     }
   }
 
-  // Post-process: resolve FK relationships between tables
+  // Post-process: resolve FK relationships between all detected tables
   resolveRelationships(allTables);
 
   return allTables;
@@ -591,8 +591,8 @@ function parseSQLAlchemy(content, filePath) {
 
     const columns = [];
 
-    // Column definitions: field_name = Column(Type, primary_key=True, ...)
-    const colRegex = /(\w+)\s*=\s*(?:db\.)?Column\s*\(([^)]+)\)/g;
+    // Column definitions: field_name = Column(Type, ...) OR field_name: Mapped[...] = mapped_column(Type, ...)
+    const colRegex = /(\w+)\s*(?::\s*Mapped\[[^\]]+\])?\s*=\s*(?:db\.)?(?:Column|mapped_column)\s*\(([^)]*)\)/g;
     let colMatch;
 
     while ((colMatch = colRegex.exec(classBody)) !== null) {

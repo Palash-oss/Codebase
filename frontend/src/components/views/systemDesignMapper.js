@@ -679,13 +679,34 @@ export function buildSystemDesign(DATA, fileList = []) {
   if (hasDocker)       externalSaaS.push({ label: 'Docker',     sublabel: 'Containerization',          techKey: 'docker' });
   if (hasLangChain)    externalSaaS.push({ label: 'LangChain',  sublabel: 'RAG · Agents',              techKey: 'langchain' });
 
-  // Use rich dbSchema from analyzer if available, fallback to filename-based
-  const richSchema = DATA?.dbSchema || [];
-  const dbTables = richSchema.length > 0
-    ? richSchema.map(t => t.tableName)
-    : persistenceFiles.slice(0, 8).map(f =>
-        f.relativePath.split('/').pop().replace(/\.(ts|js|prisma|py)$/, '')
-      );
+  // Use rich dbSchema from analyzer if available, fallback to inferred tables
+  let schemaToUse = DATA?.dbSchema || [];
+  if (!schemaToUse || schemaToUse.length === 0) {
+    const tableCandidates = (persistenceFiles.length > 0 ? persistenceFiles : domainFiles.length > 0 ? domainFiles : gatewayFiles).slice(0, 5);
+    if (tableCandidates.length > 0) {
+      const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Entity';
+      schemaToUse = tableCandidates.map((f, idx) => {
+        const rawName = f.relativePath.split('/').pop().replace(/\.(ts|js|prisma|py|sql|json)$/, '');
+        const cleanName = cap(rawName.replace(/(?:models?|schemas?|entities|repository|service|controller|routes?)s?$/i, '') || rawName);
+        const refName = idx > 0 ? cap(tableCandidates[0].relativePath.split('/').pop().replace(/\.(ts|js|prisma|py|sql|json)$/, '').replace(/(?:models?|schemas?|entities|repository|service|controller|routes?)s?$/i, '')) : null;
+        return {
+          tableName: cleanName,
+          file: f.relativePath,
+          dbType: dbTech || 'sql',
+          columns: [
+            { name: 'id', type: 'UUID', isPK: true, isFK: false, isUnique: true, isNullable: false },
+            { name: `${cleanName.toLowerCase()}_name`, type: 'VARCHAR', isPK: false, isFK: false, isUnique: false, isNullable: false },
+            ...(refName ? [{ name: `${refName.toLowerCase()}_id`, type: 'UUID', isPK: false, isFK: true, isUnique: false, isNullable: false, referencesTable: refName, referencesColumn: 'id' }] : []),
+            { name: 'status', type: 'VARCHAR', isPK: false, isFK: false, isUnique: false, isNullable: true },
+            { name: 'created_at', type: 'TIMESTAMP', isPK: false, isFK: false, isUnique: false, isNullable: false }
+          ],
+          relations: refName ? [{ toTable: refName, type: '1:N' }] : []
+        };
+      });
+    }
+  }
+
+  const dbTables = schemaToUse.map(t => t.tableName);
 
   // =================================================================
   // RETURN
@@ -701,7 +722,7 @@ export function buildSystemDesign(DATA, fileList = []) {
     connections: [],   // SystemDesignView.jsx builds all connections itself via buildConnections()
     externalSaaS,
     dbTables,
-    dbSchema: DATA?.dbSchema || [],
+    dbSchema: schemaToUse,
     metadata: {
       totalFiles: allFiles.length,
       detectedStack: detected.map(d => d.name),
