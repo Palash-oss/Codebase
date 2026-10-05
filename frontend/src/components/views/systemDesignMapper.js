@@ -258,8 +258,8 @@ export function buildSystemDesign(DATA, fileList = []) {
 
   if (hasDB || persistenceFiles.length > 0 || allSchemas.length > 0) {
     const tableSummary = allSchemas.length > 0
-      ? allSchemas.slice(0, 4).map(s => s.model).join(' · ')
-      : persistenceFiles.slice(0, 4).map(f => (f.name || '').replace(/\.(py|ts|js|prisma)$/, '')).filter(n => n !== '__init__' && n !== 'base').join(' · ');
+      ? allSchemas.slice(0, 4).map(s => s.model).join(' · ') + (allSchemas.length > 4 ? ` +${allSchemas.length - 4} more` : '')
+      : persistenceFiles.slice(0, 4).map(f => (f.name || '').replace(/\.(py|ts|js|prisma)$/, '')).filter(n => n !== '__init__' && n !== 'base').join(' · ') + (persistenceFiles.length > 4 ? ` +${persistenceFiles.length - 4} more` : '');
     sysHLD.push({
       id: 'database', number: num(),
       label: (dbName || 'PostgreSQL') + ' Database',

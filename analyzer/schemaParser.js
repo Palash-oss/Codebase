@@ -70,10 +70,42 @@ export function parseSchemas(files) {
     }
   }
 
-  // Post-process: resolve FK relationships between all detected tables
-  resolveRelationships(allTables);
+  // Deduplicate and merge table definitions (e.g. User vs users)
+  const mergedTables = [];
+  const normMap = new Map();
 
-  return allTables;
+  for (const t of allTables) {
+    const norm = normalizeName(t.tableName);
+    if (normMap.has(norm)) {
+      mergeTables(normMap.get(norm), t);
+    } else {
+      normMap.set(norm, t);
+      mergedTables.push(t);
+    }
+  }
+
+  // Post-process: resolve FK relationships between all detected tables
+  resolveRelationships(mergedTables);
+
+  return mergedTables;
+}
+
+function mergeTables(existing, newTable) {
+  const colMap = new Map(existing.columns.map(c => [c.name.toLowerCase(), c]));
+  for (const col of newTable.columns) {
+    if (!colMap.has(col.name.toLowerCase())) {
+      existing.columns.push(col);
+      colMap.set(col.name.toLowerCase(), col);
+    } else {
+      const existingCol = colMap.get(col.name.toLowerCase());
+      if (col.isPK) existingCol.isPK = true;
+      if (col.isFK) {
+        existingCol.isFK = true;
+        if (col.referencesTable) existingCol.referencesTable = col.referencesTable;
+        if (col.referencesColumn) existingCol.referencesColumn = col.referencesColumn;
+      }
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -806,6 +838,16 @@ function resolveRelationships(tables) {
 
   for (const table of tables) {
     for (const col of table.columns) {
+      // Heuristic FK detection for implied foreign key columns (e.g. division_id, course_id, faculty_id)
+      if (!col.isFK && !col.isPK && (col.name.endsWith('_id') || col.name.endsWith('Id'))) {
+        const inferred = col.name.replace(/_id$/i, '').replace(/Id$/, '');
+        if (inferred && normalizeName(inferred) !== normalizeName(table.tableName)) {
+          col.isFK = true;
+          col.referencesTable = inferred;
+          col.referencesColumn = 'id';
+        }
+      }
+
       if (!col.isFK || !col.referencesTable) continue;
 
       const refNorm = normalizeName(col.referencesTable);
@@ -821,7 +863,7 @@ function resolveRelationships(tables) {
       const exists = table.relations.some(
         r => r.fromColumn === col.name && r.toTable === col.referencesTable
       );
-      if (!exists) {
+      if (!exists && col.referencesTable !== table.tableName) {
         table.relations.push({
           type: cardinality,
           fromTable: table.tableName,
