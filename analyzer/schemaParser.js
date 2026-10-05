@@ -32,7 +32,15 @@ export function parseSchemas(files) {
 
     const ext = (file.extension || '').toLowerCase();
     const name = (file.name || '').toLowerCase();
+    const relPath = (file.relativePath || '').toLowerCase().replace(/\\/g, '/');
     const content = file.content;
+
+    // Ignore python/JS system & test files
+    if (name === '__init__.py' || name === 'conftest.py' || name === 'setup.py' ||
+        name.startsWith('test_') || name.endsWith('_test.py') ||
+        relPath.includes('/tests/') || relPath.includes('/test/')) {
+      continue;
+    }
 
     let tables = [];
 
@@ -51,6 +59,8 @@ export function parseSchemas(files) {
       tables = parseSQLAlchemy(content, file.relativePath);
     } else if (ext === '.py' && hasDjangoSignature(content)) {
       tables = parseDjango(content, file.relativePath);
+    } else if (hasEmbeddedSQLSignature(content)) {
+      tables = parseSQL(content, file.relativePath);
     }
 
     for (const t of tables) {
@@ -90,6 +100,10 @@ function hasSQLAlchemySignature(content) {
 
 function hasDjangoSignature(content) {
   return /models\.(Model|CharField|IntegerField|ForeignKey|AutoField|TextField|BooleanField|DateTimeField)/.test(content);
+}
+
+function hasEmbeddedSQLSignature(content) {
+  return /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["'`]?\w+["'`]?\s*\(/i.test(content);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -580,7 +594,10 @@ function parseSQLAlchemy(content, filePath) {
   while ((classMatch = classRegex.exec(content)) !== null) {
     const className = classMatch[1];
     const baseClass = classMatch[2];
-    if (!/Base|db\.Model|DeclarativeBase|AbstractConcreteBase|Model/.test(baseClass)) continue;
+
+    // Exclude Pydantic DTOs (BaseModel, RootModel) and non-DB classes unless they define __tablename__
+    if (/BaseModel|RootModel|GenericModel|Pydantic\b/.test(baseClass) && !/__tablename__/.test(content)) continue;
+    if (!/Base|db\.Model|DeclarativeBase|AbstractConcreteBase|SQLModel|Model/.test(baseClass)) continue;
 
     // Extract the class body (next lines until next class or end)
     const classStart = classMatch.index + classMatch[0].length;
@@ -588,6 +605,18 @@ function parseSQLAlchemy(content, filePath) {
     const classBody = nextClassMatch
       ? content.slice(classStart, classStart + nextClassMatch.index)
       : content.slice(classStart);
+
+    // Skip Pydantic DTOs or helper schemas that do not declare columns or tables
+    if (!classBody.includes('Column') && !classBody.includes('mapped_column') && !classBody.includes('__tablename__')) {
+      continue;
+    }
+
+    // Determine custom table name if __tablename__ exists
+    let tableName = className;
+    const tableNameMatch = classBody.match(/__tablename__\s*=\s*['"](\w+)['"]/);
+    if (tableNameMatch) {
+      tableName = tableNameMatch[1];
+    }
 
     const columns = [];
 
@@ -634,7 +663,7 @@ function parseSQLAlchemy(content, filePath) {
 
     if (columns.length > 0) {
       tables.push({
-        tableName: className,
+        tableName,
         file: filePath,
         dbType: 'sqlalchemy',
         columns,
@@ -745,45 +774,68 @@ function mapDjangoType(t) {
 // POST-PROCESSING: Relationship inference & resolution
 // ─────────────────────────────────────────────────────────────────────────────
 
+function normalizeName(s) {
+  if (!s) return '';
+  return s.replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '');
+}
+
 function resolveRelationships(tables) {
-  const tableMap = new Map(tables.map(t => [t.tableName.toLowerCase(), t]));
+  const tableMap = new Map();
+
+  for (const t of tables) {
+    const norm = normalizeName(t.tableName);
+    if (!tableMap.has(norm)) tableMap.set(norm, t);
+
+    // Add singular/plural normalized variants
+    if (norm.endsWith('s')) {
+      const singular = norm.slice(0, -1);
+      if (!tableMap.has(singular)) tableMap.set(singular, t);
+      if (norm.endsWith('es')) {
+        const singularEs = norm.slice(0, -2);
+        if (!tableMap.has(singularEs)) tableMap.set(singularEs, t);
+      }
+    } else {
+      const plural = norm + 's';
+      if (!tableMap.has(plural)) tableMap.set(plural, t);
+      const pluralEs = norm + 'es';
+      if (!tableMap.has(pluralEs)) tableMap.set(pluralEs, t);
+    }
+  }
 
   for (const table of tables) {
     for (const col of table.columns) {
       if (!col.isFK || !col.referencesTable) continue;
 
-      // Try to find the referenced table (case-insensitive)
-      const refTableKey = col.referencesTable.toLowerCase();
-      const refTable = tableMap.get(refTableKey);
+      const refNorm = normalizeName(col.referencesTable);
+      const refTable = tableMap.get(refNorm);
 
-      if (!refTable) {
-        // Try singular/plural
-        const singular = refTableKey.replace(/s$/, '');
-        const plural = refTableKey + 's';
-        const found = tableMap.get(singular) || tableMap.get(plural);
-        if (found) {
-          col.referencesTable = found.tableName; // normalize to found table name
-        }
+      if (refTable) {
+        col.referencesTable = refTable.tableName; // Normalize referenced table name to target exact table
       }
 
       // Determine cardinality (heuristic: FK column being unique → 1:1, otherwise 1:N)
       const cardinality = col.isUnique ? '1:1' : '1:N';
 
-      // Add relation to current table
-      table.relations.push({
-        type: cardinality,
-        fromTable: table.tableName,
-        fromColumn: col.name,
-        toTable: col.referencesTable,
-        toColumn: col.referencesColumn || 'id'
-      });
+      const exists = table.relations.some(
+        r => r.fromColumn === col.name && r.toTable === col.referencesTable
+      );
+      if (!exists) {
+        table.relations.push({
+          type: cardinality,
+          fromTable: table.tableName,
+          fromColumn: col.name,
+          toTable: col.referencesTable,
+          toColumn: col.referencesColumn || 'id'
+        });
+      }
     }
 
     // Detect M:N via junction table heuristic (table has exactly 2 FK columns and nothing else meaningful)
     const fkCols = table.columns.filter(c => c.isFK);
     const nonFkNonPk = table.columns.filter(c => !c.isFK && !c.isPK);
     if (fkCols.length === 2 && nonFkNonPk.length <= 2) {
-      // This looks like a join table — update its relations to N:M
       table.relations.forEach(r => { r.type = 'N:M'; });
     }
   }

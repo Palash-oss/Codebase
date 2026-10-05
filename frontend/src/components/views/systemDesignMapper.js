@@ -132,9 +132,9 @@ export function buildSystemDesign(DATA, fileList = []) {
   const authName = has('nextauth') ? 'NextAuth.js' : has('auth0') ? 'Auth0' : has('clerk') ? 'Clerk' : has('supabase') ? 'Supabase Auth' : has('firebase') ? 'Firebase Auth' : (has('bcrypt') || has('jwt')) ? 'JWT / bcrypt Auth' : null;
   const dbTech = (has('postgresql') || has('psycopg2') || has('sqlalchemy')) ? 'postgresql' : has('mysql') ? 'mysql' : (has('mongodb') || has('mongoose') || has('pymongo')) ? 'mongodb' : has('sqlite') ? 'sqlite' : has('neon') ? 'postgresql' : has('supabase') ? 'supabase' : has('firebase') ? 'firebase' : has('prisma') ? 'prisma' : null;
   const dbName = has('neon') ? 'Neon Postgres' : (has('postgresql') || has('psycopg2') || has('sqlalchemy')) ? 'PostgreSQL' : has('mysql') ? 'MySQL' : (has('mongodb') || has('mongoose') || has('pymongo')) ? 'MongoDB' : has('sqlite') ? 'SQLite' : has('supabase') ? 'Supabase DB' : has('firebase') ? 'Firestore' : has('prisma') ? 'PostgreSQL' : null;
-  // Vector DB — check all options including FAISS
-  const vectorTech = has('pinecone') ? 'pinecone' : has('chromadb') ? 'chromadb' : has('weaviate') ? 'weaviate' : has('qdrant') ? 'qdrant' : has('faiss') ? 'faiss' : null;
-  const vectorName = has('pinecone') ? 'Pinecone' : has('chromadb') ? 'ChromaDB' : has('weaviate') ? 'Weaviate' : has('qdrant') ? 'Qdrant' : has('faiss') ? 'FAISS' : null;
+  // Vector DB — check all options including FAISS and pgvector
+  const vectorTech = has('pinecone') ? 'pinecone' : has('chromadb') ? 'chromadb' : has('weaviate') ? 'weaviate' : has('qdrant') ? 'qdrant' : has('faiss') ? 'faiss' : (has('pgvector') ? 'pgvector' : null);
+  const vectorName = has('pinecone') ? 'Pinecone' : has('chromadb') ? 'ChromaDB' : has('weaviate') ? 'Weaviate' : has('qdrant') ? 'Qdrant' : has('faiss') ? 'FAISS' : (has('pgvector') ? 'pgvector' : 'Vector Index');
 
   const hasFrontend  = presentationFiles.length > 0 || hasAny('nextjs', 'react', 'vuejs', 'angular', 'svelte');
   const hasBackend   = gatewayFiles.length > 0 || hasAny('express', 'nestjs', 'fastapi', 'flask', 'django', 'fastify', 'hono');
@@ -631,28 +631,55 @@ export function buildSystemDesign(DATA, fileList = []) {
   const devopsHLD = [];
   const testFileList = layers.Test || [];
 
+  // Count actual migration files
+  const migrationFiles = allFiles.filter(f => {
+    const p = f.relativePath.toLowerCase().replace(/\\/g, '/');
+    return (p.includes('/alembic/versions/') || p.includes('/prisma/migrations/') || p.includes('/migrations/')) &&
+           !f.name.startsWith('.') && f.name !== '__init__.py';
+  });
+  const migrationCount = migrationFiles.length;
+
+  // Count actual CI/CD workflow files
+  const workflowFiles = allFiles.filter(f => {
+    const p = f.relativePath.toLowerCase().replace(/\\/g, '/');
+    return p.includes('.github/workflows/') && (f.extension === '.yml' || f.extension === '.yaml');
+  });
+
   if (has('github') || has('gha') || has('octokit')) devopsHLD.push({ id: 'git', number: num(), label: 'GitHub Source Repository', sublabel: 'Version control · Pull requests · Code review · Branch strategy',
     zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: 'github', isDetected: true, files: [] });
-  if (has('gha')) devopsHLD.push({ id: 'cicd', number: num(), label: 'GitHub Actions CI/CD', sublabel: 'Automated build · Test pipeline · Deployment workflow',
-    zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: 'gha', isDetected: true, files: filesFor(3, '.github/workflows') });
-  else devopsHLD.push({ id: 'cicd', number: num(), label: 'CI/CD Build Pipeline', sublabel: 'Automated build · Test runner · Deployment trigger',
+
+  if (workflowFiles.length > 0 || has('gha')) devopsHLD.push({ id: 'cicd', number: num(), label: 'GitHub Actions CI/CD', sublabel: workflowFiles.length > 0 ? `Automated build · ${workflowFiles.length} workflow script${workflowFiles.length === 1 ? '' : 's'}` : 'Automated build & test workflow',
+    zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: 'gha', isDetected: workflowFiles.length > 0, files: workflowFiles.slice(0, 3).map(f => f.relativePath) });
+  else devopsHLD.push({ id: 'cicd', number: num(), label: 'CI/CD Build Pipeline', sublabel: 'Direct Push / Manual Deploy (No workflow scripts detected)',
     zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: 'node', isDetected: false, files: [] });
-  if (testFileList.length > 0 || hasAny('jest', 'vitest', 'pytest', 'mocha')) devopsHLD.push({ id: 'tests', number: num(),
-    label: (has('pytest') ? 'Pytest' : has('jest') ? 'Jest' : has('vitest') ? 'Vitest' : 'Automated') + ' Test Suite',
-    sublabel: (testFileList.length > 0 ? testFileList.length + ' test files · ' : '') + 'Unit · Integration · E2E tests',
-    zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: has('pytest') ? 'python' : 'jest', isDetected: true, files: testFileList.slice(0, 3) });
+
+  if (testFileList.length > 0 || hasAny('jest', 'vitest', 'pytest', 'mocha')) {
+    const hasE2E = testFileList.some(f => {
+      const p = (typeof f === 'string' ? f : f.relativePath || '').toLowerCase();
+      return p.includes('e2e') || p.includes('cypress') || p.includes('playwright');
+    });
+    devopsHLD.push({ id: 'tests', number: num(),
+      label: (has('pytest') ? 'Pytest' : has('jest') ? 'Jest' : has('vitest') ? 'Vitest' : 'Automated') + ' Test Suite',
+      sublabel: (testFileList.length > 0 ? `${testFileList.length} test file${testFileList.length === 1 ? '' : 's'} · ` : '') + (hasE2E ? 'Unit & E2E tests' : 'Unit & Integration tests'),
+      zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: has('pytest') ? 'python' : 'jest', isDetected: testFileList.length > 0, files: testFileList.slice(0, 3).map(f => typeof f === 'string' ? f : f.relativePath) });
+  }
+
   if (hasDB) devopsHLD.push({ id: 'db-deploy', number: num(), label: (dbName || 'Database') + ' Schema Migration',
-    sublabel: 'Schema versioning · ' + (has('prisma') ? 'Prisma migrate deploy' : has('alembic') ? 'Alembic upgrade head' : 'DB migration scripts'),
-    zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: dbTech || 'postgresql', isDetected: true, files: filesFor(3, 'migration', 'alembic', 'migrate') });
+    sublabel: migrationCount > 0 ? `Schema versioning · ${migrationCount} migration script${migrationCount === 1 ? '' : 's'}` : 'Direct DDL / ORM Seed (0 migration scripts)',
+    zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: dbTech || 'postgresql', isDetected: migrationCount > 0 || has('prisma') || has('alembic'), files: migrationFiles.slice(0, 3).map(f => f.relativePath) });
+
   if (hasDocker) devopsHLD.push({ id: 'docker', number: num(), label: 'Docker Container Build', sublabel: 'Docker image build · docker-compose · Container registry push',
     zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: 'docker', isDetected: true, files: filesFor(3, 'dockerfile', 'docker-compose') });
+
   devopsHLD.push({ id: 'deploy', number: num(),
     label: hasVercel ? 'Vercel Production Deploy' : hasDocker ? 'Container Production Deploy' : 'Production Environment Deploy',
     sublabel: hasVercel ? 'Edge functions · Serverless · Global CDN rollout' : hasDocker ? 'Docker container runtime · Orchestration' : 'Zero-downtime production release',
     zone: 'devops', zoneLabel: 'CI/CD Pipeline', zoneColor: '#3B82F6', techKey: hasVercel ? 'vercel' : hasDocker ? 'docker' : 'node', isDetected: true, files: [] });
+
   devopsHLD.push({ id: 'secrets', number: num(), label: 'Environment Secrets & Config',
     sublabel: envVarList.length > 0 ? envVarList.length + ' environment variables · Runtime secrets vault' : 'Secrets management · Runtime config injection',
     zone: 'ops', zoneLabel: 'Runtime & Operations', zoneColor: '#6B7280', techKey: 'node', isDetected: true, files: filesFor(3, '.env', 'secrets') });
+
   if (devopsHLD.length <= 2) devopsHLD.unshift({ id: 'dev-env', number: num(), label: 'Local Development Environment',
     sublabel: 'Developer workstation · ' + (has('python') ? 'Python venv · pip install' : 'Node.js · npm install') + ' · Hot reload',
     zone: 'devops', zoneLabel: 'Development', zoneColor: '#3B82F6', techKey: has('python') ? 'python' : 'node', isDetected: false, files: [] });
